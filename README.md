@@ -1,12 +1,12 @@
-# Claude-code4LLMdev
+# fastslow-claude-code
 
-Claude Code と Codex CLI の設定を既存プロジェクトに導入するスターターキット。
+Claude Code (Fast/System 1) と Codex CLI (Slow/System 2) の設定を既存プロジェクトに導入するスターターキット。
 
 ## 導入方法
 
 ```bash
 # 1. 既存プロジェクトのルートで実行
-git clone --depth 1 https://github.com/DeL-TaiseiOzaki/Claude-code4LLMdev.git .starter
+git clone --depth 1 https://github.com/DeL-TaiseiOzaki/fastslow-claude-code.git .starter
 
 # 2. 必要なファイルをコピー
 cp -r .starter/.agent .starter/.claude .starter/.codex .starter/AGENTS.md .
@@ -22,7 +22,7 @@ claude  # Claude Code を起動
 
 **ワンライナー:**
 ```bash
-git clone --depth 1 https://github.com/DeL-TaiseiOzaki/Claude-code4LLMdev.git .starter && cp -r .starter/.agent .starter/.claude .starter/.codex .starter/AGENTS.md . && cp -P .starter/CLAUDE.md . && rm -rf .starter
+git clone --depth 1 https://github.com/DeL-TaiseiOzaki/fastslow-claude-code.git .starter && cp -r .starter/.agent .starter/.claude .starter/.codex .starter/AGENTS.md . && cp -P .starter/CLAUDE.md . && rm -rf .starter
 ```
 
 ## Codex CLI プロンプトの設定（任意）
