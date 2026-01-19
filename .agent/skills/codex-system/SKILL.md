@@ -10,37 +10,37 @@ metadata:
   short-description: Claude Code ↔ Codex CLI System 2 collaboration
 ---
 
-# Codex System — Claude Code の System 2
+# Codex System — System 2 for Claude Code
 
-Claude Code（System 1: 即応・実行）と Codex CLI（System 2: 深い思考・分析）の協調システム．
+Coordination system between Claude Code (System 1: Quick Response & Execution) and Codex CLI (System 2: Deep Thinking & Analysis).
 
-## 委譲条件（自動トリガー）
+## Delegation Conditions (Auto-Trigger)
 
-以下の条件のいずれかを満たす場合，Codex に委譲する：
+Delegate to Codex when any of these conditions are met:
 
-### 1. 明示的リクエスト
-- `think deeper`, `analyze this`, `second opinion` などのキーワード
-- `consult codex`, `ask codex`, `codex で考えて` など直接指示
+### 1. Explicit Request
+- Keywords like `think deeper`, `analyze this`, `second opinion`
+- Direct instructions like `consult codex`, `ask codex`
 
-### 2. 複雑度ベース
-- アーキテクチャ決定が必要（新規コンポーネント設計，依存関係変更）
-- 10+ ファイルに影響する変更
-- 複雑なアルゴリズム設計・最適化（O(n²) 以上）
-- 深くネストした条件分岐（3+ レベル）
+### 2. Complexity-Based
+- Architecture decision required (new component design, dependency changes)
+- Changes affecting 10+ files
+- Complex algorithm design/optimization (O(n²) or higher)
+- Deeply nested conditionals (3+ levels)
 
-### 3. 失敗ベース
-- 同じ問題を 2 回以上試行しても解決しない
-- テストが繰り返し失敗
-- エラーの根本原因が不明
+### 3. Failure-Based
+- Same problem attempted 2+ times without resolution
+- Tests failing repeatedly
+- Root cause of error is unclear
 
-### 4. 品質・セキュリティ
-- セキュリティに関わる変更（認証，認可，暗号化）
-- パフォーマンスクリティカルな処理
-- 本番環境に影響するリファクタリング
+### 4. Quality/Security
+- Security-related changes (authentication, authorization, encryption)
+- Performance-critical processing
+- Production-impacting refactoring
 
-## 実行方法
+## Execution Method
 
-### 基本形式
+### Basic Format
 
 ```bash
 codex exec \
@@ -50,7 +50,7 @@ codex exec \
   "{prompt}" 2>/dev/null
 ```
 
-### reasoning effort を指定
+### Specifying Reasoning Effort
 
 ```bash
 codex exec \
@@ -61,39 +61,39 @@ codex exec \
   "{prompt}" 2>/dev/null
 ```
 
-### セッション継続
+### Session Continuation
 
 ```bash
-# 最後のセッションを継続
+# Continue last session
 codex exec resume --last "{follow_up_prompt}" 2>/dev/null
 
-# 特定のセッションを継続
+# Continue specific session
 codex exec resume {SESSION_ID} "{follow_up_prompt}" 2>/dev/null
 ```
 
-## Agent 種別
+## Agent Types
 
-タスク内容に応じて以下の役割で Codex を活用：
+Use Codex with these roles depending on task content:
 
-| Agent | 用途 | reasoning_effort |
-|-------|------|------------------|
-| Architect | アーキテクチャ設計・レビュー | high |
-| Analyzer | 深い問題分析・デバッグ | high |
-| Optimizer | パフォーマンス・アルゴリズム最適化 | xhigh |
-| Security | セキュリティ監査 | xhigh |
+| Agent | Purpose | reasoning_effort |
+|-------|---------|------------------|
+| Architect | Architecture design & review | high |
+| Analyzer | Deep problem analysis & debugging | high |
+| Optimizer | Performance & algorithm optimization | xhigh |
+| Security | Security audit | xhigh |
 
-## プロンプト構築
+## Prompt Construction
 
-Codex への委譲時は以下の情報を含める：
+When delegating to Codex, include:
 
-1. **目的**: 何を達成したいか
-2. **コンテキスト**: 関連ファイル，現在の状態
-3. **制約**: 守るべきルール，使用可能な技術
-4. **過去の試行**（失敗ベースの場合）: 何を試して何が失敗したか
+1. **Purpose**: What to achieve
+2. **Context**: Related files, current state
+3. **Constraints**: Rules to follow, available technologies
+4. **Past Attempts** (for failure-based): What was tried, what failed
 
-## 注意事項
+## Notes
 
-- `2>/dev/null` で thinking tokens を抑制（コンテキスト節約）
-- `--full-auto` は CI/Claude Code 環境で必須
-- `--skip-git-repo-check` は Git 管理外ディレクトリでのみ使用
-- セッション ID を記録して継続実行を活用
+- `2>/dev/null` suppresses thinking tokens (saves context)
+- `--full-auto` required in CI/Claude Code environment
+- `--skip-git-repo-check` only for non-Git directories
+- Record session ID to enable continuation

@@ -1,83 +1,83 @@
-このプロジェクトを分析し，AGENTS.md の**プロジェクト固有部分のみ**を更新してください．
+Analyze this project and update **only the project-specific sections** of AGENTS.md.
 
-## 重要
+## Important
 
-- 既存の AGENTS.md の「拡張機能」セクション以降は**変更しない**
-- 更新するのは冒頭のプロジェクト固有部分のみ
+- Do **NOT** modify the "Extensions" section and below in existing AGENTS.md
+- Only update the top project-specific sections
 
-## 手順
+## Steps
 
-### 1. プロジェクト分析
+### 1. Project Analysis
 
-以下のファイルを探して技術スタックを特定:
+Find these files to identify the tech stack:
 
-- `package.json` → Node.js/TypeScript プロジェクト
-- `pyproject.toml` / `setup.py` / `requirements.txt` → Python プロジェクト
-- `Cargo.toml` → Rust プロジェクト
-- `go.mod` → Go プロジェクト
-- `Makefile` / `Dockerfile` → ビルド/デプロイ設定
-- `.github/workflows/` → CI/CD 設定
+- `package.json` → Node.js/TypeScript project
+- `pyproject.toml` / `setup.py` / `requirements.txt` → Python project
+- `Cargo.toml` → Rust project
+- `go.mod` → Go project
+- `Makefile` / `Dockerfile` → Build/deploy config
+- `.github/workflows/` → CI/CD config
 
-また、以下も検出:
+Also detect:
 
-- npm scripts / poe tasks / make targets → よく使うコマンド
-- 主要ライブラリ・フレームワーク
+- npm scripts / poe tasks / make targets → Common commands
+- Major libraries/frameworks
 
-### 2. ユーザーに確認
+### 2. Ask User
 
-AskUserQuestion ツールで以下を質問:
+Use AskUserQuestion tool to ask:
 
-1. **プロジェクト概要**: このプロジェクトは何をするものですか？（1-2文で）
-2. **言語設定**: コードのコメント・変数名は英語/日本語どちらで書きますか？
-3. **追加のルール**: 他に守るべきコーディング規約はありますか？
+1. **Project overview**: What does this project do? (1-2 sentences)
+2. **Code language**: English or Japanese for comments/variable names?
+3. **Additional rules**: Any other coding conventions to follow?
 
-### 3. AGENTS.md を部分更新
+### 3. Partial Update of AGENTS.md
 
-Edit ツールを使って、AGENTS.md の冒頭部分（`---` の区切りまで）を以下の形式で更新:
+Use Edit tool to update only the top section (up to first `---`) with this format:
 
 ```markdown
-# プロジェクト概要
+# Project Overview
 
-{ユーザーの回答}
+{User's answer}
 
-## 言語設定
+## Language Settings
 
-- **思考・推論**: 英語で行う
-- **コード**: {分析結果に基づく - 英語 or 日本語}
-- **ユーザーとのやり取り**: 日本語で出力
+- **Thinking/Reasoning**: English
+- **Code**: {Based on analysis - English or Japanese}
+- **User Communication**: Japanese
 
-## 技術スタック
+## Tech Stack
 
-- **言語**: {検出した言語}
-- **パッケージ管理**: {検出したツール}
-- **開発ツール**: {検出したツール}
-- **主要ライブラリ**: {検出したライブラリ}
+- **Language**: {Detected language}
+- **Package Manager**: {Detected tools}
+- **Dev Tools**: {Detected tools}
+- **Main Libraries**: {Detected libraries}
 ```
 
-### 4. よく使うコマンドを更新
+### 4. Update Common Commands
 
-`## よく使うコマンド` セクションを検出したコマンドで更新:
+Update the `## Common Commands` section with detected commands:
 
 ```markdown
-## よく使うコマンド
+## Common Commands
 
 ```bash
-# 検出したコマンド（例）
-{npm run dev / poe test / make build など}
+# Detected commands (example)
+{npm run dev / poe test / make build etc.}
 ```
 ```
 
-### 5. 不要なルールの確認
+### 5. Check Unnecessary Rules
 
-`.claude/rules/` 内のルールを確認し、プロジェクトに不要なものがあれば削除を提案:
+Check rules in `.claude/rules/` and suggest removing unnecessary ones:
 
-- Python 以外のプロジェクト → `dev-environment.md`（uv/ruff/ty）は不要かも
-- テストを書かないプロジェクト → `testing.md` は不要かも
+- Non-Python project → `dev-environment.md` (uv/ruff/ty) may not be needed
+- No-test project → `testing.md` may not be needed
 
-### 6. 完了報告
+### 6. Report Completion
 
-更新内容をユーザーに報告:
+Report to user (in Japanese):
 
-- 検出した技術スタック
-- 更新したセクション
-- 削除を推奨するルール（あれば）
+- Detected tech stack
+- Updated sections
+- Recommended rules to remove (if any)

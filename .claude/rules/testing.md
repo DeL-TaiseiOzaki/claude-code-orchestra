@@ -1,34 +1,34 @@
-# テストルール
+# Testing Rules
 
-テストを書く際のガイドライン．
+Guidelines for writing tests.
 
-## 基本方針
+## Core Principles
 
-- **TDD 推奨**: テストを先に書く
-- **カバレッジ目標**: 80%以上
-- **実行速度**: 単体テストは高速に（1テスト < 100ms）
+- **TDD recommended**: Write tests first
+- **Coverage target**: 80% or higher
+- **Execution speed**: Unit tests should be fast (< 100ms per test)
 
-## テスト構造
+## Test Structure
 
-### AAA パターン
+### AAA Pattern
 
 ```python
 def test_user_creation():
-    # Arrange（準備）
+    # Arrange
     user_data = {"name": "Alice", "email": "alice@example.com"}
 
-    # Act（実行）
+    # Act
     user = create_user(user_data)
 
-    # Assert（検証）
+    # Assert
     assert user.name == "Alice"
     assert user.email == "alice@example.com"
 ```
 
-### 命名規則
+### Naming Convention
 
 ```python
-# test_{対象}_{条件}_{期待結果}
+# test_{target}_{condition}_{expected_result}
 def test_create_user_with_valid_data_returns_user():
     ...
 
@@ -36,18 +36,18 @@ def test_create_user_with_invalid_email_raises_error():
     ...
 ```
 
-## テストケースの網羅
+## Test Case Coverage
 
-各機能に対して以下を考慮:
+For each feature, consider:
 
-1. **正常系**: 基本的な動作
-2. **境界値**: 最小値，最大値，空
-3. **異常系**: 無効な入力，エラー条件
-4. **エッジケース**: None，空文字，特殊文字
+1. **Happy path**: Basic functionality
+2. **Boundary values**: Min, max, empty
+3. **Error cases**: Invalid input, error conditions
+4. **Edge cases**: None, empty string, special characters
 
-## モックの使用
+## Mocking
 
-外部依存はモック化:
+Mock external dependencies:
 
 ```python
 from unittest.mock import Mock, patch
@@ -59,9 +59,9 @@ def test_with_mocked_api(mock_api):
     assert result == expected
 ```
 
-## フィクスチャ
+## Fixtures
 
-共通のセットアップは `conftest.py` に:
+Common setup goes in `conftest.py`:
 
 ```python
 # tests/conftest.py
@@ -78,30 +78,30 @@ def db_session():
     session.rollback()
 ```
 
-## 実行コマンド
+## Commands
 
 ```bash
-# 全テスト
+# All tests
 uv run pytest -v
 
-# 特定ファイル
+# Specific file
 uv run pytest tests/test_user.py -v
 
-# 特定テスト
+# Specific test
 uv run pytest tests/test_user.py::test_create_user -v
 
-# カバレッジ付き
+# With coverage
 uv run pytest --cov=src --cov-report=term-missing
 
-# 失敗時に即停止
+# Stop on first failure
 uv run pytest -x
 ```
 
-## チェックリスト
+## Checklist
 
-- [ ] 正常系がテストされている
-- [ ] 異常系がテストされている
-- [ ] 境界値がテストされている
-- [ ] テストが独立している（順序依存なし）
-- [ ] 外部依存がモック化されている
-- [ ] テストが高速に実行される
+- [ ] Happy path is tested
+- [ ] Error cases are tested
+- [ ] Boundary values are tested
+- [ ] Tests are independent (no order dependency)
+- [ ] External dependencies are mocked
+- [ ] Tests run fast

@@ -1,18 +1,18 @@
-会話の内容を分析し，設計ドキュメント `.claude/docs/DESIGN.md` を更新してください．
+Analyze conversation content and update design document `.claude/docs/DESIGN.md`.
 
-## 分析観点
+## Analysis Perspectives
 
-### 記録すべき内容
-- アーキテクチャ決定とその理由
-- 採用したパターン・不採用にしたパターン
-- トレードオフの判断
-- 今後の方針・TODO
+### Content to Record
+- Architecture decisions and their rationale
+- Adopted patterns / rejected patterns
+- Trade-off judgments
+- Future direction / TODOs
 
-### 考慮すべき視点
-- なぜその決定をしたのか（背景・制約）
-- 他の選択肢は何だったか
-- 将来的な影響・リスク
+### Viewpoints to Consider
+- Why the decision was made (background, constraints)
+- What were the alternatives
+- Future impact / risks
 
-## 出力
+## Output
 
-`.claude/docs/DESIGN.md` を更新し，変更内容を簡潔に報告してください．
+Update `.claude/docs/DESIGN.md` and briefly report the changes.

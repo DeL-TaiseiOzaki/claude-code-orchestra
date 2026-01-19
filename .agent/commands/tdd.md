@@ -1,107 +1,107 @@
-$ARGUMENTS をテスト駆動開発（TDD）で実装してください．
+Implement $ARGUMENTS using Test-Driven Development (TDD).
 
-## TDD サイクル
+## TDD Cycle
 
 ```
-Red → Green → Refactor の繰り返し
+Repeat: Red → Green → Refactor
 
-1. Red:    失敗するテストを書く
-2. Green:  テストを通す最小限のコードを書く
-3. Refactor: コードを整理（テストは通ったまま）
+1. Red:    Write a failing test
+2. Green:  Write minimal code to pass the test
+3. Refactor: Clean up code (tests still pass)
 ```
 
-## 実装手順
+## Implementation Steps
 
-### Phase 1: テスト設計
+### Phase 1: Test Design
 
-1. **要件を確認**
-   - 入力は何か
-   - 出力は何か
-   - エッジケースは何か
+1. **Confirm Requirements**
+   - What is the input
+   - What is the output
+   - What are the edge cases
 
-2. **テストケースをリストアップ**
+2. **List Test Cases**
    ```
-   - [ ] 正常系: 基本的な動作
-   - [ ] 正常系: 境界値
-   - [ ] 異常系: 無効な入力
-   - [ ] 異常系: エラーハンドリング
+   - [ ] Happy path: Basic functionality
+   - [ ] Happy path: Boundary values
+   - [ ] Error case: Invalid input
+   - [ ] Error case: Error handling
    ```
 
 ### Phase 2: Red-Green-Refactor
 
-#### Step 1: 最初のテストを書く（Red）
+#### Step 1: Write First Test (Red)
 
 ```python
 # tests/test_{module}.py
 def test_{function}_basic():
-    """最も基本的なケースをテスト"""
+    """Test the most basic case"""
     result = function(input)
     assert result == expected
 ```
 
-テストを実行して **失敗を確認**:
+Run test and **confirm failure**:
 ```bash
 uv run pytest tests/test_{module}.py -v
 ```
 
-#### Step 2: 実装（Green）
+#### Step 2: Implementation (Green)
 
-テストを通す **最小限** のコードを書く:
-- 完璧を目指さない
-- ハードコードでも OK
-- とにかくテストを通す
+Write **minimal** code to pass the test:
+- Don't aim for perfection
+- Hardcoding is OK
+- Just make the test pass
 
-テストを実行して **成功を確認**:
+Run test and **confirm success**:
 ```bash
 uv run pytest tests/test_{module}.py -v
 ```
 
-#### Step 3: リファクタリング（Refactor）
+#### Step 3: Refactoring (Refactor)
 
-テストが通ったまま改善:
-- 重複を排除
-- 命名を改善
-- 構造を整理
+Improve while tests still pass:
+- Remove duplication
+- Improve naming
+- Clean up structure
 
 ```bash
-uv run pytest tests/test_{module}.py -v  # まだ通ることを確認
+uv run pytest tests/test_{module}.py -v  # Confirm still passes
 ```
 
-#### Step 4: 次のテストへ
+#### Step 4: Next Test
 
-リストの次のテストケースで Step 1 に戻る．
+Return to Step 1 with next test case from the list.
 
-### Phase 3: 完了確認
+### Phase 3: Completion Check
 
 ```bash
-# 全テスト実行
+# Run all tests
 uv run pytest -v
 
-# カバレッジ確認（80%以上が目標）
+# Check coverage (target 80%+)
 uv run pytest --cov={module} --cov-report=term-missing
 ```
 
-## レポート形式
+## Report Format
 
 ```markdown
-## TDD 実装完了: {機能名}
+## TDD Complete: {Feature Name}
 
-### テストケース
-- [x] {テスト1}: {説明}
-- [x] {テスト2}: {説明}
+### Test Cases
+- [x] {test1}: {description}
+- [x] {test2}: {description}
 ...
 
-### カバレッジ
-{カバレッジレポート}
+### Coverage
+{Coverage report}
 
-### 実装ファイル
-- `src/{module}.py`: {説明}
-- `tests/test_{module}.py`: {テスト数}件
+### Implementation Files
+- `src/{module}.py`: {description}
+- `tests/test_{module}.py`: {N} tests
 ```
 
-## 注意事項
+## Notes
 
-- テストは **先に** 書く（後から書かない）
-- 1サイクルは **小さく** 保つ
-- リファクタリングは **テストが通ってから**
-- 完璧より **動くコード** を優先
+- Write tests **first** (not after)
+- Keep each cycle **small**
+- Refactor **after** tests pass
+- Prioritize **working code** over perfection

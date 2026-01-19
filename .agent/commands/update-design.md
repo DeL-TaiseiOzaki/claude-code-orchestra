@@ -1,4 +1,4 @@
-会話の内容から，プロジェクトの設計・実装方針を `.claude/docs/DESIGN.md` に記録・更新してください．
+Record/update project design and implementation decisions in `.claude/docs/DESIGN.md` based on conversation content.
 
 Note: This command explicitly invokes the same workflow as the `design-tracker` skill.
 Use this when you want to force a design document update.
@@ -27,4 +27,4 @@ Use this when you want to force a design document update.
 - Document content: English (technical), Japanese OK for descriptions
 - User communication: Japanese
 
-$ARGUMENTS があれば，その内容を重点的に記録してください．
+If $ARGUMENTS provided, focus on recording that content.

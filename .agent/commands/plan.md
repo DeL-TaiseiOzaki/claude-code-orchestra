@@ -1,67 +1,67 @@
-$ARGUMENTS の実装計画を立ててください．
+Create an implementation plan for $ARGUMENTS.
 
-## 計画プロセス
+## Planning Process
 
-### 1. 要件分析
+### 1. Requirements Analysis
 
-まず以下を明確にする：
+First clarify:
 
-- **目的**: 何を達成したいか
-- **スコープ**: 何を含み，何を含まないか
-- **制約**: 技術的制約，時間的制約，依存関係
+- **Purpose**: What to achieve
+- **Scope**: What to include, what to exclude
+- **Constraints**: Technical, time, dependencies
 
-### 2. 現状調査
+### 2. Current State Investigation
 
-コードベースを調査：
+Investigate the codebase:
 
 ```
-- 関連する既存コード
-- 影響を受けるファイル
-- 使用するライブラリ・パターン
-- テストの有無
+- Related existing code
+- Files affected
+- Libraries/patterns to use
+- Existing tests
 ```
 
-### 3. 実装ステップの分解
+### 3. Break Down Implementation Steps
 
-タスクを小さなステップに分解：
+Break into small steps:
 
-1. 各ステップは独立してテスト可能
-2. 依存関係の順序を考慮
-3. リスクの高いステップを先に
+1. Each step is independently testable
+2. Consider dependency order
+3. High-risk steps first
 
-### 4. 出力フォーマット
+### 4. Output Format
 
 ```markdown
-## 実装計画: {タイトル}
+## Implementation Plan: {Title}
 
-### 目的
-{1-2文で}
+### Purpose
+{1-2 sentences}
 
-### 影響範囲
-- 新規ファイル: {リスト}
-- 変更ファイル: {リスト}
-- 依存ライブラリ: {リスト}
+### Scope
+- New files: {list}
+- Modified files: {list}
+- Dependencies: {list}
 
-### 実装ステップ
+### Implementation Steps
 
-#### Step 1: {タイトル}
-- [ ] {具体的なタスク}
-- [ ] {具体的なタスク}
-**検証**: {このステップの完了条件}
+#### Step 1: {Title}
+- [ ] {Specific task}
+- [ ] {Specific task}
+**Verification**: {Completion criteria for this step}
 
-#### Step 2: {タイトル}
+#### Step 2: {Title}
 ...
 
-### リスク・注意点
-- {潜在的な問題と対策}
+### Risks & Considerations
+- {Potential issues and mitigations}
 
-### 未解決の質問
-- {実装前に確認が必要な点}
+### Open Questions
+- {Items to clarify before implementation}
 ```
 
-## 注意事項
+## Notes
 
-- 計画は実行可能な粒度に
-- 各ステップに検証方法を含める
-- 不明点は計画段階で質問する
-- 過度に詳細にしすぎない（実装時に調整）
+- Plans should be at actionable granularity
+- Include verification method for each step
+- Ask questions at planning stage for unclear points
+- Don't over-detail (adjust during implementation)

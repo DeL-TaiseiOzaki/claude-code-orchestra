@@ -1,44 +1,44 @@
-Claude Code からの相談に回答してください．
+Respond to consultation from Claude Code.
 
-## 相談内容
+## Consultation Content
 
 $ARGUMENTS
 
-## 回答方針
+## Response Approach
 
-### 1. 問題の整理
-- 相談の本質を正確に把握
-- 不明確な点があれば明確化
+### 1. Problem Organization
+- Accurately understand the essence of the consultation
+- Clarify any unclear points
 
-### 2. 判断基準の提示
-- どのような基準で判断すべきか
-- 考慮すべき観点
+### 2. Judgment Criteria
+- What criteria should be used
+- Perspectives to consider
 
-### 3. 具体的な推奨
-- 明確な方向性を示す
-- 「場合による」で終わらせない
-- 実行可能なアクションを提示
+### 3. Specific Recommendations
+- Provide clear direction
+- Don't end with "it depends"
+- Present actionable items
 
-### 4. 注意点
-- 見落としやすいリスク
-- 事前に確認すべきこと
+### 4. Cautions
+- Easy-to-overlook risks
+- Things to verify beforehand
 
-## 出力形式
+## Output Format
 
-簡潔に，かつ実行可能な形で回答してください．
+Respond concisely and actionably.
 
 ```markdown
-## 回答
+## Answer
 
-{結論を1-2文で}
+{Conclusion in 1-2 sentences}
 
-### 理由
+### Rationale
 ...
 
-### 推奨アクション
+### Recommended Actions
 1. ...
 2. ...
 
-### 注意点
+### Cautions
 - ...
 ```

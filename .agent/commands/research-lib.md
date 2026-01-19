@@ -1,37 +1,37 @@
-$ARGUMENTS について調査し，`.claude/docs/libraries/` にドキュメントを作成してください．
+Research $ARGUMENTS and create documentation in `.claude/docs/libraries/`.
 
-## 調査項目
+## Research Items
 
-### 必ずWeb検索で確認
-- 公式ドキュメント
+### Always Verify via Web Search
+- Official documentation
 - GitHub README
-- PyPI / npm ページ
-- 最新のリリースノート
+- PyPI / npm page
+- Latest release notes
 
-### 文書化する内容
+### Content to Document
 
-1. **基本情報**
-   - 正式名称，バージョン，ライセンス
-   - 公式URL
-   - インストールコマンド
+1. **Basic Information**
+   - Official name, version, license
+   - Official URL
+   - Installation command
 
-2. **コア機能**
-   - 主要な機能
-   - 基本的な使い方（コード例）
+2. **Core Features**
+   - Main features
+   - Basic usage (code examples)
 
-3. **制約・注意点**
-   - 既知の制限
-   - 他ライブラリとの競合
-   - パフォーマンス特性
-   - 非同期/同期の注意点
+3. **Constraints & Notes**
+   - Known limitations
+   - Conflicts with other libraries
+   - Performance characteristics
+   - Async/sync considerations
 
-4. **本プロジェクトでの使用パターン**
-   - 推奨する使い方
-   - 避けるべきパターン
+4. **Usage Patterns in This Project**
+   - Recommended usage
+   - Patterns to avoid
 
-5. **トラブルシューティング**
-   - よくあるエラーと解決法
+5. **Troubleshooting**
+   - Common errors and solutions
 
-## 出力先
+## Output Location
 
 `.claude/docs/libraries/$ARGUMENTS.md`

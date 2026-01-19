@@ -1,29 +1,29 @@
-`.claude/docs/libraries/` のドキュメントを最新情報で更新してください．
+Update documentation in `.claude/docs/libraries/` with latest information.
 
-## 手順
+## Steps
 
-1. **既存ドキュメントを確認**
+1. **Check Existing Documents**
    ```bash
    ls .claude/docs/libraries/
    ```
 
-2. **各ライブラリの最新情報をWeb検索**
-   - 最新バージョン
-   - 破壊的変更
-   - 非推奨になった機能
-   - 新機能
+2. **Web Search for Latest Info on Each Library**
+   - Latest version
+   - Breaking changes
+   - Deprecated features
+   - New features
 
-3. **ドキュメントを更新**
-   - 変更があれば更新
-   - 更新日を記録
+3. **Update Documents**
+   - Update if changes found
+   - Record update date
 
-4. **コードへの影響を確認**
-   - 非推奨APIを使用していないか
-   - 破壊的変更の影響がないか
+4. **Check Impact on Code**
+   - Using any deprecated APIs?
+   - Any breaking change impacts?
 
-## 特に確認すること
+## Key Items to Check
 
-- セキュリティアップデート
-- 破壊的変更（breaking changes）
-- 非推奨（deprecated）API
-- パフォーマンス改善
+- Security updates
+- Breaking changes
+- Deprecated APIs
+- Performance improvements

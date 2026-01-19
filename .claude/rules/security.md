@@ -1,31 +1,31 @@
-# セキュリティルール
+# Security Rules
 
-コードを書く際に常に確認すべきセキュリティチェックリスト．
+Security checklist to always verify when writing code.
 
-## 機密情報の管理
+## Secrets Management
 
-### 絶対禁止
+### Never Do
 
-- APIキー・パスワードのハードコード
-- 機密情報のログ出力
-- `.env` ファイルのコミット
+- Hardcode API keys or passwords
+- Log sensitive information
+- Commit `.env` files
 
-### 必須
+### Required
 
 ```python
-# ✅ 環境変数から取得
+# Good: Get from environment variables
 import os
 API_KEY = os.environ["API_KEY"]
 
-# ✅ 存在チェック付き
+# Good: With existence check
 API_KEY = os.environ.get("API_KEY")
 if not API_KEY:
     raise ValueError("API_KEY environment variable is required")
 ```
 
-## 入力バリデーション
+## Input Validation
 
-外部からの入力は常に検証:
+Always validate external input:
 
 ```python
 from pydantic import BaseModel, EmailStr, Field
@@ -36,45 +36,43 @@ class UserInput(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 ```
 
-## SQL インジェクション防止
+## SQL Injection Prevention
 
 ```python
-# ❌ Bad: 文字列結合
+# Bad: String concatenation
 cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
 
-# ✅ Good: パラメータ化クエリ
+# Good: Parameterized query
 cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
 ```
 
-## XSS 防止
+## XSS Prevention
 
-- ユーザー入力をHTMLに埋め込む前にエスケープ
-- テンプレートエンジンの自動エスケープを有効に
+- Escape user input before embedding in HTML
+- Enable template engine auto-escaping
 
-## エラーメッセージ
+## Error Messages
 
 ```python
-# ❌ Bad: 詳細すぎる（攻撃者に情報を与える）
+# Bad: Too detailed (gives attackers information)
 raise Exception(f"Database connection failed: {connection_string}")
 
-# ✅ Good: 必要最小限
+# Good: Minimal information
 raise Exception("Database connection failed")
-# 詳細はログに（ログは非公開）
+# Details go to logs (logs are private)
 logger.error(f"Database connection failed: {connection_string}")
 ```
 
-## 依存関係
+## Dependencies
 
-- 定期的に脆弱性チェック: `pip-audit`, `safety`
-- 不要な依存は削除
-- バージョンを固定（`>=` より `==`）
+- Regular vulnerability checks: `pip-audit`, `safety`
+- Remove unused dependencies
+- Pin versions (`==` over `>=`)
 
-## チェックリスト
+## Code Review Checklist
 
-コードレビュー時に確認:
-
-- [ ] ハードコードされた機密情報がない
-- [ ] 外部入力がバリデーションされている
-- [ ] SQLクエリがパラメータ化されている
-- [ ] エラーメッセージが詳細すぎない
-- [ ] ログに機密情報が含まれていない
+- [ ] No hardcoded secrets
+- [ ] External input is validated
+- [ ] SQL queries are parameterized
+- [ ] Error messages are not too detailed
+- [ ] Logs don't contain sensitive information

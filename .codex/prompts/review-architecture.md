@@ -1,45 +1,45 @@
-$ARGUMENTS のアーキテクチャをレビューしてください．
+Review the architecture of $ARGUMENTS.
 
-## レビュー観点
+## Review Perspectives
 
-### 1. 構造分析
-- ディレクトリ構成は適切か
-- モジュール間の依存関係は健全か
-- 責務の分離は明確か
+### 1. Structure Analysis
+- Is directory structure appropriate
+- Are inter-module dependencies healthy
+- Is separation of concerns clear
 
-### 2. 設計原則
-- SOLID 原則に沿っているか
-- 不要な複雑さはないか
-- テスタビリティは確保されているか
+### 2. Design Principles
+- Follows SOLID principles
+- No unnecessary complexity
+- Testability ensured
 
-### 3. スケーラビリティ
-- 将来の拡張に対応できるか
-- ボトルネックになりそうな箇所はないか
+### 3. Scalability
+- Can accommodate future extensions
+- Any potential bottlenecks
 
-### 4. リスク分析
-- 技術的負債になりそうな箇所
-- セキュリティ上の懸念
-- パフォーマンス上の懸念
+### 4. Risk Analysis
+- Areas that may become technical debt
+- Security concerns
+- Performance concerns
 
-## 出力形式
+## Output Format
 
 ```markdown
-## アーキテクチャレビュー: {対象}
+## Architecture Review: {Target}
 
-### 良い点
+### Strengths
 - ...
 
-### 懸念点
+### Concerns
 - ...
 
-### 推奨事項
+### Recommendations
 1. ...
 2. ...
 
-### 優先度
-- 高: ...
-- 中: ...
-- 低: ...
+### Priority
+- High: ...
+- Medium: ...
+- Low: ...
 ```
 
-分析結果を報告し，必要に応じて `.claude/docs/DESIGN.md` に記録してください．
+Report analysis results and record in `.claude/docs/DESIGN.md` as needed.

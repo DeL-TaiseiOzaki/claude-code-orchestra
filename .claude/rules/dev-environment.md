@@ -1,20 +1,20 @@
-# 開発環境ルール
+# Development Environment
 
-プロジェクトの開発環境とツールチェーン．
+Project development environment and toolchain.
 
-## パッケージ管理: uv
+## Package Management: uv
 
-**pip は使用禁止．すべて uv 経由で実行する．**
+**Do not use pip directly. All commands must go through uv.**
 
 ```bash
-# パッケージ追加
+# Add packages
 uv add <package>
-uv add --dev <package>    # 開発依存
+uv add --dev <package>    # Dev dependency
 
-# 依存関係の同期
+# Sync dependencies
 uv sync
 
-# スクリプト実行
+# Run scripts
 uv run <command>
 uv run python script.py
 uv run pytest
@@ -22,7 +22,7 @@ uv run pytest
 
 ### pyproject.toml
 
-依存関係は `pyproject.toml` で管理:
+Manage dependencies in `pyproject.toml`:
 
 ```toml
 [project]
@@ -37,20 +37,20 @@ dev = [
 ]
 ```
 
-## リント・フォーマット: ruff
+## Linting & Formatting: ruff
 
 ```bash
-# チェック
+# Check
 uv run ruff check .
 
-# 自動修正
+# Auto-fix
 uv run ruff check --fix .
 
-# フォーマット
+# Format
 uv run ruff format .
 ```
 
-### ruff 設定（pyproject.toml）
+### ruff Configuration (pyproject.toml)
 
 ```toml
 [tool.ruff]
@@ -72,56 +72,56 @@ ignore = ["E501"]  # line too long (formatter handles)
 quote-style = "double"
 ```
 
-## 型チェック: ty
+## Type Checking: ty
 
 ```bash
-# 型チェック実行
+# Run type check
 uv run ty check src/
 ```
 
-### ty の特徴
+### ty Features
 
-- Rust 製の高速型チェッカー（Astral 製）
-- ruff / uv と同じエコシステム
-- mypy 互換の型アノテーション
+- Fast Rust-based type checker (by Astral)
+- Same ecosystem as ruff / uv
+- mypy-compatible type annotations
 
-## ノートブック: marimo
+## Notebooks: marimo
 
-インタラクティブな Python ノートブック環境．
+Interactive Python notebook environment.
 
 ```bash
-# ノートブック作成・編集
+# Create/edit notebook
 uv run marimo edit notebook.py
 
-# ノートブック実行（CLI）
+# Run notebook (CLI)
 uv run marimo run notebook.py
 
-# アプリとしてデプロイ
+# Deploy as app
 uv run marimo run notebook.py --host 0.0.0.0 --port 8080
 ```
 
-### marimo の特徴
+### marimo Features
 
-- **純粋な Python ファイル**（.py）: Git との相性が良い
-- **リアクティブ**: セル間の依存を自動追跡
-- **再現性**: セルの実行順序に依存しない
+- **Pure Python files** (.py): Git-friendly
+- **Reactive**: Auto-tracks cell dependencies
+- **Reproducible**: No execution order dependency
 
-### marimo 使用時の注意
+### marimo Best Practices
 
 ```python
-# ❌ Bad: グローバル状態の変更
+# Bad: Mutating global state
 data = []
 def add_item(item):
-    data.append(item)  # 副作用
+    data.append(item)  # Side effect
 
-# ✅ Good: 純粋関数
+# Good: Pure function
 def add_item(data: list, item) -> list:
     return [*data, item]
 ```
 
-## タスクランナー
+## Task Runner
 
-複数ツールの実行は `pyproject.toml` の scripts か poe で管理:
+Manage multiple tool executions in `pyproject.toml` scripts or poe:
 
 ```toml
 [tool.poe.tasks]
@@ -132,29 +132,27 @@ test = "pytest -v"
 all = ["lint", "typecheck", "test"]
 ```
 
-## よく使うコマンド
+## Common Commands
 
 ```bash
-# 初期化
+# Initialize
 uv init
 uv venv
 source .venv/bin/activate
 
-# 開発依存インストール
+# Install dev dependencies
 uv sync --all-extras
 
-# 品質チェック（全部）
+# Quality check (all)
 uv run ruff check . && uv run ruff format --check . && uv run ty check src/ && uv run pytest
 
-# または poe 経由
+# Or via poe
 poe all
 ```
 
-## チェックリスト
+## Pre-commit Checklist
 
-コード提出前に確認:
-
-- [ ] `uv run ruff check .` がパス
-- [ ] `uv run ruff format --check .` がパス
-- [ ] `uv run ty check src/` がパス
-- [ ] `uv run pytest` がパス
+- [ ] `uv run ruff check .` passes
+- [ ] `uv run ruff format --check .` passes
+- [ ] `uv run ty check src/` passes
+- [ ] `uv run pytest` passes

@@ -1,30 +1,30 @@
-# コーディング原則
+# Coding Principles
 
-常に従うべきコーディングルール．
+Core coding rules to always follow.
 
-## シンプルさを最優先
+## Simplicity First
 
-- 複雑なコードより読みやすいコードを選ぶ
-- 過度な抽象化を避ける
-- 「動く」より「理解できる」を優先
+- Choose readable code over complex code
+- Avoid over-abstraction
+- Prioritize "understandable" over "working"
 
-## 単一責任
+## Single Responsibility
 
-- 1つの関数は1つのことだけを行う
-- 1つのクラスは1つの責任だけを持つ
-- ファイルは200-400行を目安（最大800行）
+- One function does one thing only
+- One class has one responsibility only
+- Target 200-400 lines per file (max 800)
 
-## 早期リターン
+## Early Return
 
 ```python
-# ❌ Bad: ネストが深い
+# Bad: Deep nesting
 def process(value):
     if value is not None:
         if value > 0:
             return do_something(value)
     return None
 
-# ✅ Good: 早期リターン
+# Good: Early return
 def process(value):
     if value is None:
         return None
@@ -33,9 +33,9 @@ def process(value):
     return do_something(value)
 ```
 
-## 型ヒント必須
+## Type Hints Required
 
-すべての関数に型アノテーションを付ける:
+All functions must have type annotations:
 
 ```python
 def call_llm(
@@ -46,33 +46,33 @@ def call_llm(
     ...
 ```
 
-## イミュータビリティ
+## Immutability
 
-既存のオブジェクトを変更せず，新しいオブジェクトを生成:
+Create new objects instead of mutating existing ones:
 
 ```python
-# ❌ Bad: 既存を変更
+# Bad: Mutating existing object
 data["new_key"] = value
 
-# ✅ Good: 新しいオブジェクトを生成
+# Good: Creating new object
 new_data = {**data, "new_key": value}
 ```
 
-## 命名規則
+## Naming Conventions
 
-- **変数・関数**: snake_case（英語）
-- **クラス**: PascalCase（英語）
-- **定数**: UPPER_SNAKE_CASE（英語）
-- **意味のある名前**: `x` より `user_count`
+- **Variables/Functions**: snake_case (English)
+- **Classes**: PascalCase (English)
+- **Constants**: UPPER_SNAKE_CASE (English)
+- **Meaningful names**: `user_count` over `x`
 
-## マジックナンバー禁止
+## No Magic Numbers
 
 ```python
-# ❌ Bad
+# Bad
 if retry_count > 3:
     ...
 
-# ✅ Good
+# Good
 MAX_RETRIES = 3
 if retry_count > MAX_RETRIES:
     ...

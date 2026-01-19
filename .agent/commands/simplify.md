@@ -1,22 +1,22 @@
-$ARGUMENTS をシンプルにリファクタリングしてください．
+Simplify and refactor $ARGUMENTS.
 
-## シンプル化の原則
+## Simplification Principles
 
-1. **単一責任** - 1関数 = 1つのこと
-2. **短い関数** - 20行以下を目指す
-3. **浅いネスト** - 早期リターンで深さ2以下
-4. **明確な命名** - コメント不要なほど明確に
-5. **型ヒント必須** - すべての関数に
+1. **Single Responsibility** - 1 function = 1 thing
+2. **Short Functions** - Target under 20 lines
+3. **Shallow Nesting** - Early return, depth ≤ 2
+4. **Clear Naming** - Clear enough to not need comments
+5. **Type Hints Required** - On all functions
 
-## 手順
+## Steps
 
-1. 対象コードで使用しているライブラリを特定
-2. `.claude/docs/libraries/` で制約を確認
-3. リファクタリング実行
-4. テストで動作確認
+1. Identify libraries used in target code
+2. Check constraints in `.claude/docs/libraries/`
+3. Execute refactoring
+4. Verify with tests
 
-## 注意
+## Notes
 
-- ライブラリの機能・制約は必ず維持する
-- 不明な点はWeb検索で確認
-- 動作を変えない（リファクタリングのみ）
+- Always preserve library features/constraints
+- Web search for unclear points
+- Don't change behavior (refactoring only)

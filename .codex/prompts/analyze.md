@@ -1,50 +1,50 @@
-$ARGUMENTS について深く分析してください．
+Deeply analyze $ARGUMENTS.
 
-## 分析フレームワーク
+## Analysis Framework
 
-### 1. 問題の明確化
-- 何が本当の問題か
-- 表面的な症状と根本原因の区別
-- 問題のスコープと影響範囲
+### 1. Problem Clarification
+- What is the real problem
+- Distinguish surface symptoms from root causes
+- Problem scope and impact range
 
-### 2. 選択肢の列挙
-- 考えられるアプローチを網羅的に列挙
-- 各アプローチのメリット・デメリット
-- 制約条件との整合性
+### 2. Options Enumeration
+- Comprehensively list possible approaches
+- Pros/cons of each approach
+- Alignment with constraints
 
-### 3. トレードオフ分析
-- 短期 vs 長期
-- シンプルさ vs 柔軟性
-- 開発速度 vs 品質
-- コスト vs 効果
+### 3. Trade-off Analysis
+- Short-term vs long-term
+- Simplicity vs flexibility
+- Development speed vs quality
+- Cost vs benefit
 
-### 4. 推奨案
-- 最も適切と考えるアプローチ
-- その理由（なぜ他の選択肢ではないか）
-- 実装時の注意点
+### 4. Recommendation
+- Most appropriate approach
+- Rationale (why not other options)
+- Implementation considerations
 
-## 出力形式
+## Output Format
 
-結論から述べ，その後に根拠を説明してください．
+State conclusion first, then explain reasoning.
 
 ```markdown
-## 結論
+## Conclusion
 
-{推奨するアプローチを1-2文で}
+{Recommended approach in 1-2 sentences}
 
-## 分析
+## Analysis
 
-### 問題の本質
+### Problem Essence
 ...
 
-### 検討した選択肢
-1. **選択肢A**: ...
-2. **選択肢B**: ...
-3. **選択肢C**: ...
+### Options Considered
+1. **Option A**: ...
+2. **Option B**: ...
+3. **Option C**: ...
 
-### 推奨理由
+### Recommendation Rationale
 ...
 
-### 実装時の注意
+### Implementation Notes
 ...
 ```
