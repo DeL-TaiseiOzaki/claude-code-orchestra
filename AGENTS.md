@@ -8,6 +8,56 @@ LLM/Agent Development Project
 - **Code**: English (variable names, function names, comments, docstrings)
 - **User Communication**: Japanese
 
+---
+
+## Codex CLI Integration (CRITICAL)
+
+**Codex CLI is your highly capable supporter. Consult it proactively.**
+
+### When You MUST Consult Codex
+
+Run `codex exec` when you encounter these situations:
+
+| User Says (Japanese) | User Says (English) | Action |
+|---------------------|---------------------|--------|
+| 「どう設計すべき？」「どう実装する？」 | "How should I design/implement this?" | Consult Codex |
+| 「なぜ動かない？」「原因は？」 | "Why doesn't this work?" | Consult Codex |
+| 「どちらがいい？」「比較して」 | "Which is better?" "Compare these" | Consult Codex |
+| 「〜を作りたい」「〜を実装して」 | "I want to build X" "Implement X" | Consult Codex for design first |
+| 「考えて」「分析して」「深く考えて」 | "Think about this" "Analyze" | Consult Codex |
+
+### How to Consult (Background Execution)
+
+**Always run Codex in background for parallel work:**
+
+```bash
+# Analysis (read-only) - run with run_in_background: true
+codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "Analyze: {question}" 2>/dev/null
+
+# Work delegation (can write) - run with run_in_background: true
+codex exec --model gpt-5.2-codex --sandbox workspace-write --full-auto "Task: {description}" 2>/dev/null
+```
+
+**Workflow:**
+1. Start Codex in background → Get task_id
+2. Continue your own work → Don't wait
+3. Retrieve results with `TaskOutput` when needed
+
+**Language protocol:**
+1. Ask Codex in **English**
+2. Receive response in **English**
+3. Execute based on Codex's advice (or let Codex execute)
+4. Report to user in **Japanese**
+
+### When NOT to Consult
+
+- Simple file edits, typo fixes
+- Following explicit user instructions
+- git commit, running tests, linting
+- Tasks with obvious single solutions
+
+---
+
 ## Tech Stack
 
 - **Language**: Python
@@ -36,7 +86,6 @@ Agents that execute specialized tasks in independent context:
 |-------|---------|------------------|
 | **code-reviewer** | Review after code changes | "review this", "check this" |
 | **lib-researcher** | Library research & docs | "research this library" |
-| **debugger** | Error investigation & fix | "fix this error", "debug this" |
 | **refactorer** | Refactoring | "simplify this", "clean up" |
 
 ### Skills (Use Proactively)
@@ -47,33 +96,12 @@ Agents that execute specialized tasks in independent context:
 |-------|-------------|---------------|
 | **codex-system** | **ALWAYS** before design decisions, debugging, planning, trade-off evaluation | `/codex-system` or run `codex exec ...` |
 | **design-tracker** | When design/architecture decisions are made in conversation | `/design-tracker` |
-| **mcp-builder** | When building MCP servers or external API integrations | `/mcp-builder` |
-| **skill-creator** | When creating new skills | `/skill-creator` |
 
-#### Codex System (Most Important)
-
-**Codex CLI is your highly capable supporter.** Use it proactively:
-
-- Before implementing new features → Consult Codex for design
-- When debugging fails once → Stop and consult Codex
-- When multiple approaches exist → Ask Codex to evaluate trade-offs
-- When uncertain about anything → Just ask Codex
-
-```bash
-# Analysis only (read-only)
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "Analyze: your question" 2>/dev/null
-
-# Delegate work (can write files)
-codex exec --model gpt-5.2-codex --sandbox workspace-write --full-auto "Task: implement X" 2>/dev/null
-```
-
-**Note:** Ask Codex in English → Receive English response → Report to user in Japanese
+> **Note:** Codex System details are in the "Codex CLI Integration" section above.
 
 ### Commands (Explicit Invocation)
 
 Invoke with `/command`:
-
-#### Claude Code Commands
 
 | Command | Purpose |
 |---------|---------|
@@ -84,17 +112,6 @@ Invoke with `/command`:
 | `/simplify <path>` | Simplify/refactor specified code |
 | `/update-design` | Update design docs from conversation |
 | `/update-lib-docs` | Update library documentation |
-
-#### Codex CLI Prompts
-
-> **Note**: Requires `cp .codex/prompts/*.md ~/.codex/prompts/` to user level
-
-| Command | Purpose |
-|---------|---------|
-| `/prompts:analyze <topic>` | Deep analysis with options & trade-offs |
-| `/prompts:review-architecture <path>` | Architecture review with recommendations |
-| `/prompts:consult <question>` | Answer consultations from Claude Code |
-| `/prompts:update-design` | Organize & record design decisions |
 
 ### Rules (Always Applied)
 
@@ -163,7 +180,7 @@ After recording, report briefly like "Recorded in DESIGN.md".
 ## Directory Structure
 
 ```
-.claude/                   # Claude Code (System 1) settings & knowledge
+.claude/                   # Claude Code settings & knowledge
 ├── settings.json          # Permission settings
 ├── agents/                # Sub-agents
 ├── rules/                 # Always-applied rules
@@ -184,9 +201,8 @@ After recording, report briefly like "Recorded in DESIGN.md".
 ├── skills/                # Auto-trigger skills
 └── docs -> ../.claude/docs   # Link to knowledge base
 
-.codex/                    # Codex CLI (System 2) settings
-├── skills -> ../.agent/skills  # Shared skills
-└── prompts/               # Custom prompts (copy to ~/.codex/prompts/)
+.codex/                    # Codex CLI settings
+└── skills -> ../.agent/skills  # Shared skills
 
 src/                       # Source code
 tests/                     # Tests
