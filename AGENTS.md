@@ -60,7 +60,11 @@ Agents that execute specialized tasks in independent context:
 - When uncertain about anything → Just ask Codex
 
 ```bash
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "your question in English" 2>/dev/null
+# Analysis only (read-only)
+codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "Analyze: your question" 2>/dev/null
+
+# Delegate work (can write files)
+codex exec --model gpt-5.2-codex --sandbox workspace-write --full-auto "Task: implement X" 2>/dev/null
 ```
 
 **Note:** Ask Codex in English → Receive English response → Report to user in Japanese

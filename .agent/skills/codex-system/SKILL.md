@@ -83,21 +83,51 @@ Codex will provide better analysis than you can do alone. Don't hesitate to ask.
 
 ## Execution Method
 
-### Standard Format
+Choose the appropriate mode based on what you need from Codex:
+
+### Analysis Only (Read-Only)
+
+Use when you need Codex to analyze, review, or advise:
 
 ```bash
 codex exec \
   --model gpt-5.2-codex \
   --sandbox read-only \
   --full-auto \
-  "{prompt_in_english}" 2>/dev/null
+  "Analyze: {question in English}" 2>/dev/null
 ```
+
+**Use cases:** Design review, debugging analysis, trade-off evaluation, architecture advice
+
+### Delegate Work (Can Write Files)
+
+Use when you want Codex to actually implement or fix something:
+
+```bash
+codex exec \
+  --model gpt-5.2-codex \
+  --sandbox workspace-write \
+  --full-auto \
+  "Task: {task description in English}" 2>/dev/null
+```
+
+**Use cases:** Implement feature, fix bug, refactor code, write tests
+
+### Decision Guide
+
+| Need | Mode | Sandbox |
+|------|------|---------|
+| "How should I design this?" | Analysis | read-only |
+| "What's causing this bug?" | Analysis | read-only |
+| "Implement this feature" | Work | workspace-write |
+| "Fix this bug" | Work | workspace-write |
+| "Refactor this code" | Work | workspace-write |
 
 ### Language Protocol
 
 1. **Ask Codex in English** - Write prompts in English
 2. **Receive response in English** - Codex replies in English
-3. **Execute** - Work based on Codex's advice
+3. **Execute or verify** - Work based on Codex's advice, or verify Codex's work
 4. **Report to user in Japanese** - Summarize results for the user
 
 ### Session Continuation
