@@ -1,5 +1,13 @@
 {
   "$schema": "https://code.claude.com/schemas/settings.json",
+  "hooks": {
+    "PreToolCall": [
+      {
+        "matcher": "Write",
+        "command": "echo '[Codex Check] Is this a design decision or complex implementation? If yes, did you consult Codex first?'"
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Read(*)",
