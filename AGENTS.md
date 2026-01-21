@@ -199,6 +199,7 @@ After recording, report briefly like "Recorded in DESIGN.md".
 └── commands/              # Explicit invocation commands
 
 .codex/                    # Codex CLI settings
+├── AGENTS.md              # Global instructions (copy to ~/.codex/)
 ├── config.toml            # Skills enabled, features
 └── skills/
     └── context-loader/    # Load .claude/ context at task start
