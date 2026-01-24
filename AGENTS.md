@@ -174,6 +174,7 @@ Invoke with `/skill-name`:
 
 | Skill | Purpose |
 |-------|---------|
+| `/startproject <feature>` | **Project kickoff**: repo analysis, requirements gathering, Codex consultation, task list creation |
 | `/init` | Analyze project & update AGENTS.md |
 | `/plan <feature>` | Create implementation plan |
 | `/tdd <feature>` | Test-driven development workflow |
@@ -279,6 +280,7 @@ After recording, report briefly like "Recorded in DESIGN.md".
     ├── codex-system/      # Codex CLI collaboration (auto)
     ├── gemini-system/     # Gemini CLI collaboration (auto)
     ├── design-tracker/    # Design decision tracking (auto)
+    ├── startproject/      # Project kickoff with task planning
     ├── init/              # Project initialization
     ├── plan/              # Implementation planning
     ├── tdd/               # Test-driven development
