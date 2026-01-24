@@ -1,6 +1,6 @@
 {
   "model": {
-    "name": "gemini-2.5-pro"
+    "name": "gemini-3-pro-preview"
   },
   "context": {
     "fileName": ["GEMINI.md", "AGENTS.md"],
