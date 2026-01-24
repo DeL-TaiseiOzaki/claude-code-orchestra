@@ -1,4 +1,4 @@
-# fastslow-claude-code
+# claude-code-orchestra
 
 Multi-Agent AI Development Environment
 
@@ -11,7 +11,7 @@ Claude Code (Orchestrator) ─┬─ Codex CLI (Deep Reasoning)
 ## Quick Start
 
 ```bash
-git clone https://github.com/DeL-TaiseiOzaki/fastslow-claude-code.git && cd fastslow-claude-code && claude
+git clone https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git && cd claude-code-orchestra && claude
 ```
 
 ## Prerequisites
