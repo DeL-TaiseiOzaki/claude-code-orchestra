@@ -8,21 +8,43 @@ LLM/Agent Development Project
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 Claude Code (You)                           │
+│           Claude Code (Orchestrator)                        │
+│           → コンテキスト節約が最優先                         │
+│           → Codex/Gemini は直接呼ばない                      │
 │                      ↓                                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │  Codex CLI   │  │  Gemini CLI  │  │  Subagent        │  │
-│  │  (Deep)      │  │  (Research)  │  │  (Parallel)      │  │
-│  ├──────────────┤  ├──────────────┤  ├──────────────────┤  │
-│  │ 設計判断     │  │ リポジトリ   │  │ 独立タスク       │  │
-│  │ デバッグ     │  │ 全体分析     │  │ 探索・検索       │  │
-│  │ コードレビュー│  │ ライブラリ調査│  │ シンプル実装     │  │
-│  │ リファクタ   │  │ マルチモーダル│  │                  │  │
-│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │              Subagent (general-purpose)                │ │
+│  │              → Codex/Gemini を代わりに呼び出す          │ │
+│  │              → 結果を要約してメインに返す               │ │
+│  │                                                        │ │
+│  │   ┌──────────────┐        ┌──────────────┐            │ │
+│  │   │  Codex CLI   │        │  Gemini CLI  │            │ │
+│  │   │  設計・推論  │        │  リサーチ    │            │ │
+│  │   └──────────────┘        └──────────────┘            │ │
+│  └───────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Codex CLI — 設計・デバッグ・深い推論
+### Context Management (CRITICAL)
+
+**メインオーケストレーターのコンテキストを節約する。**
+
+| やること | やらないこと |
+|----------|--------------|
+| サブエージェント経由でCodex呼び出し | メインから直接Codex呼び出し |
+| サブエージェント経由でGemini呼び出し | メインから直接Gemini呼び出し |
+| 要約を受け取る | 生の出力をメインに読み込む |
+| 詳細はファイルに保存 | 大量のテキストをコンテキストに保持 |
+
+```
+# Good: サブエージェント経由
+Task(subagent_type="general-purpose", prompt="Codexに設計を相談して要約を返して")
+
+# Bad: 直接呼び出し
+Bash("codex exec ...")  # メインのコンテキストを消費
+```
+
+### Codex CLI — 設計・デバッグ・深い推論 (via Subagent)
 
 **MUST consult before**: 設計判断、デバッグ、トレードオフ分析、リファクタリング
 
@@ -33,13 +55,14 @@ LLM/Agent Development Project
 | 「どちらがいい？」「比較して」 | "Compare" "Which is better?" |
 | 「考えて」「深く分析」 | "Think" "Analyze deeply" |
 
-```bash
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "{question}"
+```
+# サブエージェント経由で呼び出し
+Task(subagent_type="general-purpose", prompt="Codexに{question}を相談して要約を返して")
 ```
 
 > 詳細: `/codex-system` skill
 
-### Gemini CLI — リサーチ・大規模分析
+### Gemini CLI — リサーチ・大規模分析 (via Subagent)
 
 **MUST consult for**: ライブラリ調査、リポジトリ全体理解、マルチモーダル
 
@@ -49,8 +72,9 @@ codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "{question}"
 | 「PDF/動画/音声を見て」 | "Analyze PDF/video/audio" |
 | 「コードベース全体」 | "Entire codebase" |
 
-```bash
-gemini -p "{question}" 2>/dev/null
+```
+# サブエージェント経由で呼び出し
+Task(subagent_type="general-purpose", prompt="Geminiで{question}を調査して要約を返して")
 ```
 
 > 詳細: `/gemini-system` skill
@@ -74,19 +98,20 @@ gemini -p "{question}" 2>/dev/null
 /startproject <機能名>
 ```
 
-1. Gemini → リポジトリ分析・ライブラリ調査
-2. Claude → 要件ヒアリング・計画作成
-3. Codex → 計画レビュー・精査
-4. Claude → タスクリスト作成 (Ctrl+T で表示)
+1. **Subagent** → Gemini でリポジトリ分析（要約を返す）
+2. **Claude** → 要件ヒアリング・計画作成
+3. **Subagent** → Codex で計画レビュー（要約を返す）
+4. **Claude** → タスクリスト作成 (Ctrl+T で表示)
 
 ### 実装中
 
-- **設計判断が必要** → Codex相談
-- **調査が必要** → Gemini相談
-- **テスト失敗** → Codex分析
-- **大量実装後** → Codexレビュー
+- **設計判断が必要** → Subagent 経由で Codex 相談
+- **調査が必要** → Subagent 経由で Gemini 相談
+- **テスト失敗** → Subagent 経由で Codex 分析
+- **大量実装後** → Subagent 経由で Codex レビュー
 
 > Hooks が自動で協調を提案します
+> **すべての Codex/Gemini 呼び出しはサブエージェント経由**
 
 ---
 

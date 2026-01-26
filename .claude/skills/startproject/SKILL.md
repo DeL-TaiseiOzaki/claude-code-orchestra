@@ -14,26 +14,52 @@ metadata:
 
 ## Overview
 
-This skill orchestrates a complete project kickoff using three AI agents:
+This skill orchestrates a complete project kickoff using three AI agents.
+
+### Context Management (CRITICAL)
+
+**All Codex/Gemini work runs through subagents** to preserve main orchestrator context.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Phase 1: Gemini CLI (Research)                                 │
+│  Main Claude Code (Orchestrator)                                │
+│  → Minimal context usage                                        │
+│  → User interaction only                                        │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  Subagent: Gemini Research                                 │ │
+│  │  → Calls Gemini CLI                                        │ │
+│  │  → Returns concise summary                                 │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  Subagent: Codex Review                                    │ │
+│  │  → Calls Codex CLI                                         │ │
+│  │  → Returns key recommendations                             │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Workflow Phases
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Phase 1: Subagent → Gemini (Research)                          │
 │  → Repository analysis & library investigation                  │
 │  → Output: .claude/docs/research/{feature}.md                   │
 ├─────────────────────────────────────────────────────────────────┤
-│  Phase 2: Claude Code (Planning)                                │
-│  → Read Gemini's research                                       │
+│  Phase 2: Main Claude (Planning)                                │
+│  → Read subagent's summary                                      │
 │  → Gather requirements from user                                │
 │  → Draft implementation plan                                    │
 ├─────────────────────────────────────────────────────────────────┤
-│  Phase 3: Codex CLI (Review)                                    │
-│  → Read Gemini's research + Claude's draft plan                 │
+│  Phase 3: Subagent → Codex (Review)                             │
+│  → Read research + draft plan                                   │
 │  → Deep review and refinement                                   │
-│  → Risk analysis and recommendations                            │
+│  → Returns key recommendations                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│  Phase 4: Claude Code (Execution)                               │
-│  → Synthesize all inputs                                        │
+│  Phase 4: Main Claude (Execution)                               │
+│  → Synthesize subagent summaries                                │
 │  → Create comprehensive task list                               │
 │  → Get user confirmation and start                              │
 └─────────────────────────────────────────────────────────────────┘
@@ -41,50 +67,36 @@ This skill orchestrates a complete project kickoff using three AI agents:
 
 ## Workflow
 
-### Phase 1: Gemini Research (Background)
+### Phase 1: Subagent → Gemini Research (Background)
 
-Launch Gemini CLI to analyze the codebase and relevant libraries.
-**Run in background** so Claude can prepare for Phase 2.
+**Use Task tool with subagent_type=general-purpose** to run Gemini research.
+This preserves main context while getting comprehensive research.
 
-```bash
-# Run with run_in_background: true
-gemini -p "Analyze this repository for implementing: {feature}
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- run_in_background: true
+- prompt: |
+    Research for implementing: {feature}
 
-Provide comprehensive analysis:
+    1. Call Gemini CLI:
+       gemini -p "Analyze this repository for implementing: {feature}
 
-## 1. Repository Structure
-- Overall architecture and patterns
-- Key modules and their responsibilities
-- Data flow between components
-- Entry points and extension points
+       Provide:
+       1. Repository Structure (architecture, key modules, data flow)
+       2. Relevant Existing Code (related files, patterns to follow)
+       3. Library Investigation (current deps, recommended libs)
+       4. Technical Considerations (integration points, security)
+       5. Recommendations (approach, files to create/modify)
+       " --include-directories . 2>/dev/null
 
-## 2. Relevant Existing Code
-- Files/modules related to this feature
-- Existing patterns to follow
-- Code conventions used
+    2. Save full output to: .claude/docs/research/{feature}.md
 
-## 3. Library Investigation
-- Current dependencies that may be useful
-- Recommended libraries for this feature (with rationale)
-- Version compatibility considerations
-
-## 4. Technical Considerations
-- Potential integration points
-- Database/API changes needed
-- Security considerations
-
-## 5. Recommendations
-- Suggested implementation approach
-- Files to create vs modify
-- Order of implementation
-
-Output in markdown format suitable for documentation.
-" --include-directories . 2>/dev/null
+    3. Return CONCISE summary (5-7 bullet points) of key findings
+       to preserve main orchestrator context.
 ```
 
-**Save Gemini output to:** `.claude/docs/research/{feature-name}.md`
-
-This allows both Claude Code and Codex to reference the research.
+**Key principle:** Subagent consumes its own context. Main orchestrator only receives the summary.
 
 ### Phase 2: Requirements Gathering (Claude Code)
 
@@ -134,65 +146,61 @@ Based on Gemini research + user requirements, create draft plan:
 - {Any uncertainties for Codex to address}
 ```
 
-### Phase 3: Codex Deep Review (Background)
+### Phase 3: Subagent → Codex Deep Review (Background)
 
-Submit the draft plan to Codex for deep review.
-**Include reference to Gemini's research.**
+**Use Task tool with subagent_type=general-purpose** to get Codex review.
+Pass the draft plan and Gemini research summary.
 
-```bash
-# Run with run_in_background: true
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
-Review this implementation plan for: {feature}
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- run_in_background: true
+- prompt: |
+    Review implementation plan for: {feature}
 
-## Gemini Research Summary
-{Read from .claude/docs/research/{feature}.md or include key points}
+    ## Context
+    - Gemini research: .claude/docs/research/{feature}.md
+    - Draft plan: {Claude's draft plan from Phase 2}
+    - User requirements: {summary}
 
-## Draft Plan
-{Claude's draft plan from Phase 2}
+    1. Read the Gemini research file
 
-## User Requirements
-{Summary from Phase 2}
+    2. Call Codex CLI:
+       codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
+       Review this implementation plan:
 
----
+       {Include draft plan and key research points}
 
-Provide deep analysis:
+       Analyze:
+       1. Plan Assessment (sound approach? better alternatives?)
+       2. Risk Analysis (technical risks, complexity hotspots)
+       3. Implementation Order (optimal sequence, parallelizable work)
+       4. Refinements (improvements, additional/removable tasks)
+       5. Complexity Estimates (Low/Medium/High per component)
+       " 2>/dev/null
 
-1. **Plan Assessment**
-   - Is the approach sound?
-   - Are there better alternatives?
-   - Missing considerations?
+    3. Return CONCISE summary:
+       - Top 3-5 recommendations
+       - Key risks identified
+       - Suggested task order
+       - Any blocking concerns
 
-2. **Risk Analysis**
-   - Technical risks and mitigations
-   - Complexity hotspots
-   - Potential blockers
-
-3. **Implementation Order**
-   - Optimal sequence of tasks
-   - Parallelizable work
-   - Critical path
-
-4. **Refinements**
-   - Specific improvements to the plan
-   - Additional tasks needed
-   - Tasks that can be simplified or removed
-
-5. **Complexity Estimates**
-   - Low/Medium/High for each component
-   - Total estimated effort
-
-Be thorough. This plan will guide the entire implementation.
-" 2>/dev/null
+       Keep response brief for main context preservation.
 ```
 
-### Phase 4: Task List Creation (Claude Code)
+**Key principle:** Full Codex analysis stays in subagent. Main orchestrator gets actionable summary.
 
-Synthesize all inputs and create the final task list.
+### Phase 4: Task List Creation (Main Claude)
 
-**Inputs to synthesize:**
-1. Gemini's research (`.claude/docs/research/{feature}.md`)
-2. User requirements (from Phase 2)
-3. Codex's review and refinements (from Phase 3)
+Synthesize **subagent summaries** and create the final task list.
+
+**Inputs to synthesize (all concise summaries):**
+1. Gemini subagent summary (5-7 bullet points from Phase 1)
+2. User requirements (from Phase 2 conversation)
+3. Codex subagent summary (key recommendations from Phase 3)
+
+**Note:** Full details are in `.claude/docs/research/{feature}.md` if needed,
+but summaries should be sufficient for task creation.
 
 **Create tasks using TodoWrite:**
 
@@ -261,12 +269,18 @@ Present final plan to user (in Japanese):
 
 ## Tips
 
+### Context Management
+- **All Codex/Gemini work through subagents** — never call directly from main
+- **Subagents return concise summaries** — full output saved to files
+- **Read files only if summary insufficient** — avoid loading large content into main context
+
+### Task Tracking
 - **Ctrl+T**: Toggle task list visibility
 - **`/todos`**: Show all current tasks
 - Tasks persist across context compactions
 - Update task status immediately upon completion
 - Only have ONE task `in_progress` at a time
-- Re-consult Codex if unexpected complexity arises
+- Re-consult Codex (via subagent) if unexpected complexity arises
 
 ## Output Files
 

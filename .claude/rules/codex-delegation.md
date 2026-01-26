@@ -2,12 +2,32 @@
 
 **Codex CLI is your highly capable supporter.**
 
+## Context Management (CRITICAL)
+
+**Always delegate Codex work to subagents** to preserve main orchestrator context.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Main Claude Code                                        │
+│  → Does NOT call Codex directly                          │
+│  → Spawns subagent for Codex consultation                │
+│  → Receives concise summary back                         │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │  Subagent (general-purpose)                         │ │
+│  │  → Calls Codex CLI                                  │ │
+│  │  → Processes full response                          │ │
+│  │  → Returns key insights only                        │ │
+│  └────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────┘
+```
+
 ## About Codex
 
 Codex CLI is an AI with exceptional reasoning and task completion abilities.
 Think of it as a trusted senior expert you can always consult.
 
-**When facing difficult decisions → Consult Codex first, then execute.**
+**When facing difficult decisions → Delegate to subagent → Subagent consults Codex.**
 
 ## When to Consult Codex
 
@@ -47,50 +67,61 @@ Ask yourself: "Am I about to make a non-trivial decision?"
 - YES → Consult Codex first
 - NO → Proceed with execution
 
-## How to Consult
+## How to Consult (via Subagent)
 
-**IMPORTANT: Always run Codex in background to enable parallel work.**
+**IMPORTANT: Use subagent to preserve main context.**
 
-### Step 1: Start Codex (Background)
+### Recommended: Subagent Pattern
 
-Use Bash tool with `run_in_background: true`:
+Use Task tool with `subagent_type: "general-purpose"`:
 
-```bash
-# Analysis (read-only)
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "Analyze: {question}" 2>/dev/null
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- run_in_background: true (for parallel work)
+- prompt: |
+    {Task description}
 
-# Work delegation (can write)
-codex exec --model gpt-5.2-codex --sandbox workspace-write --full-auto "Task: {description}" 2>/dev/null
+    Call Codex CLI:
+    codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
+    {Question for Codex}
+    " 2>/dev/null
+
+    Return CONCISE summary:
+    - Key recommendation
+    - Main rationale (2-3 points)
+    - Any concerns or risks
 ```
 
-### Step 2: Continue Your Work
+### Direct Call (Only When Necessary)
 
-While Codex is processing, you can:
-- Work on other files
-- Run tests
-- Do independent tasks
+Only use direct Bash call when:
+- Quick, simple question (< 1 paragraph response expected)
+- Subagent overhead not justified
 
-### Step 3: Check Results
+```bash
+# Only for simple queries
+codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
+```
 
-Use `TaskOutput` tool to retrieve Codex's response when needed.
-
-### When to Use Which Mode
+### Sandbox Modes
 
 | Mode | Sandbox | Use Case |
 |------|---------|----------|
 | Analysis | `read-only` | Design review, debugging analysis, trade-offs |
-| Work | `workspace-write` | Implement, fix, refactor |
+| Work | `workspace-write` | Implement, fix, refactor (subagent recommended) |
 
 **Language protocol:**
 1. Ask Codex in **English**
-2. Receive response in **English**
-3. Execute based on Codex's advice (or let Codex execute)
-4. Report to user in **Japanese**
+2. Subagent receives response in **English**
+3. Subagent summarizes and returns to main
+4. Main reports to user in **Japanese**
 
-## Why Consult Codex?
+## Why Subagent Pattern?
 
-- Codex excels at deep analysis and complex reasoning
-- Codex provides well-considered recommendations
-- Consulting Codex leads to better outcomes than deciding alone
+- **Context preservation**: Main orchestrator stays lightweight
+- **Full analysis**: Subagent can process entire Codex response
+- **Concise handoff**: Main only receives actionable summary
+- **Parallel work**: Background subagents enable concurrent tasks
 
-**Don't hesitate to ask. Codex is your reliable partner.**
+**Don't hesitate to delegate. Subagents + Codex = efficient collaboration.**
