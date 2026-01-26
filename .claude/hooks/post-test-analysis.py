@@ -115,9 +115,9 @@ def main():
                     "hookEventName": "PostToolUse",
                     "additionalContext": (
                         f"[Codex Debug Suggestion] {reason}. "
-                        "Consider consulting Codex for debugging analysis: "
-                        "`codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
-                        '"Analyze these test failures and suggest fixes: {paste errors}"` '
+                        "Consider consulting Codex for debugging analysis. "
+                        "**Recommended**: Use Task tool with subagent_type='general-purpose' "
+                        "to consult Codex with full error context and preserve main context."
                     )
                 }
             }

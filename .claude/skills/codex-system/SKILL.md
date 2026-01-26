@@ -15,6 +15,18 @@ metadata:
 
 **Codex CLI (gpt-5.2-codex) is your highly capable supporter for deep reasoning tasks.**
 
+> **詳細ルール**: `.claude/rules/codex-delegation.md`
+
+## Context Management (CRITICAL)
+
+**サブエージェント経由を推奨。** メインオーケストレーターのコンテキストを節約するため。
+
+| 状況 | 方法 |
+|------|------|
+| 詳細な設計相談 | サブエージェント経由（推奨） |
+| デバッグ分析 | サブエージェント経由（推奨） |
+| 短い質問 (1-2文回答) | 直接呼び出しOK |
+
 ## When to Consult (MUST)
 
 | Situation | Trigger Examples |
@@ -35,23 +47,37 @@ metadata:
 
 ## How to Consult
 
-### Background Execution (Recommended)
+### Recommended: Subagent Pattern
 
-Always use `run_in_background: true` for parallel work:
+**Use Task tool with `subagent_type='general-purpose'` to preserve main context.**
 
-```bash
-# Analysis (read-only)
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "Analyze: {question}" 2>/dev/null
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- run_in_background: true (optional, for parallel work)
+- prompt: |
+    Consult Codex about: {topic}
 
-# Work delegation (can write files)
-codex exec --model gpt-5.2-codex --sandbox workspace-write --full-auto "Task: {description}" 2>/dev/null
+    codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
+    {question for Codex}
+    " 2>/dev/null
+
+    Return CONCISE summary (key recommendation + rationale).
 ```
 
-### Workflow
+### Direct Call (Short Questions Only)
 
-1. **Start Codex** in background → Get task_id
-2. **Continue your work** → Don't wait
-3. **Retrieve results** → Use `TaskOutput` tool or `Read` on output file
+For quick questions expecting 1-2 sentence answers:
+
+```bash
+codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
+```
+
+### Workflow (Subagent)
+
+1. **Spawn subagent** with Codex consultation prompt
+2. **Continue your work** → Subagent runs in parallel
+3. **Receive summary** → Subagent returns concise insights
 
 ### Sandbox Modes
 

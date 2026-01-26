@@ -14,6 +14,19 @@ metadata:
 
 **Gemini CLI (gemini-3-pro-preview) is your research specialist with 1M token context.**
 
+> **詳細ルール**: `.claude/rules/gemini-delegation.md`
+
+## Context Management (CRITICAL)
+
+**サブエージェント経由を推奨。** Gemini出力は大きくなりがちなため。
+
+| 状況 | 方法 |
+|------|------|
+| コードベース分析 | サブエージェント経由（推奨） |
+| ライブラリ調査 | サブエージェント経由（推奨） |
+| マルチモーダル | サブエージェント経由（推奨） |
+| 短い質問 (1-2文回答) | 直接呼び出しOK |
+
 ## Gemini vs Codex
 
 | Task | Gemini | Codex |
@@ -44,30 +57,50 @@ metadata:
 
 ## How to Consult
 
-### Background Execution (Recommended)
+### Recommended: Subagent Pattern
 
-Always use `run_in_background: true` for parallel work:
+**Use Task tool with `subagent_type='general-purpose'` to preserve main context.**
 
-```bash
-# Research
-gemini -p "Research: {question}" 2>/dev/null
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- run_in_background: true (optional, for parallel work)
+- prompt: |
+    Research: {topic}
 
-# Codebase analysis
-gemini -p "Analyze: {aspect}" --include-directories src,lib 2>/dev/null
+    gemini -p "{research question}" 2>/dev/null
 
-# Multimodal (PDF/video/audio)
-gemini -p "Extract: {what}" < /path/to/file.pdf 2>/dev/null
-
-# Latest docs search
-gemini -p "Search latest {library} docs 2025" 2>/dev/null
+    Save full output to: .claude/docs/research/{topic}.md
+    Return CONCISE summary (5-7 bullet points).
 ```
 
-### Workflow
+### Direct Call (Short Questions Only)
 
-1. **Start Gemini** in background → Get task_id
-2. **Continue your work** → Don't wait
-3. **Retrieve results** → Use `Read` tool on output file
-4. **Save to docs** → `.claude/docs/research/{topic}.md`
+For quick questions expecting brief answers:
+
+```bash
+gemini -p "Brief question" 2>/dev/null
+```
+
+### CLI Options Reference
+
+```bash
+# Codebase analysis
+gemini -p "{question}" --include-directories . 2>/dev/null
+
+# Multimodal (PDF/video/audio)
+gemini -p "{prompt}" < /path/to/file.pdf 2>/dev/null
+
+# JSON output
+gemini -p "{question}" --output-format json 2>/dev/null
+```
+
+### Workflow (Subagent)
+
+1. **Spawn subagent** with Gemini research prompt
+2. **Continue your work** → Subagent runs in parallel
+3. **Receive summary** → Subagent returns key findings
+4. **Full output saved** → `.claude/docs/research/{topic}.md`
 
 ## Language Protocol
 

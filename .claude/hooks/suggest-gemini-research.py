@@ -84,9 +84,10 @@ def main():
                     "hookEventName": "PreToolUse",
                     "additionalContext": (
                         f"[Gemini Research Suggestion] {reason}. "
-                        "For comprehensive research, consider using Gemini CLI with its 1M token context: "
-                        '`gemini -p "Research: {topic}" 2>/dev/null` '
-                        "and save results to .claude/docs/research/"
+                        "For comprehensive research, consider using Gemini CLI (1M token context). "
+                        "**Recommended**: Use Task tool with subagent_type='general-purpose' "
+                        "to consult Gemini and save results to .claude/docs/research/. "
+                        "(Direct call OK for quick questions: `gemini -p '...' 2>/dev/null`)"
                     )
                 }
             }

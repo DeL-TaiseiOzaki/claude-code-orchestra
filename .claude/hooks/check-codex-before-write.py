@@ -101,9 +101,11 @@ def main():
                     "hookEventName": "PreToolUse",
                     "additionalContext": (
                         f"[Codex Consultation Reminder] {reason}. "
-                        "Consider consulting Codex CLI before making this change: "
-                        "`codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
-                        "\"Review this design decision: {brief description}\"`"
+                        "Consider consulting Codex before making this change. "
+                        "**Recommended**: Use Task tool with subagent_type='general-purpose' "
+                        "to preserve main context. "
+                        "(Direct call OK for quick questions: "
+                        "`codex exec --model gpt-5.2-codex --sandbox read-only --full-auto '...'`)"
                     )
                 }
             }

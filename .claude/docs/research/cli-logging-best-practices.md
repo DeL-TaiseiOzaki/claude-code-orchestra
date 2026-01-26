@@ -51,9 +51,18 @@ Both tools are called via Bash tool, so output is visible in Claude Code UI, but
 Each line is a complete JSON object:
 
 ```json
-{"timestamp": "2026-01-26T10:30:45.123Z", "tool": "codex", "model": "gpt-5.2-codex", "sandbox": "read-only", "prompt": "How should I design...", "response": "I recommend...", "duration_ms": 2341, "success": true}
-{"timestamp": "2026-01-26T10:32:12.456Z", "tool": "gemini", "prompt": "Research best practices...", "response": "Based on...", "duration_ms": 1823, "success": true}
+{"timestamp": "2026-01-26T10:30:45+00:00", "tool": "codex", "model": "gpt-5.2-codex", "prompt": "How should I design...", "response": "I recommend...", "success": true, "exit_code": 0}
+{"timestamp": "2026-01-26T10:32:12+00:00", "tool": "gemini", "model": "gemini-3-pro-preview", "prompt": "Research best practices...", "response": "Based on...", "success": true, "exit_code": 0}
 ```
+
+**Fields**:
+- `timestamp`: ISO 8601 format with timezone
+- `tool`: "codex" or "gemini"
+- `model`: Model name used
+- `prompt`: Input prompt (truncated to 2000 chars if longer)
+- `response`: Output response (truncated to 2000 chars if longer)
+- `success`: Whether the call succeeded (exit_code == 0 and output exists)
+- `exit_code`: Exit code from CLI command
 
 **Benefits**:
 - One log entry per line = easy to append

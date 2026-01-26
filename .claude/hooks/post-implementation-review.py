@@ -99,10 +99,9 @@ def main():
                     "hookEventName": "PostToolUse",
                     "additionalContext": (
                         f"[Code Review Suggestion] {reason} in this session. "
-                        "Consider having Codex review the implementation: "
-                        "`codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
-                        '"Review these changes for correctness, simplicity, and best practices: '
-                        '$(git diff)"` '
+                        "Consider having Codex review the implementation. "
+                        "**Recommended**: Use Task tool with subagent_type='general-purpose' "
+                        "to consult Codex with git diff and preserve main context."
                     )
                 }
             }
