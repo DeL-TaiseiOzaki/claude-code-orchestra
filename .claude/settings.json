@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-router.py\"",
+            "command": "php \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-router.php\"",
             "timeout": 5
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-codex-before-write.py\"",
+            "command": "php \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-codex-before-write.php\"",
             "timeout": 10
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/suggest-gemini-research.py\"",
+            "command": "php \"$CLAUDE_PROJECT_DIR/.claude/hooks/suggest-gemini-research.php\"",
             "timeout": 5
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-codex-after-plan.py\"",
+            "command": "php \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-codex-after-plan.php\"",
             "timeout": 10
           }
         ]
@@ -51,12 +51,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-test-analysis.py\"",
+            "command": "php \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-test-analysis.php\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/log-cli-tools.py\"",
+            "command": "php \"$CLAUDE_PROJECT_DIR/.claude/hooks/log-cli-tools.php\"",
             "timeout": 5
           }
         ]
@@ -66,12 +66,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint-on-save.py\"",
+            "command": "php \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint-on-save.php\"",
             "timeout": 30
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-implementation-review.py\"",
+            "command": "php \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-implementation-review.php\"",
             "timeout": 10
           }
         ]
@@ -112,13 +112,11 @@
       "Bash(mv:*)",
       "Bash(chmod:*)",
       "Bash(git:*)",
-      "Bash(python:*)",
-      "Bash(python3:*)",
-      "Bash(uv:*)",
-      "Bash(ruff:*)",
-      "Bash(black:*)",
-      "Bash(mypy:*)",
-      "Bash(pytest:*)",
+      "Bash(php:*)",
+      "Bash(composer:*)",
+      "Bash(./vendor/bin/phpunit:*)",
+      "Bash(./vendor/bin/phpstan:*)",
+      "Bash(./vendor/bin/php-cs-fixer:*)",
       "Bash(node:*)",
       "Bash(npm:*)",
       "Bash(npm install:*)",

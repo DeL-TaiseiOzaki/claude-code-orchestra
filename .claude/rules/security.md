@@ -12,67 +12,82 @@ Security checklist to always verify when writing code.
 
 ### Required
 
-```python
-# Good: Get from environment variables
-import os
-API_KEY = os.environ["API_KEY"]
+```php
+// Good: Get from environment variables
+$apiKey = getenv('API_KEY');
 
-# Good: With existence check
-API_KEY = os.environ.get("API_KEY")
-if not API_KEY:
-    raise ValueError("API_KEY environment variable is required")
+// Good: With existence check
+$apiKey = getenv('API_KEY');
+if ($apiKey === false) {
+    throw new RuntimeException('API_KEY environment variable is required');
+}
 ```
 
 ## Input Validation
 
 Always validate external input:
 
-```python
-from pydantic import BaseModel, EmailStr, Field
-
-class UserInput(BaseModel):
-    email: EmailStr
-    age: int = Field(ge=0, le=150)
-    name: str = Field(min_length=1, max_length=100)
+```php
+// Using strict type declarations and validation
+function createUser(string $email, int $age, string $name): User
+{
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new InvalidArgumentException('Invalid email');
+    }
+    if ($age < 0 || $age > 150) {
+        throw new InvalidArgumentException('Age must be between 0 and 150');
+    }
+    if (strlen($name) < 1 || strlen($name) > 100) {
+        throw new InvalidArgumentException('Name must be between 1 and 100 characters');
+    }
+    return new User($email, $age, $name);
+}
 ```
 
 ## SQL Injection Prevention
 
-```python
-# Bad: String concatenation
-cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+```php
+// Bad: String concatenation
+$stmt = $pdo->query("SELECT * FROM users WHERE id = {$userId}");
 
-# Good: Parameterized query
-cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+// Good: Prepared statement
+$stmt = $pdo->prepare('SELECT * FROM users WHERE id = :id');
+$stmt->execute(['id' => $userId]);
 ```
 
 ## XSS Prevention
 
 - Escape user input before embedding in HTML
-- Enable template engine auto-escaping
+- Use `htmlspecialchars()` with `ENT_QUOTES` flag
+- Enable template engine auto-escaping (Twig, Blade)
+
+```php
+// Always escape output
+echo htmlspecialchars($userInput, ENT_QUOTES, 'UTF-8');
+```
 
 ## Error Messages
 
-```python
-# Bad: Too detailed (gives attackers information)
-raise Exception(f"Database connection failed: {connection_string}")
+```php
+// Bad: Too detailed (gives attackers information)
+throw new Exception("Database connection failed: {$connectionString}");
 
-# Good: Minimal information
-raise Exception("Database connection failed")
-# Details go to logs (logs are private)
-logger.error(f"Database connection failed: {connection_string}")
+// Good: Minimal information
+throw new Exception('Database connection failed');
+// Details go to logs (logs are private)
+error_log("Database connection failed: {$connectionString}");
 ```
 
 ## Dependencies
 
-- Regular vulnerability checks: `pip-audit`, `safety`
+- Regular vulnerability checks: `composer audit`
 - Remove unused dependencies
-- Pin versions (`==` over `>=`)
+- Pin versions in `composer.lock`
 
 ## Code Review Checklist
 
 - [ ] No hardcoded secrets
 - [ ] External input is validated
-- [ ] SQL queries are parameterized
+- [ ] SQL queries use prepared statements
 - [ ] Error messages are not too detailed
 - [ ] Logs don't contain sensitive information

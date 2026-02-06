@@ -12,28 +12,34 @@ Guidelines for writing tests.
 
 ### AAA Pattern
 
-```python
-def test_user_creation():
-    # Arrange
-    user_data = {"name": "Alice", "email": "alice@example.com"}
+```php
+public function testUserCreation(): void
+{
+    // Arrange
+    $userData = ['name' => 'Alice', 'email' => 'alice@example.com'];
 
-    # Act
-    user = create_user(user_data)
+    // Act
+    $user = createUser($userData);
 
-    # Assert
-    assert user.name == "Alice"
-    assert user.email == "alice@example.com"
+    // Assert
+    $this->assertSame('Alice', $user->getName());
+    $this->assertSame('alice@example.com', $user->getEmail());
+}
 ```
 
 ### Naming Convention
 
-```python
-# test_{target}_{condition}_{expected_result}
-def test_create_user_with_valid_data_returns_user():
-    ...
+```php
+// test_{target}_{condition}_{expected_result}
+public function testCreateUserWithValidDataReturnsUser(): void
+{
+    // ...
+}
 
-def test_create_user_with_invalid_email_raises_error():
-    ...
+public function testCreateUserWithInvalidEmailThrowsException(): void
+{
+    // ...
+}
 ```
 
 ## Test Case Coverage
@@ -43,58 +49,96 @@ For each feature, consider:
 1. **Happy path**: Basic functionality
 2. **Boundary values**: Min, max, empty
 3. **Error cases**: Invalid input, error conditions
-4. **Edge cases**: None, empty string, special characters
+4. **Edge cases**: Null, empty string, special characters
 
 ## Mocking
 
 Mock external dependencies:
 
-```python
-from unittest.mock import Mock, patch
+```php
+use PHPUnit\Framework\TestCase;
 
-@patch("module.external_api_call")
-def test_with_mocked_api(mock_api):
-    mock_api.return_value = {"status": "ok"}
-    result = function_under_test()
-    assert result == expected
+class ServiceTest extends TestCase
+{
+    public function testWithMockedApi(): void
+    {
+        $mockApi = $this->createMock(ExternalApi::class);
+        $mockApi->method('call')
+            ->willReturn(['status' => 'ok']);
+
+        $service = new Service($mockApi);
+        $result = $service->process();
+
+        $this->assertSame($expected, $result);
+    }
+}
 ```
 
-## Fixtures
+## Data Providers
 
-Common setup goes in `conftest.py`:
+Common test data patterns using data providers:
 
-```python
-# tests/conftest.py
-import pytest
+```php
+use PHPUnit\Framework\Attributes\DataProvider;
 
-@pytest.fixture
-def sample_user():
-    return User(name="Test", email="test@example.com")
+class ValidationTest extends TestCase
+{
+    public static function validEmailProvider(): array
+    {
+        return [
+            'simple' => ['test@example.com'],
+            'with subdomain' => ['user@sub.example.com'],
+        ];
+    }
 
-@pytest.fixture
-def db_session():
-    session = create_session()
-    yield session
-    session.rollback()
+    #[DataProvider('validEmailProvider')]
+    public function testValidEmail(string $email): void
+    {
+        $this->assertTrue(isValidEmail($email));
+    }
+}
+```
+
+## Fixtures / setUp
+
+Common setup goes in setUp method:
+
+```php
+class UserTest extends TestCase
+{
+    private User $sampleUser;
+    private PDO $dbConnection;
+
+    protected function setUp(): void
+    {
+        $this->sampleUser = new User('Test', 'test@example.com');
+        $this->dbConnection = createTestConnection();
+    }
+
+    protected function tearDown(): void
+    {
+        // Clean up resources
+    }
+}
 ```
 
 ## Commands
 
 ```bash
 # All tests
-uv run pytest -v
+./vendor/bin/phpunit
 
 # Specific file
-uv run pytest tests/test_user.py -v
+./vendor/bin/phpunit tests/UserTest.php
 
-# Specific test
-uv run pytest tests/test_user.py::test_create_user -v
+# Specific test method
+./vendor/bin/phpunit --filter testCreateUser
 
 # With coverage
-uv run pytest --cov=src --cov-report=term-missing
+./vendor/bin/phpunit --coverage-text
 
 # Stop on first failure
-uv run pytest -x
+./vendor/bin/phpunit --stop-on-failure
 ```
 
 ## Checklist

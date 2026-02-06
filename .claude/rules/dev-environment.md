@@ -2,157 +2,160 @@
 
 Project development environment and toolchain.
 
-## Package Management: uv
+## Package Management: Composer
 
-**Do not use pip directly. All commands must go through uv.**
+**All dependency management must go through Composer.**
 
 ```bash
 # Add packages
-uv add <package>
-uv add --dev <package>    # Dev dependency
+composer require <package>
+composer require --dev <package>    # Dev dependency
 
-# Sync dependencies
-uv sync
+# Install dependencies
+composer install
+
+# Update dependencies
+composer update
 
 # Run scripts
-uv run <command>
-uv run python script.py
-uv run pytest
+composer <script-name>
 ```
 
-### pyproject.toml
+### composer.json
 
-Manage dependencies in `pyproject.toml`:
+Manage dependencies in `composer.json`:
 
-```toml
-[project]
-dependencies = [
-    "httpx>=0.27",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-    "ruff>=0.8",
-]
+```json
+{
+    "require": {
+        "php": ">=8.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0",
+        "phpstan/phpstan": "^2.0",
+        "friendsofphp/php-cs-fixer": "^3.0"
+    }
+}
 ```
 
-## Linting & Formatting: ruff
+## Code Formatting: PHP-CS-Fixer
 
 ```bash
-# Check
-uv run ruff check .
+# Check (dry run)
+./vendor/bin/php-cs-fixer fix --dry-run --diff
 
 # Auto-fix
-uv run ruff check --fix .
-
-# Format
-uv run ruff format .
+./vendor/bin/php-cs-fixer fix
 ```
 
-### ruff Configuration (pyproject.toml)
+### PHP-CS-Fixer Configuration (.php-cs-fixer.dist.php)
 
-```toml
-[tool.ruff]
-target-version = "py312"
-line-length = 88
+```php
+<?php
 
-[tool.ruff.lint]
-select = [
-    "E",      # pycodestyle errors
-    "W",      # pycodestyle warnings
-    "F",      # pyflakes
-    "I",      # isort
-    "B",      # flake8-bugbear
-    "UP",     # pyupgrade
-]
-ignore = ["E501"]  # line too long (formatter handles)
+$finder = (new PhpCsFixer\Finder())
+    ->in(__DIR__ . '/src')
+    ->in(__DIR__ . '/tests');
 
-[tool.ruff.format]
-quote-style = "double"
+return (new PhpCsFixer\Config())
+    ->setRules([
+        '@PER-CS' => true,
+        'strict_types' => true,
+        'array_syntax' => ['syntax' => 'short'],
+        'no_unused_imports' => true,
+        'ordered_imports' => ['sort_algorithm' => 'alpha'],
+    ])
+    ->setFinder($finder)
+    ->setRiskyAllowed(true);
 ```
 
-## Type Checking: ty
+## Static Analysis: PHPStan
 
 ```bash
-# Run type check
-uv run ty check src/
+# Run analysis
+./vendor/bin/phpstan analyse src/
+
+# With specific level (0-9, max is strictest)
+./vendor/bin/phpstan analyse src/ --level=max
 ```
 
-### ty Features
+### PHPStan Configuration (phpstan.neon)
 
-- Fast Rust-based type checker (by Astral)
-- Same ecosystem as ruff / uv
-- mypy-compatible type annotations
+```neon
+parameters:
+    level: max
+    paths:
+        - src
+    tmpDir: .phpstan-cache
+```
 
-## Notebooks: marimo
-
-Interactive Python notebook environment.
+## Testing: PHPUnit
 
 ```bash
-# Create/edit notebook
-uv run marimo edit notebook.py
+# Run all tests
+./vendor/bin/phpunit
 
-# Run notebook (CLI)
-uv run marimo run notebook.py
+# Run specific test file
+./vendor/bin/phpunit tests/UserTest.php
 
-# Deploy as app
-uv run marimo run notebook.py --host 0.0.0.0 --port 8080
+# Run with coverage
+./vendor/bin/phpunit --coverage-text
 ```
 
-### marimo Features
+### PHPUnit Configuration (phpunit.xml)
 
-- **Pure Python files** (.py): Git-friendly
-- **Reactive**: Auto-tracks cell dependencies
-- **Reproducible**: No execution order dependency
-
-### marimo Best Practices
-
-```python
-# Bad: Mutating global state
-data = []
-def add_item(item):
-    data.append(item)  # Side effect
-
-# Good: Pure function
-def add_item(data: list, item) -> list:
-    return [*data, item]
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+</phpunit>
 ```
 
-## Task Runner
+## Composer Scripts
 
-Manage multiple tool executions in `pyproject.toml` scripts or poe:
+Manage task execution in `composer.json` scripts:
 
-```toml
-[tool.poe.tasks]
-lint = "ruff check . && ruff format --check ."
-format = "ruff check --fix . && ruff format ."
-typecheck = "ty check src/"
-test = "pytest -v"
-all = ["lint", "typecheck", "test"]
+```json
+{
+    "scripts": {
+        "lint": ["@cs-check", "@phpstan"],
+        "cs-check": "php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "php-cs-fixer fix",
+        "phpstan": "phpstan analyse src/ --no-progress",
+        "test": "phpunit",
+        "all": ["@lint", "@test"]
+    }
+}
 ```
 
 ## Common Commands
 
 ```bash
 # Initialize
-uv init
-uv venv
-source .venv/bin/activate
-
-# Install dev dependencies
-uv sync --all-extras
+composer init
+composer install
 
 # Quality check (all)
-uv run ruff check . && uv run ruff format --check . && uv run ty check src/ && uv run pytest
+./vendor/bin/php-cs-fixer fix --dry-run --diff && ./vendor/bin/phpstan analyse src/ && ./vendor/bin/phpunit
 
-# Or via poe
-poe all
+# Or via composer scripts
+composer all
 ```
 
 ## Pre-commit Checklist
 
-- [ ] `uv run ruff check .` passes
-- [ ] `uv run ruff format --check .` passes
-- [ ] `uv run ty check src/` passes
-- [ ] `uv run pytest` passes
+- [ ] `composer cs-check` passes
+- [ ] `composer phpstan` passes
+- [ ] `composer test` passes

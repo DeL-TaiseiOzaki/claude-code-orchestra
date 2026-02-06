@@ -81,8 +81,7 @@ gemini login
 .
 ├── CLAUDE.md                    # メインシステムドキュメント
 ├── README.md
-├── pyproject.toml               # Python プロジェクト設定
-├── uv.lock                      # 依存関係ロックファイル
+├── composer.json                # PHP プロジェクト設定
 │
 ├── .claude/
 │   ├── agents/
@@ -98,8 +97,8 @@ gemini login
 │   │   └── ...
 │   │
 │   ├── hooks/                   # 自動化フック
-│   │   ├── agent-router.py      # エージェントルーティング
-│   │   ├── lint-on-save.py      # 保存時自動lint
+│   │   ├── agent-router.php     # エージェントルーティング
+│   │   ├── lint-on-save.php     # 保存時自動lint
 │   │   └── ...
 │   │
 │   ├── rules/                   # 開発ガイドライン
@@ -209,29 +208,28 @@ Red-Green-Refactorサイクルで実装します。
 
 | ツール | 用途 |
 |--------|------|
-| **uv** | パッケージ管理（pip禁止） |
-| **ruff** | リント・フォーマット |
-| **mypy** | 型チェック |
-| **pytest** | テスト |
-| **poethepoet** | タスクランナー |
+| **Composer** | パッケージ管理 |
+| **PHP-CS-Fixer** | コードフォーマット |
+| **PHPStan** | 静的解析 |
+| **PHPUnit** | テスト |
 
 ### Commands
 
 ```bash
 # 依存関係
-uv add <package>           # パッケージ追加
-uv add --dev <package>     # 開発依存追加
-uv sync                    # 依存関係同期
+composer require <package>           # パッケージ追加
+composer require --dev <package>     # 開発依存追加
+composer install                     # 依存関係インストール
 
 # 品質チェック
-poe lint                   # ruff check + format
-poe typecheck              # mypy
-poe test                   # pytest
-poe all                    # 全チェック実行
+composer lint                        # PHP-CS-Fixer + PHPStan
+composer test                        # PHPUnit
+composer all                         # 全チェック実行
 
 # 直接実行
-uv run pytest -v
-uv run ruff check .
+./vendor/bin/phpunit
+./vendor/bin/phpstan analyse src/
+./vendor/bin/php-cs-fixer fix --dry-run --diff
 ```
 
 ## Hooks
@@ -240,10 +238,10 @@ uv run ruff check .
 
 | フック | トリガー | 動作 |
 |--------|----------|------|
-| `agent-router.py` | ユーザー入力 | Codex/Geminiへのルーティング提案 |
-| `lint-on-save.py` | ファイル保存 | 自動lint実行 |
-| `check-codex-before-write.py` | ファイル書き込み前 | Codex相談提案 |
-| `log-cli-tools.py` | Codex/Gemini実行 | 入出力ログ記録 |
+| `agent-router.php` | ユーザー入力 | Codex/Geminiへのルーティング提案 |
+| `lint-on-save.php` | ファイル保存 | 自動lint実行 |
+| `check-codex-before-write.php` | ファイル書き込み前 | Codex相談提案 |
+| `log-cli-tools.php` | Codex/Gemini実行 | 入出力ログ記録 |
 
 ## Language Rules
 

@@ -78,9 +78,9 @@ Bash("codex exec ... '1文で答えて'")
 
 ## Tech Stack
 
-- **Python** / **uv** (pip禁止)
-- **ruff** (lint/format) / **ty** (type check) / **pytest**
-- `poe lint` / `poe test` / `poe all`
+- **PHP 8.2+** / **Composer**
+- **PHP-CS-Fixer** (format) / **PHPStan** (static analysis) / **PHPUnit** (test)
+- `composer lint` / `composer test` / `composer all`
 
 → 詳細: `.claude/rules/dev-environment.md`
 

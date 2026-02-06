@@ -16,64 +16,75 @@ Core coding rules to always follow.
 
 ## Early Return
 
-```python
-# Bad: Deep nesting
-def process(value):
-    if value is not None:
-        if value > 0:
-            return do_something(value)
-    return None
+```php
+// Bad: Deep nesting
+function process(?int $value): ?Result
+{
+    if ($value !== null) {
+        if ($value > 0) {
+            return doSomething($value);
+        }
+    }
+    return null;
+}
 
-# Good: Early return
-def process(value):
-    if value is None:
-        return None
-    if value <= 0:
-        return None
-    return do_something(value)
+// Good: Early return
+function process(?int $value): ?Result
+{
+    if ($value === null) {
+        return null;
+    }
+    if ($value <= 0) {
+        return null;
+    }
+    return doSomething($value);
+}
 ```
 
-## Type Hints Required
+## Type Declarations Required
 
-All functions must have type annotations:
+All functions must have parameter and return type declarations:
 
-```python
-def call_llm(
-    prompt: str,
-    model: str = "gpt-4",
-    max_tokens: int = 1000
-) -> str:
-    ...
+```php
+function callLlm(
+    string $prompt,
+    string $model = 'gpt-4',
+    int $maxTokens = 1000
+): string {
+    // ...
+}
 ```
 
 ## Immutability
 
-Create new objects instead of mutating existing ones:
+Create new data instead of mutating existing objects:
 
-```python
-# Bad: Mutating existing object
-data["new_key"] = value
+```php
+// Bad: Mutating existing array
+$data['new_key'] = $value;
 
-# Good: Creating new object
-new_data = {**data, "new_key": value}
+// Good: Creating new array
+$newData = [...$data, 'new_key' => $value];
 ```
 
 ## Naming Conventions
 
-- **Variables/Functions**: snake_case (English)
+- **Variables/Functions**: camelCase (English)
 - **Classes**: PascalCase (English)
 - **Constants**: UPPER_SNAKE_CASE (English)
-- **Meaningful names**: `user_count` over `x`
+- **Meaningful names**: `$userCount` over `$x`
 
 ## No Magic Numbers
 
-```python
-# Bad
-if retry_count > 3:
-    ...
+```php
+// Bad
+if ($retryCount > 3) {
+    // ...
+}
 
-# Good
-MAX_RETRIES = 3
-if retry_count > MAX_RETRIES:
-    ...
+// Good
+const MAX_RETRIES = 3;
+if ($retryCount > MAX_RETRIES) {
+    // ...
+}
 ```

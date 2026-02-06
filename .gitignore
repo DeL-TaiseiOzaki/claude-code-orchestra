@@ -13,30 +13,20 @@ CLAUDE.local.md
 credentials*
 *secret*
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-.venv/
-venv/
-ENV/
-.eggs/
-*.egg-info/
-dist/
-build/
+# PHP
+/vendor/
+composer.lock
 
-# Test / Coverage
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
+# PHPUnit
+.phpunit.cache/
+.phpunit.result.cache
 
-# Type checking
-.mypy_cache/
-.dmypy.json
+# PHPStan
+phpstan-baseline.neon
+.phpstan-cache/
+
+# PHP-CS-Fixer
+.php-cs-fixer.cache
 
 # IDE
 .idea/
@@ -55,6 +45,3 @@ logs/
 
 # Checkpoints (session-specific, may contain sensitive info)
 .claude/checkpoints/
-
-# Jupyter
-.ipynb_checkpoints/

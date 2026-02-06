@@ -100,7 +100,7 @@ CLI相談履歴を各エージェントの設定ファイルに追記。
 
 ```bash
 # Step 1: チェックポイント + 分析プロンプト生成
-python checkpoint.py --full --analyze
+php checkpoint.php --full --analyze
 
 # Step 2: サブエージェントで分析（Claudeが自動実行）
 # → 分析プロンプトを読み込み
