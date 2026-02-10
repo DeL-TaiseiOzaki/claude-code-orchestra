@@ -24,13 +24,20 @@ metadata:
 │     ├── Agent Teams activity (tasks, teammates, messages)    │
 │     └── Design decisions (.claude/docs/DESIGN.md changes)    │
 │                                                              │
-│  2. Generate Checkpoint                                      │
-│     → .claude/checkpoints/YYYY-MM-DD-HHMMSS.md              │
+│  2. Generate Slug & Tags (for fast retrieval)                │
+│     ├── Auto-slug from commit messages (or --label)          │
+│     └── Semantic tags from file paths, CLI usage, teams      │
 │                                                              │
-│  3. Update Session History                                   │
+│  3. Generate Checkpoint (with YAML frontmatter)              │
+│     → .claude/checkpoints/YYYY-MM-DD-HHMMSS-{slug}.md       │
+│                                                              │
+│  4. Update INDEX.md Catalog                                  │
+│     → .claude/checkpoints/INDEX.md (one-file lookup)         │
+│                                                              │
+│  5. Update Session History                                   │
 │     → CLAUDE.md (cross-session persistence)                  │
 │                                                              │
-│  4. Discover Skill Patterns                                  │
+│  6. Discover Skill Patterns                                  │
 │     → Subagent analyzes checkpoint                           │
 │     → Suggests reusable skills                               │
 │     → User reviews and approves                              │
@@ -43,8 +50,14 @@ metadata:
 # Everything. No flags needed.
 /checkpointing
 
+# Optional: custom label for the checkpoint
+/checkpointing --label "auth-module-redesign"
+
 # Optional: only look at recent work
 /checkpointing --since "2026-02-08"
+
+# Both
+/checkpointing --label "agent-teams-integration" --since "2026-02-08"
 ```
 
 ## What Gets Captured
@@ -73,9 +86,74 @@ metadata:
 - Changes to `.claude/docs/DESIGN.md` since last checkpoint
 - New entries in Key Decisions table
 
+## Fast Retrieval System
+
+Claude Code can efficiently find relevant checkpoints using three layers:
+
+### Layer 1: INDEX.md (Read one file, find everything)
+
+`.claude/checkpoints/INDEX.md` is a table cataloging all checkpoints:
+
+```markdown
+| Timestamp | Checkpoint | Branch | Tags | Stats | Summary |
+|---|---|---|---|---|---|
+| 2026-02-08-153000 | [feature-agent-teams](2026-02-08-153000-feature-agent-teams.md) | main | feature, agent-teams, .claude | 12c/15f/3cx/2gm/1tm | redesign startproject for Opus 4.6; add team-implement skill |
+| 2026-02-07-120000 | [bugfix-auth-flow](2026-02-07-120000-bugfix-auth-flow.md) | fix/auth | bugfix, src, testing | 5c/8f/1cx | fix token refresh race condition |
+```
+
+**How Claude uses it**: Read INDEX.md → scan tags/summary columns → open only the relevant checkpoint file.
+
+### Layer 2: YAML Frontmatter (Quick scan without full parse)
+
+Each checkpoint starts with structured metadata:
+
+```yaml
+---
+id: feature-agent-teams-2026-02-08-153000
+timestamp: 2026-02-08-153000
+branch: main
+slug: feature-agent-teams
+summary: "redesign startproject for Opus 4.6; add team-implement skill"
+tags: [feature, agent-teams, .claude, codex, gemini]
+commits: 12
+files_changed: 15
+codex_consultations: 3
+gemini_researches: 2
+agent_teams: 1
+---
+```
+
+**How Claude uses it**: Read first 15 lines of a checkpoint → decide if it's relevant without parsing the full document.
+
+### Layer 3: Meaningful Filenames
+
+Filenames include an auto-generated slug from commit messages:
+
+```
+2026-02-08-153000-feature-agent-teams.md     (auto from "feat:" commits)
+2026-02-07-120000-bugfix-auth-flow.md        (auto from "fix:" commits)
+2026-02-06-090000-auth-module-redesign.md    (from --label)
+```
+
+**Slug generation priority**: `--label` flag > conventional commit type + keywords > "session"
+
 ## Checkpoint Format
 
 ```markdown
+---
+id: feature-agent-teams-2026-02-08-153000
+timestamp: 2026-02-08-153000
+branch: main
+slug: feature-agent-teams
+summary: "redesign startproject for Opus 4.6; add team-implement skill"
+tags: [feature, agent-teams, .claude, codex, gemini]
+commits: 12
+files_changed: 15
+codex_consultations: 3
+gemini_researches: 2
+agent_teams: 1
+---
+
 # Checkpoint: 2026-02-08 15:30:00 UTC
 
 ## Summary
@@ -192,14 +270,21 @@ The checkpoint is automatically analyzed to find reusable patterns:
 ## Execution Flow
 
 ```
-/checkpointing
+/checkpointing [--label "name"] [--since "YYYY-MM-DD"]
     │
     ├─ 1. Run checkpoint.py (collects git + CLI + teams data)
-    │     → Generates .claude/checkpoints/YYYY-MM-DD-HHMMSS.md
     │
-    ├─ 2. Update CLAUDE.md with session summary
+    ├─ 2. Generate slug (from commits or --label) and semantic tags
     │
-    └─ 3. Spawn subagent for skill pattern analysis
+    ├─ 3. Write checkpoint with YAML frontmatter
+    │     → .claude/checkpoints/YYYY-MM-DD-HHMMSS-{slug}.md
+    │
+    ├─ 4. Update INDEX.md catalog (newest first)
+    │     → .claude/checkpoints/INDEX.md
+    │
+    ├─ 5. Update CLAUDE.md with session summary
+    │
+    └─ 6. Spawn subagent for skill pattern analysis
           → Reads checkpoint file
           → Identifies reusable patterns
           → Reports suggestions to user
@@ -219,6 +304,9 @@ The checkpoint is automatically analyzed to find reusable patterns:
 ## Notes
 
 - チェックポイントは `.claude/checkpoints/` に蓄積される（`.gitignore` 済み）
+- `INDEX.md` を読むだけで全チェックポイントのタグ・要約を検索可能
+- 各ファイルの先頭 YAML frontmatter で、フルパースせずに内容を判定可能
+- `--label` で任意のスラグを指定可能（省略時はコミットメッセージから自動生成）
 - ログファイル自体は変更されない（読み取りのみ）
 - スキル提案は必ずユーザーがレビューしてから採用すること
 - Agent Teams のデータは `~/.claude/teams/` と `~/.claude/tasks/` から収集

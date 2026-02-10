@@ -5,20 +5,23 @@ Checkpoint script: Collect all session activity and generate a comprehensive che
 Usage:
     python checkpoint.py                          # Full checkpoint (everything)
     python checkpoint.py --since YYYY-MM-DD       # Only recent activity
+    python checkpoint.py --label "feature-name"   # Custom label for the checkpoint
 
 Every run does everything:
 1. Collect git history, CLI logs, Agent Teams activity, design decisions
-2. Generate checkpoint file in .claude/checkpoints/
+2. Generate checkpoint file in .claude/checkpoints/ (with slug + frontmatter)
 3. Update CLAUDE.md with session history summary
-4. Output skill analysis prompt for subagent pattern discovery
+4. Update INDEX.md catalog for fast retrieval
+5. Output skill analysis prompt for subagent pattern discovery
 """
 
 import argparse
 import json
+import re
 import subprocess
-from datetime import datetime, timezone
+from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 LOG_FILE = PROJECT_ROOT / ".claude" / "logs" / "cli-tools.jsonl"
@@ -30,7 +33,23 @@ CLAUDE_MD = PROJECT_ROOT / "CLAUDE.md"
 TEAMS_DIR = Path.home() / ".claude" / "teams"
 TASKS_DIR = Path.home() / ".claude" / "tasks"
 
+INDEX_FILE = CHECKPOINTS_DIR / "INDEX.md"
+
 SESSION_HISTORY_HEADER = "## Session History"
+
+# Conventional commit prefixes to category mapping
+COMMIT_TYPE_CATEGORIES: dict[str, str] = {
+    "feat": "feature",
+    "fix": "bugfix",
+    "refactor": "refactor",
+    "docs": "docs",
+    "test": "testing",
+    "chore": "chore",
+    "perf": "performance",
+    "ci": "ci",
+    "style": "style",
+    "build": "build",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +82,7 @@ def parse_cli_logs(since: str | None = None) -> list[dict]:
     entries = []
     since_dt = None
     if since:
-        since_dt = datetime.fromisoformat(since).replace(tzinfo=timezone.utc)
+        since_dt = datetime.fromisoformat(since).replace(tzinfo=UTC)
 
     with open(LOG_FILE, encoding="utf-8") as f:
         for line in f:
@@ -101,11 +120,13 @@ def get_git_commits(since: str | None = None) -> list[dict]:
             continue
         parts = line.split("|", 2)
         if len(parts) == 3:
-            commits.append({
-                "hash": parts[0][:7],
-                "date": parts[1],
-                "message": parts[2],
-            })
+            commits.append(
+                {
+                    "hash": parts[0][:7],
+                    "date": parts[1],
+                    "message": parts[2],
+                }
+            )
     return commits
 
 
@@ -231,11 +252,292 @@ def get_design_decisions_diff(since: str | None = None) -> str | None:
         return None
 
     if since:
-        args = ["log", "--since", since, "-p", "--", str(DESIGN_FILE.relative_to(PROJECT_ROOT))]
+        args = [
+            "log",
+            "--since",
+            since,
+            "-p",
+            "--",
+            str(DESIGN_FILE.relative_to(PROJECT_ROOT)),
+        ]
     else:
-        args = ["diff", "HEAD~10", "HEAD", "--", str(DESIGN_FILE.relative_to(PROJECT_ROOT))]
+        args = [
+            "diff",
+            "HEAD~10",
+            "HEAD",
+            "--",
+            str(DESIGN_FILE.relative_to(PROJECT_ROOT)),
+        ]
 
     return run_git_command(args)
+
+
+# ---------------------------------------------------------------------------
+# Slug, tags, and frontmatter helpers
+# ---------------------------------------------------------------------------
+
+
+def _slugify(text: str, max_length: int = 40) -> str:
+    """Convert text to a URL/filename-safe slug."""
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9\s-]", "", text)
+    text = re.sub(r"[\s_]+", "-", text)
+    text = re.sub(r"-+", "-", text).strip("-")
+    return text[:max_length].rstrip("-")
+
+
+def generate_slug(
+    commits: list[dict],
+    cli_entries: list[dict],
+    teams_data: list[dict],
+    label: str | None = None,
+) -> str:
+    """Generate a meaningful slug from session activity.
+
+    Priority:
+    1. User-provided label
+    2. Most common commit type + scope keywords
+    3. Fallback to "session"
+    """
+    if label:
+        return _slugify(label)
+
+    if not commits:
+        if teams_data:
+            return _slugify(teams_data[0].get("name", "team-session"))
+        return "session"
+
+    # Extract commit type prefixes and meaningful words
+    type_counts: Counter[str] = Counter()
+    words: Counter[str] = Counter()
+    stop_words = {
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "for",
+        "to",
+        "in",
+        "of",
+        "with",
+        "on",
+        "at",
+        "by",
+        "from",
+        "is",
+        "it",
+        "as",
+        "be",
+        "was",
+        "are",
+    }
+
+    for commit in commits:
+        msg = commit["message"]
+        # Parse conventional commit prefix: "feat: add X" or "feat(scope): add X"
+        match = re.match(r"^(\w+)(?:\(([^)]+)\))?:\s*(.+)", msg)
+        if match:
+            commit_type, scope, description = match.groups()
+            if commit_type in COMMIT_TYPE_CATEGORIES:
+                type_counts[commit_type] += 1
+            if scope:
+                words[scope.lower()] += 2  # Scope gets extra weight
+            msg = description
+
+        # Extract keywords from message
+        for word in re.findall(r"[a-zA-Z]{3,}", msg):
+            word_lower = word.lower()
+            if word_lower not in stop_words:
+                words[word_lower] += 1
+
+    # Build slug from most common type + top keywords
+    parts: list[str] = []
+
+    if type_counts:
+        top_type = type_counts.most_common(1)[0][0]
+        parts.append(COMMIT_TYPE_CATEGORIES.get(top_type, top_type))
+
+    if words:
+        top_words = [w for w, _ in words.most_common(3)]
+        parts.extend(top_words)
+
+    if not parts:
+        return "session"
+
+    return _slugify("-".join(parts))
+
+
+def extract_tags(
+    commits: list[dict],
+    file_changes: dict[str, list[str]],
+    cli_entries: list[dict],
+    teams_data: list[dict],
+) -> list[str]:
+    """Extract semantic tags from session activity for searchability."""
+    tags: set[str] = set()
+
+    # From commit types
+    for commit in commits:
+        match = re.match(r"^(\w+)(?:\([^)]+\))?:", commit["message"])
+        if match:
+            commit_type = match.group(1)
+            category = COMMIT_TYPE_CATEGORIES.get(commit_type)
+            if category:
+                tags.add(category)
+
+    # From file paths — extract top-level directories
+    all_files = file_changes.get("created", []) + file_changes.get("modified", [])
+    for filepath in all_files:
+        parts = filepath.split("/")
+        if len(parts) > 1:
+            tags.add(parts[0])
+        # Detect test files
+        if "test" in filepath.lower():
+            tags.add("testing")
+        # Detect skill/hook changes
+        if "skills/" in filepath:
+            tags.add("skills")
+        if "hooks/" in filepath:
+            tags.add("hooks")
+
+    # From CLI usage
+    if any(e.get("tool") == "codex" for e in cli_entries):
+        tags.add("codex")
+    if any(e.get("tool") == "gemini" for e in cli_entries):
+        tags.add("gemini")
+
+    # From Agent Teams
+    if teams_data:
+        tags.add("agent-teams")
+        for team in teams_data:
+            tags.add(f"team:{team['name']}")
+
+    return sorted(tags)
+
+
+def generate_frontmatter(
+    timestamp: str,
+    slug: str,
+    branch: str,
+    tags: list[str],
+    commits: list[dict],
+    file_changes: dict[str, list[str]],
+    cli_entries: list[dict],
+    teams_data: list[dict],
+    since: str | None,
+) -> str:
+    """Generate YAML frontmatter for quick scanning by Claude Code.
+
+    Claude can read the first ~20 lines to decide if a checkpoint is relevant
+    without parsing the entire file.
+    """
+    codex_count = sum(1 for e in cli_entries if e.get("tool") == "codex")
+    gemini_count = sum(1 for e in cli_entries if e.get("tool") == "gemini")
+    total_files = sum(len(v) for v in file_changes.values())
+
+    # Build one-line summary from top commit messages
+    summary_parts: list[str] = []
+    for commit in commits[:3]:
+        msg = commit["message"]
+        match = re.match(r"^\w+(?:\([^)]+\))?:\s*(.+)", msg)
+        summary_parts.append(match.group(1) if match else msg)
+    summary = "; ".join(summary_parts) if summary_parts else "no commits"
+
+    lines = [
+        "---",
+        f"id: {slug}-{timestamp}",
+        f"timestamp: {timestamp}",
+        f"branch: {branch}",
+        f"slug: {slug}",
+        f'summary: "{summary}"',
+        f"tags: [{', '.join(tags)}]",
+        f"commits: {len(commits)}",
+        f"files_changed: {total_files}",
+        f"codex_consultations: {codex_count}",
+        f"gemini_researches: {gemini_count}",
+        f"agent_teams: {len(teams_data)}",
+    ]
+    if since:
+        lines.append(f"since: {since}")
+    lines.append("---")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def update_index(
+    checkpoint_filename: str,
+    timestamp: str,
+    slug: str,
+    branch: str,
+    tags: list[str],
+    commits: list[dict],
+    file_changes: dict[str, list[str]],
+    cli_entries: list[dict],
+    teams_data: list[dict],
+) -> None:
+    """Update INDEX.md catalog with a new checkpoint entry.
+
+    INDEX.md is a single file Claude Code reads to find relevant checkpoints.
+    Format: table rows sorted newest-first, with tags and summary for search.
+    """
+    codex_count = sum(1 for e in cli_entries if e.get("tool") == "codex")
+    gemini_count = sum(1 for e in cli_entries if e.get("tool") == "gemini")
+    total_files = sum(len(v) for v in file_changes.values())
+
+    # Build summary from top commit messages
+    summary_parts: list[str] = []
+    for commit in commits[:2]:
+        msg = commit["message"]
+        match = re.match(r"^\w+(?:\([^)]+\))?:\s*(.+)", msg)
+        summary_parts.append(match.group(1) if match else msg)
+    summary = "; ".join(summary_parts) if summary_parts else "no commits"
+    # Truncate for table readability
+    if len(summary) > 60:
+        summary = summary[:57] + "..."
+
+    tag_str = ", ".join(tags[:5])
+    stats = f"{len(commits)}c/{total_files}f"
+    if codex_count:
+        stats += f"/{codex_count}cx"
+    if gemini_count:
+        stats += f"/{gemini_count}gm"
+    if teams_data:
+        stats += f"/{len(teams_data)}tm"
+
+    new_row = (
+        f"| {timestamp} | [{slug}]({checkpoint_filename}) "
+        f"| {branch} | {tag_str} | {stats} | {summary} |"
+    )
+
+    if INDEX_FILE.exists():
+        content = INDEX_FILE.read_text(encoding="utf-8")
+        # Insert new row right after the header separator line
+        table_sep = "|---|---|---|---|---|---|"
+        if table_sep in content:
+            content = content.replace(table_sep, f"{table_sep}\n{new_row}", 1)
+        else:
+            # Corrupted or missing table — rebuild header + row
+            content = _build_index_header() + new_row + "\n"
+    else:
+        content = _build_index_header() + new_row + "\n"
+
+    INDEX_FILE.write_text(content, encoding="utf-8")
+
+
+def _build_index_header() -> str:
+    """Build the INDEX.md header with table structure."""
+    return (
+        "# Checkpoint Index\n"
+        "\n"
+        "Quick-reference catalog of all checkpoints. "
+        "Read this file to find the right checkpoint without scanning every file.\n"
+        "\n"
+        "**Stats format**: `{commits}c/{files}f/{codex}cx/{gemini}gm/{teams}tm`\n"
+        "\n"
+        "| Timestamp | Checkpoint | Branch | Tags | Stats | Summary |\n"
+        "|---|---|---|---|---|---|\n"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -254,7 +556,7 @@ def generate_checkpoint(
     since: str | None,
 ) -> str:
     """Generate full checkpoint markdown content."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     lines: list[str] = []
 
     # Header
@@ -288,8 +590,7 @@ def generate_checkpoint(
     if teams_data:
         total_members = sum(len(t.get("members", [])) for t in teams_data)
         lines.append(
-            f"- **Agent Teams sessions**: {len(teams_data)} "
-            f"({total_members} teammates)"
+            f"- **Agent Teams sessions**: {len(teams_data)} ({total_members} teammates)"
         )
         lines.append(f"- **Tasks**: {completed_tasks}/{total_tasks} completed")
     if since:
@@ -343,7 +644,9 @@ def generate_checkpoint(
 
     for entries, name in [(codex_entries, "Codex"), (gemini_entries, "Gemini")]:
         if entries:
-            lines.append(f"### {name} ({len(entries)} {'consultations' if name == 'Codex' else 'researches'})")
+            lines.append(
+                f"### {name} ({len(entries)} {'consultations' if name == 'Codex' else 'researches'})"
+            )
             lines.append("")
             for entry in entries[:15]:
                 status = "✓" if entry.get("success", False) else "✗"
@@ -404,7 +707,8 @@ def generate_checkpoint(
         added_lines = [
             line[1:].strip()
             for line in design_diff.split("\n")
-            if line.startswith("+") and not line.startswith("+++")
+            if line.startswith("+")
+            and not line.startswith("+++")
             and line.strip() not in ("+", "")
         ]
         for added in added_lines[:20]:
@@ -426,7 +730,7 @@ def generate_session_summary(
     teams_data: list[dict],
 ) -> str:
     """Generate concise session summary for CLAUDE.md."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     total_files = sum(len(v) for v in file_changes.values())
     codex_count = sum(1 for e in cli_entries if e.get("tool") == "codex")
     gemini_count = sum(1 for e in cli_entries if e.get("tool") == "gemini")
@@ -464,7 +768,13 @@ def update_claude_md(session_summary: str) -> bool:
         content = content.rstrip() + "\n\n" + session_summary
     else:
         # Create new section
-        content = content.rstrip() + "\n\n" + SESSION_HISTORY_HEADER + "\n\n" + session_summary
+        content = (
+            content.rstrip()
+            + "\n\n"
+            + SESSION_HISTORY_HEADER
+            + "\n\n"
+            + session_summary
+        )
 
     CLAUDE_MD.write_text(content, encoding="utf-8")
     return True
@@ -524,6 +834,10 @@ def main():
         "--since",
         help="Only include data since this date (YYYY-MM-DD)",
     )
+    parser.add_argument(
+        "--label",
+        help="Custom label for the checkpoint (used in filename and slug)",
+    )
     args = parser.parse_args()
 
     print("Collecting session data...")
@@ -537,16 +851,47 @@ def main():
     teams_data = collect_agent_teams_data()
     design_diff = get_design_decisions_diff(args.since)
 
-    print(f"  Git: {len(commits)} commits, {sum(len(v) for v in file_changes.values())} files")
+    print(
+        f"  Git: {len(commits)} commits, {sum(len(v) for v in file_changes.values())} files"
+    )
     print(f"  CLI: {len(cli_entries)} consultations")
     print(f"  Agent Teams: {len(teams_data)} teams")
 
-    # 2. Generate checkpoint
-    CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
-    checkpoint_file = CHECKPOINTS_DIR / f"{timestamp}.md"
+    # 2. Generate slug and tags for meaningful naming
+    slug = generate_slug(
+        commits=commits,
+        cli_entries=cli_entries,
+        teams_data=teams_data,
+        label=args.label,
+    )
+    tags = extract_tags(
+        commits=commits,
+        file_changes=file_changes,
+        cli_entries=cli_entries,
+        teams_data=teams_data,
+    )
+    print(f"  Slug: {slug}")
+    print(f"  Tags: {', '.join(tags)}")
 
-    checkpoint_content = generate_checkpoint(
+    # 3. Generate checkpoint with frontmatter
+    CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d-%H%M%S")
+    checkpoint_filename = f"{timestamp}-{slug}.md"
+    checkpoint_file = CHECKPOINTS_DIR / checkpoint_filename
+
+    frontmatter = generate_frontmatter(
+        timestamp=timestamp,
+        slug=slug,
+        branch=branch,
+        tags=tags,
+        commits=commits,
+        file_changes=file_changes,
+        cli_entries=cli_entries,
+        teams_data=teams_data,
+        since=args.since,
+    )
+
+    checkpoint_body = generate_checkpoint(
         commits=commits,
         file_changes=file_changes,
         file_stats=file_stats,
@@ -556,10 +901,25 @@ def main():
         branch=branch,
         since=args.since,
     )
+    checkpoint_content = frontmatter + checkpoint_body
     checkpoint_file.write_text(checkpoint_content, encoding="utf-8")
     print(f"\nCheckpoint: {checkpoint_file}")
 
-    # 3. Update CLAUDE.md
+    # 4. Update INDEX.md catalog
+    update_index(
+        checkpoint_filename=checkpoint_filename,
+        timestamp=timestamp,
+        slug=slug,
+        branch=branch,
+        tags=tags,
+        commits=commits,
+        file_changes=file_changes,
+        cli_entries=cli_entries,
+        teams_data=teams_data,
+    )
+    print(f"Index: {INDEX_FILE}")
+
+    # 5. Update CLAUDE.md
     session_summary = generate_session_summary(
         commits=commits,
         file_changes=file_changes,
@@ -569,7 +929,7 @@ def main():
     if update_claude_md(session_summary):
         print(f"Session history: {CLAUDE_MD}")
 
-    # 4. Generate skill analysis prompt
+    # 6. Generate skill analysis prompt
     prompt = generate_skill_analysis_prompt(checkpoint_content)
     prompt_file = checkpoint_file.with_suffix(".analyze-prompt.md")
     prompt_file.write_text(prompt, encoding="utf-8")
