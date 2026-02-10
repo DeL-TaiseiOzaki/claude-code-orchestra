@@ -30,9 +30,9 @@ def validate_input(file_path: str, content: str) -> bool:
 # State file to track changes in this session
 STATE_FILE = "/tmp/claude-code-implementation-state.json"
 
-# Thresholds for suggesting review
-MIN_FILES_FOR_REVIEW = 3
-MIN_LINES_FOR_REVIEW = 100
+# Thresholds for suggesting review (lowered to encourage proactive Codex consultation)
+MIN_FILES_FOR_REVIEW = 2
+MIN_LINES_FOR_REVIEW = 50
 
 
 def load_state() -> dict:
@@ -59,7 +59,9 @@ def count_lines(content: str) -> int:
     """Count meaningful lines in content."""
     lines = content.split("\n")
     # Count non-empty, non-comment lines
-    meaningful = [l for l in lines if l.strip() and not l.strip().startswith("#")]
+    meaningful = [
+        line for line in lines if line.strip() and not line.strip().startswith("#")
+    ]
     return len(meaningful)
 
 
@@ -98,7 +100,10 @@ def main():
             sys.exit(0)
 
         # Skip non-source files
-        if not any(file_path.endswith(ext) for ext in [".py", ".ts", ".js", ".tsx", ".jsx", ".go", ".rs"]):
+        if not any(
+            file_path.endswith(ext)
+            for ext in [".py", ".ts", ".js", ".tsx", ".jsx", ".go", ".rs"]
+        ):
             sys.exit(0)
 
         # Load and update state
@@ -119,11 +124,11 @@ def main():
                 "hookSpecificOutput": {
                     "hookEventName": "PostToolUse",
                     "additionalContext": (
-                        f"[Code Review Suggestion] {reason} in this session. "
-                        "Consider having Codex review the implementation. "
-                        "**Recommended**: Use Task tool with subagent_type='general-purpose' "
-                        "to consult Codex with git diff and preserve main context."
-                    )
+                        f"[Codex Review Required] {reason} in this session. "
+                        "You SHOULD have Codex review the implementation before proceeding. "
+                        "Codex catches bugs, security issues, and design flaws early. "
+                        "Use Task(subagent_type='general-purpose') with `git diff` context."
+                    ),
                 }
             }
             print(json.dumps(output))

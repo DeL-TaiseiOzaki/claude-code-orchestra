@@ -7,8 +7,8 @@ for debugging complex failures.
 """
 
 import json
-import sys
 import re
+import sys
 
 # Commands that run tests or builds
 TEST_BUILD_COMMANDS = [
@@ -78,13 +78,22 @@ def has_complex_failure(output: str) -> tuple[bool, str]:
             failure_count += len(matches)
             matched_patterns.append(pattern)
 
-    # Multiple failures or complex errors suggest need for Codex
-    if failure_count >= 3:
-        return True, f"Multiple failures detected ({failure_count} issues)"
-
-    # Single failure in test output
-    if failure_count >= 1 and any(p in output.lower() for p in ["traceback", "assertion"]):
-        return True, "Test failure with traceback"
+    # Any failure warrants Codex analysis — Codex excels at debugging
+    if failure_count >= 1:
+        if failure_count >= 3:
+            return (
+                True,
+                f"Multiple failures detected ({failure_count} issues) — Codex analysis strongly recommended",
+            )
+        if any(
+            p in output.lower()
+            for p in ["traceback", "assertion", "error", "exception"]
+        ):
+            return True, f"Test failure with error details ({failure_count} issues)"
+        return (
+            True,
+            f"Test/build failure detected ({failure_count} issues) — Codex can find root cause faster",
+        )
 
     return False, ""
 
@@ -101,7 +110,9 @@ def main():
         tool_input = data.get("tool_input", {})
         tool_response = data.get("tool_response", {})
         command = tool_input.get("command", "")
-        tool_output = tool_response.get("stdout", "") or tool_response.get("content", "")
+        tool_output = tool_response.get("stdout", "") or tool_response.get(
+            "content", ""
+        )
 
         # Check if it's a test/build command
         if not is_test_or_build_command(command):
@@ -115,11 +126,11 @@ def main():
                 "hookSpecificOutput": {
                     "hookEventName": "PostToolUse",
                     "additionalContext": (
-                        f"[Codex Debug Suggestion] {reason}. "
-                        "Consider consulting Codex for debugging analysis. "
-                        "**Recommended**: Use Task tool with subagent_type='general-purpose' "
-                        "to consult Codex with full error context and preserve main context."
-                    )
+                        f"[Codex Debug Required] {reason}. "
+                        "You SHOULD use the `codex-debugger` subagent before attempting manual fixes. "
+                        "Codex's deep reasoning catches root causes that surface-level fixes miss. "
+                        "Pass the full test output: Task(subagent_type='codex-debugger', prompt='...')"
+                    ),
                 }
             }
             print(json.dumps(output))

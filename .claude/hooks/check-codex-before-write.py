@@ -7,9 +7,7 @@ for design decisions, complex implementations, or architectural changes.
 """
 
 import json
-import os
 import sys
-from pathlib import Path
 
 # Input validation constants
 MAX_PATH_LENGTH = 4096
@@ -44,7 +42,22 @@ DESIGN_INDICATORS = [
     "/core/",
     "config",
     "settings",
-
+    "middleware",
+    "router",
+    "handler",
+    "service",
+    "repository",
+    "factory",
+    "strategy",
+    "adapter",
+    "decorator",
+    "observer",
+    "manager",
+    "controller",
+    "provider",
+    "registry",
+    "pipeline",
+    "orchestrat",
     # Code patterns in content
     "class ",
     "interface ",
@@ -54,6 +67,17 @@ DESIGN_INDICATORS = [
     "Protocol",
     "@dataclass",
     "TypedDict",
+    "async def",
+    "asyncio",
+    "threading",
+    "multiprocessing",
+    "subprocess",
+    "signal",
+    "except Exception",
+    "raise ",
+    "retry",
+    "cache",
+    "singleton",
 ]
 
 # Files that are typically simple edits (skip suggestion)
@@ -68,10 +92,10 @@ SIMPLE_EDIT_PATTERNS = [
 ]
 
 
-def should_suggest_codex(file_path: str, content: str | None = None) -> tuple[bool, str]:
+def should_suggest_codex(
+    file_path: str, content: str | None = None
+) -> tuple[bool, str]:
     """Determine if Codex consultation should be suggested."""
-    path = Path(file_path)
-    filename = path.name.lower()
     filepath_lower = file_path.lower()
 
     # Skip simple edits
@@ -86,19 +110,33 @@ def should_suggest_codex(file_path: str, content: str | None = None) -> tuple[bo
 
     # Check content if available
     if content:
-        # New file with significant content
-        if len(content) > 500:
-            return True, "Creating new file with significant content"
+        # New file with meaningful content (lowered from 500)
+        if len(content) > 200:
+            return (
+                True,
+                "Creating new file with meaningful content — Codex should review",
+            )
 
         # Check for design patterns in content
         for indicator in DESIGN_INDICATORS:
             if indicator in content:
-                return True, f"Content contains '{indicator}' - likely architectural code"
+                return (
+                    True,
+                    f"Content contains '{indicator}' — Codex should review design",
+                )
 
-    # New files in src/ directory
+        # Multiple function/class definitions suggest architectural decisions
+        class_count = content.count("class ") + content.count("def ")
+        if class_count >= 2:
+            return (
+                True,
+                f"Multiple definitions ({class_count}) — Codex should review structure",
+            )
+
+    # New files in src/ directory (lowered from 200)
     if "/src/" in file_path or file_path.startswith("src/"):
-        if content and len(content) > 200:
-            return True, "New source file - consider design review"
+        if content and len(content) > 50:
+            return True, "New source file — Codex should review design"
 
     return False, ""
 
@@ -122,13 +160,13 @@ def main():
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
                     "additionalContext": (
-                        f"[Codex Consultation Reminder] {reason}. "
-                        "Consider consulting Codex before making this change. "
-                        "**Recommended**: Use Task tool with subagent_type='general-purpose' "
-                        "to preserve main context. "
-                        "(Direct call OK for quick questions: "
-                        "`codex exec --model gpt-5.3-codex --sandbox read-only --full-auto '...'`)"
-                    )
+                        f"[Codex Review Required] {reason}. "
+                        "You SHOULD consult Codex before finalizing this change. "
+                        "Codex can catch design issues, suggest better patterns, and prevent bugs. "
+                        "Use Task(subagent_type='general-purpose') for design review, or "
+                        "direct call for quick validation: "
+                        "`codex exec --model gpt-5.3-codex --sandbox read-only --full-auto '...'`"
+                    ),
                 }
             }
             print(json.dumps(output))

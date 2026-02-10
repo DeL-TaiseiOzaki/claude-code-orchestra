@@ -25,6 +25,25 @@ ERROR_PATTERNS = [
     r"(?:SyntaxError|NameError|FileNotFoundError|PermissionError|OSError)",
     r"npm ERR!",
     r"cargo error",
+    # Network / connection errors
+    r"(?:ConnectionError|ConnectionRefused|TimeoutError|ConnectionReset)",
+    r"(?:timeout|timed out)",
+    r"(?:ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND)",
+    r"(?:DNS resolution|name resolution)",
+    # Silent failure indicators
+    r"exit (?:code|status)\s*[1-9]",
+    r"returned non-zero",
+    # Deprecation warnings (may indicate upcoming breaks)
+    r"DeprecationWarning",
+    r"FutureWarning",
+    r"deprecated",
+    # Memory / resource issues
+    r"(?:MemoryError|OutOfMemoryError|killed)",
+    r"(?:too many open files|resource temporarily unavailable)",
+    # Build / compilation errors
+    r"(?:undefined reference|unresolved external)",
+    r"(?:compilation failed|build failed)",
+    r"(?:cannot find module|module not found)",
 ]
 
 # Commands to ignore (not useful to debug)
@@ -60,7 +79,8 @@ SKIP_COMMANDS = [
     "gemini ",
 ]
 
-MIN_OUTPUT_LENGTH = 20
+# Lowered to catch terse error messages (e.g., "Error: failed")
+MIN_OUTPUT_LENGTH = 5
 
 
 def should_ignore_command(command: str) -> bool:
@@ -103,7 +123,9 @@ def main() -> None:
         tool_input = data.get("tool_input", {})
         tool_response = data.get("tool_response", {})
         command = tool_input.get("command", "")
-        tool_output = tool_response.get("stdout", "") or tool_response.get("content", "")
+        tool_output = tool_response.get("stdout", "") or tool_response.get(
+            "content", ""
+        )
 
         if not command or not tool_output:
             sys.exit(0)
@@ -119,16 +141,27 @@ def main() -> None:
 
         errors = detect_errors(tool_output)
 
-        if errors:
+        # Also detect non-zero exit codes even without pattern matches
+        exit_code = tool_response.get("exitCode", 0)
+        has_nonzero_exit = exit_code != 0 and not errors
+
+        if errors or has_nonzero_exit:
             error_count = len(errors)
+            if has_nonzero_exit:
+                reason = (
+                    f"Command exited with code {exit_code} — likely a silent failure"
+                )
+            else:
+                reason = f"{error_count} error pattern(s) found in command output"
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "PostToolUse",
                     "additionalContext": (
-                        f"[Error Detected] {error_count} error pattern(s) found in command output. "
-                        "**Action**: Use the `codex-debugger` subagent to analyze this error. "
-                        "Pass the full command and error output to the subagent for Codex-powered diagnosis. "
-                        "Example: Task(subagent_type='codex-debugger', prompt='Analyze this error: ...')"
+                        f"[Error — Codex Debug Required] {reason}. "
+                        "You MUST use the `codex-debugger` subagent to analyze this error. "
+                        "Codex's deep reasoning is essential for root cause analysis. "
+                        "Do NOT attempt to fix blindly — let Codex diagnose first. "
+                        "Example: Task(subagent_type='codex-debugger', prompt='Analyze: {command} → {error}')"
                     ),
                 }
             }
