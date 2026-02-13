@@ -21,7 +21,7 @@ merge_settings_json() {
     local output="$3"
 
     # jqで既存設定を保持しつつorchestraの設定を追加
-    # hooksは配列を結合して重複排除
+    # hooksは全イベントタイプを動的にマージ、トップレベルキーも保持
     jq -s '
         .[0] as $existing |
         .[1] as $template |
@@ -30,12 +30,16 @@ merge_settings_json() {
         def merge_hooks($a; $b):
             ($a // []) + ($b // []) | unique_by(.hooks[0].command // .);
 
-        ($existing // {}) + {
-            hooks: {
-                UserPromptSubmit: merge_hooks($existing.hooks.UserPromptSubmit; $template.hooks.UserPromptSubmit),
-                PreToolUse: merge_hooks($existing.hooks.PreToolUse; $template.hooks.PreToolUse),
-                PostToolUse: merge_hooks($existing.hooks.PostToolUse; $template.hooks.PostToolUse)
-            },
+        # トップレベルキー: テンプレートをベースに既存の値で上書き（hooks/permissions/envは専用処理）
+        (($template // {}) | del(.hooks, .permissions, .env))
+        * (($existing // {}) | del(.hooks, .permissions, .env))
+        + {
+            hooks: (
+                (($existing.hooks // {}) | keys) + (($template.hooks // {}) | keys) | unique
+                | reduce .[] as $key ({}; . + {
+                    ($key): merge_hooks($existing.hooks[$key]; $template.hooks[$key])
+                })
+            ),
             permissions: {
                 allow: (($existing.permissions.allow // []) + ($template.permissions.allow // [])) | unique,
                 deny: (($existing.permissions.deny // []) + ($template.permissions.deny // [])) | unique,
@@ -109,10 +113,25 @@ echo ""
 echo "🎉 Orchestra環境の適用が完了しました！"
 echo ""
 echo "利用可能なスキル:"
-echo "  /startproject - マルチエージェント協調でプロジェクト開始"
-echo "  /plan         - 実装計画作成"
-echo "  /tdd          - テスト駆動開発"
-echo "  /codex-system - Codex CLI連携"
-echo "  /gemini-system - Gemini CLI連携"
+echo ""
+echo "  主要ワークフロー:"
+echo "    /startproject    - マルチエージェント協調でプロジェクト開始"
+echo "    /team-implement  - Agent Teamsで並列実装"
+echo "    /team-review     - Agent Teamsで並列レビュー"
+echo ""
+echo "  開発スキル:"
+echo "    /plan            - 実装計画作成"
+echo "    /tdd             - テスト駆動開発"
+echo "    /codex-system    - Codex CLI連携（設計・デバッグ）"
+echo "    /gemini-system   - Gemini CLI連携（調査・マルチモーダル）"
+echo ""
+echo "  ユーティリティ:"
+echo "    /checkpointing   - セッション保存"
+echo "    /design-tracker  - 設計決定の追跡"
+echo "    /init            - プロジェクト分析"
+echo "    /research-lib    - ライブラリ調査"
+echo "    /simplify        - コード簡素化"
+echo "    /update-design   - 設計ドキュメント更新"
+echo "    /update-lib-docs - ライブラリドキュメント更新"
 echo ""
 echo "claudeを起動して開始してください。"
