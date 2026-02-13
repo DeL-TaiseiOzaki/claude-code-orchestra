@@ -12,6 +12,16 @@ if [ ! -d "$TEMPLATE_DIR" ]; then
     exit 1
 fi
 
+# jqの存在確認（settings.jsonマージに必要）
+if ! command -v jq &>/dev/null; then
+    echo "⚠️  jq がインストールされていません。"
+    echo "   既存の .claude/settings.json がある場合、マージではなくテンプレートで上書きされます。"
+    echo "   マージ機能を使うには: brew install jq (macOS) / apt install jq (Linux)"
+    JQ_AVAILABLE=false
+else
+    JQ_AVAILABLE=true
+fi
+
 echo "🎼 Claude Code Orchestra 環境を適用します..."
 
 # settings.jsonマージ関数
@@ -28,7 +38,7 @@ merge_settings_json() {
 
         # hooks配列をマージする関数（commandで重複判定）
         def merge_hooks($a; $b):
-            ($a // []) + ($b // []) | unique_by(.hooks[0].command // .);
+            ($a // []) + ($b // []) | unique_by((.matcher // "") + (.hooks[0].command // ""));
 
         # トップレベルキー: テンプレートをベースに既存の値で上書き（hooks/permissions/envは専用処理）
         (($template // {}) | del(.hooks, .permissions, .env))
@@ -61,10 +71,16 @@ if [ -d ".claude" ]; then
 
         # settings.jsonは別途マージ
         if [ -f ".claude/settings.json" ]; then
-            echo "  → settings.json をマージ中..."
-            merge_settings_json ".claude/settings.json" "$TEMPLATE_DIR/.claude/settings.json" ".claude/settings.json.tmp"
-            mv ".claude/settings.json.tmp" ".claude/settings.json"
-            echo "  ✓ settings.json をマージしました（hooks追加、permissions統合）"
+            if [ "$JQ_AVAILABLE" = true ]; then
+                echo "  → settings.json をマージ中..."
+                merge_settings_json ".claude/settings.json" "$TEMPLATE_DIR/.claude/settings.json" ".claude/settings.json.tmp"
+                mv ".claude/settings.json.tmp" ".claude/settings.json"
+                echo "  ✓ settings.json をマージしました（hooks追加、permissions統合）"
+            else
+                echo "  ⚠️  jq が無いためマージできません。テンプレートで上書きします。"
+                cp "$TEMPLATE_DIR/.claude/settings.json" .claude/
+                echo "  ✓ settings.json を上書きしました"
+            fi
         else
             cp "$TEMPLATE_DIR/.claude/settings.json" .claude/
             echo "  ✓ settings.json を作成しました"
