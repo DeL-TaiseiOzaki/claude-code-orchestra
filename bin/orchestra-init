@@ -54,7 +54,7 @@ merge_settings_json() {
                 allow: (($existing.permissions.allow // []) + ($template.permissions.allow // [])) | unique,
                 deny: (($existing.permissions.deny // []) + ($template.permissions.deny // [])) | unique,
                 ask: ($existing.permissions.ask // []),
-                defaultMode: ($existing.permissions.defaultMode // "normal")
+                defaultMode: ($existing.permissions.defaultMode // "default")
             },
             env: (($existing.env // {}) + ($template.env // {}))
         }
