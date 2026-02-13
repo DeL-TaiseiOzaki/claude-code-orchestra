@@ -1,5 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "language": "japanese",
+  "effortLevel": "high",
+  "fastMode": false,
+  "alwaysThinkingEnabled": true,
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -35,6 +39,38 @@
         ]
       }
     ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"feedback\": \"Check the shared task list for pending tasks. If all tasks are complete, verify results and report to the team lead.\"}}'"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/log-cli-tools.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"additionalContext\": \"Context compaction triggered. Key context: Check CLAUDE.md for project rules, .claude/docs/DESIGN.md for design decisions, .claude/rules/ for coding standards.\"}}'"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Task",
@@ -49,6 +85,11 @@
       {
         "matcher": "Bash",
         "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/error-to-codex.py\"",
+            "timeout": 10
+          },
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-test-analysis.py\"",
@@ -83,15 +124,12 @@
       "Read(*)",
       "Edit(*)",
       "Write(*)",
-      "MultiEdit(*)",
       "Glob(*)",
       "Grep(*)",
-      "LS(*)",
       "WebFetch(*)",
       "WebSearch(*)",
       "Task(*)",
       "Skill(*)",
-      "TodoRead(*)",
       "TodoWrite(*)",
       "Bash(cat:*)",
       "Bash(ls:*)",
@@ -116,8 +154,8 @@
       "Bash(python3:*)",
       "Bash(uv:*)",
       "Bash(ruff:*)",
-      "Bash(black:*)",
-      "Bash(mypy:*)",
+      "Bash(ty:*)",
+      "Bash(poe:*)",
       "Bash(pytest:*)",
       "Bash(node:*)",
       "Bash(npm:*)",
@@ -174,6 +212,8 @@
     ]
   },
   "env": {
-    "EDITOR": "code --wait"
+    "EDITOR": "code --wait",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-4-6"
   }
 }

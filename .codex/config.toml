@@ -2,9 +2,12 @@
 # This file enables project-specific Codex settings
 
 # Default model configuration
-model = "gpt-5.2-codex"
-model_reasoning_effort = "high"
+model = "gpt-5.3-codex"
+model_reasoning_effort = "xhigh"
 model_reasoning_summary = "detailed"
+
+# Web search
+web_search = "enabled"
 
 # Approval policy
 approval_policy = "on-request"

@@ -1,30 +1,20 @@
 #!/usr/bin/env python3
 """
-Checkpoint script: Read CLI logs and update agent context files.
+Checkpoint script: Collect all session activity and generate a comprehensive checkpoint.
 
 Usage:
-    python checkpoint.py [--since YYYY-MM-DD]           # Session history mode
-    python checkpoint.py --full [--since YYYY-MM-DD]    # Full checkpoint mode
-    python checkpoint.py --full --analyze               # Full checkpoint + skill analysis
+    python checkpoint.py                          # Full checkpoint (everything)
+    python checkpoint.py --since YYYY-MM-DD       # Only recent activity
 
-Session History Mode (default):
-    Updates CLAUDE.md, .codex/AGENTS.md, .gemini/GEMINI.md with CLI consultation history.
-
-Full Checkpoint Mode (--full):
-    Creates comprehensive checkpoint file in .claude/checkpoints/ including:
-    - Git commits and file changes
-    - CLI tool consultations (Codex/Gemini)
-    - Design decisions changes
-    - Session summary
-
-Analyze Mode (--full --analyze):
-    After creating checkpoint, outputs a prompt for AI analysis to extract
-    reusable skill patterns. Use with subagent to analyze and suggest new skills.
+Every run does everything:
+1. Collect git history, CLI logs, Agent Teams activity, design decisions
+2. Generate checkpoint file in .claude/checkpoints/
+3. Update CLAUDE.md with session history summary
+4. Output skill analysis prompt for subagent pattern discovery
 """
 
 import argparse
 import json
-import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,42 +24,18 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 LOG_FILE = PROJECT_ROOT / ".claude" / "logs" / "cli-tools.jsonl"
 CHECKPOINTS_DIR = PROJECT_ROOT / ".claude" / "checkpoints"
 DESIGN_FILE = PROJECT_ROOT / ".claude" / "docs" / "DESIGN.md"
+CLAUDE_MD = PROJECT_ROOT / "CLAUDE.md"
 
-CONTEXT_FILES = {
-    "claude": PROJECT_ROOT / "CLAUDE.md",
-    "codex": PROJECT_ROOT / ".codex" / "AGENTS.md",
-    "gemini": PROJECT_ROOT / ".gemini" / "GEMINI.md",
-}
+# Agent Teams data locations
+TEAMS_DIR = Path.home() / ".claude" / "teams"
+TASKS_DIR = Path.home() / ".claude" / "tasks"
 
 SESSION_HISTORY_HEADER = "## Session History"
 
 
-def parse_logs(since: str | None = None) -> list[dict]:
-    """Parse JSONL log file and return entries."""
-    if not LOG_FILE.exists():
-        return []
-
-    entries = []
-    since_dt = None
-    if since:
-        since_dt = datetime.fromisoformat(since).replace(tzinfo=timezone.utc)
-
-    with open(LOG_FILE, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-                if since_dt:
-                    entry_dt = datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00"))
-                    if entry_dt < since_dt:
-                        continue
-                entries.append(entry)
-            except (json.JSONDecodeError, KeyError):
-                continue
-
-    return entries
+# ---------------------------------------------------------------------------
+# Data collection
+# ---------------------------------------------------------------------------
 
 
 def run_git_command(args: list[str]) -> str | None:
@@ -87,6 +53,36 @@ def run_git_command(args: list[str]) -> str | None:
         return None
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return None
+
+
+def parse_cli_logs(since: str | None = None) -> list[dict]:
+    """Parse JSONL log file and return entries."""
+    if not LOG_FILE.exists():
+        return []
+
+    entries = []
+    since_dt = None
+    if since:
+        since_dt = datetime.fromisoformat(since).replace(tzinfo=timezone.utc)
+
+    with open(LOG_FILE, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                if since_dt:
+                    entry_dt = datetime.fromisoformat(
+                        entry["timestamp"].replace("Z", "+00:00")
+                    )
+                    if entry_dt < since_dt:
+                        continue
+                entries.append(entry)
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+    return entries
 
 
 def get_git_commits(since: str | None = None) -> list[dict]:
@@ -111,6 +107,11 @@ def get_git_commits(since: str | None = None) -> list[dict]:
                 "message": parts[2],
             })
     return commits
+
+
+def get_git_branch() -> str:
+    """Get current git branch name."""
+    return run_git_command(["branch", "--show-current"]) or "unknown"
 
 
 def get_file_changes(since: str | None = None) -> dict[str, list[str]]:
@@ -187,113 +188,94 @@ def get_file_stats(since: str | None = None) -> dict[str, tuple[int, int]]:
     return stats
 
 
-def summarize_entries(entries: list[dict]) -> dict[str, list[dict]]:
-    """Group and summarize entries by tool and date."""
-    by_date: dict[str, dict[str, list]] = {}
+def collect_agent_teams_data() -> list[dict]:
+    """Collect Agent Teams activity from ~/.claude/teams/ and ~/.claude/tasks/."""
+    teams = []
 
-    for entry in entries:
-        ts = entry.get("timestamp", "")
-        date = ts[:10] if ts else "unknown"
-        tool = entry.get("tool", "unknown")
+    if not TEAMS_DIR.exists():
+        return teams
 
-        if date not in by_date:
-            by_date[date] = {"codex": [], "gemini": []}
+    for team_dir in TEAMS_DIR.iterdir():
+        if not team_dir.is_dir():
+            continue
 
-        if tool in by_date[date]:
-            by_date[date][tool].append({
-                "prompt": entry.get("prompt", "")[:200],
-                "response_preview": entry.get("response", "")[:300],
-                "success": entry.get("success", False),
-            })
+        team_info: dict = {"name": team_dir.name, "members": [], "tasks": []}
 
-    return by_date
+        # Read team config
+        config_file = team_dir / "config.json"
+        if config_file.exists():
+            try:
+                config = json.loads(config_file.read_text(encoding="utf-8"))
+                team_info["members"] = config.get("members", [])
+            except (json.JSONDecodeError, OSError):
+                pass
 
+        # Read task list
+        task_dir = TASKS_DIR / team_dir.name
+        if task_dir.exists():
+            for task_file in task_dir.glob("*.json"):
+                try:
+                    task = json.loads(task_file.read_text(encoding="utf-8"))
+                    team_info["tasks"].append(task)
+                except (json.JSONDecodeError, OSError):
+                    continue
 
-def generate_session_history(by_date: dict) -> str:
-    """Generate markdown session history section."""
-    if not by_date:
-        return ""
+        teams.append(team_info)
 
-    lines = [SESSION_HISTORY_HEADER, ""]
-
-    for date in sorted(by_date.keys(), reverse=True):
-        lines.append(f"### {date}")
-        lines.append("")
-
-        data = by_date[date]
-
-        if data.get("codex"):
-            lines.append("**Codex相談:**")
-            for item in data["codex"][:5]:  # Limit to 5 per day
-                prompt_summary = item["prompt"][:100].replace("\n", " ")
-                status = "✓" if item["success"] else "✗"
-                lines.append(f"- {status} {prompt_summary}...")
-            lines.append("")
-
-        if data.get("gemini"):
-            lines.append("**Gemini調査:**")
-            for item in data["gemini"][:5]:  # Limit to 5 per day
-                prompt_summary = item["prompt"][:100].replace("\n", " ")
-                status = "✓" if item["success"] else "✗"
-                lines.append(f"- {status} {prompt_summary}...")
-            lines.append("")
-
-    return "\n".join(lines)
+    return teams
 
 
-def update_context_file(file_path: Path, session_history: str) -> bool:
-    """Update context file with session history."""
-    if not file_path.exists():
-        print(f"Warning: {file_path} does not exist, skipping")
-        return False
+def get_design_decisions_diff(since: str | None = None) -> str | None:
+    """Get changes to DESIGN.md since last checkpoint or date."""
+    if not DESIGN_FILE.exists():
+        return None
 
-    content = file_path.read_text(encoding="utf-8")
+    if since:
+        args = ["log", "--since", since, "-p", "--", str(DESIGN_FILE.relative_to(PROJECT_ROOT))]
+    else:
+        args = ["diff", "HEAD~10", "HEAD", "--", str(DESIGN_FILE.relative_to(PROJECT_ROOT))]
 
-    # Remove existing session history section
-    pattern = rf"{re.escape(SESSION_HISTORY_HEADER)}.*"
-    content = re.sub(pattern, "", content, flags=re.DOTALL)
-    content = content.rstrip() + "\n\n"
-
-    # Append new session history
-    content += session_history
-
-    file_path.write_text(content, encoding="utf-8")
-    return True
+    return run_git_command(args)
 
 
-def generate_full_checkpoint(since: str | None = None) -> Path | None:
-    """Generate a comprehensive checkpoint file."""
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
-    checkpoint_file = CHECKPOINTS_DIR / f"{timestamp}.md"
+# ---------------------------------------------------------------------------
+# Checkpoint generation
+# ---------------------------------------------------------------------------
 
-    # Ensure checkpoints directory exists
-    CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Gather data
-    entries = parse_logs(since)
-    commits = get_git_commits(since)
-    file_changes = get_file_changes(since)
-    file_stats = get_file_stats(since)
-
-    # Count CLI consultations
-    codex_count = sum(1 for e in entries if e.get("tool") == "codex")
-    gemini_count = sum(1 for e in entries if e.get("tool") == "gemini")
-
-    # Build checkpoint content
+def generate_checkpoint(
+    commits: list[dict],
+    file_changes: dict[str, list[str]],
+    file_stats: dict[str, tuple[int, int]],
+    cli_entries: list[dict],
+    teams_data: list[dict],
+    design_diff: str | None,
+    branch: str,
+    since: str | None,
+) -> str:
+    """Generate full checkpoint markdown content."""
+    now = datetime.now(timezone.utc)
     lines: list[str] = []
 
     # Header
-    lines.append(f"# Checkpoint: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
+    lines.append(f"# Checkpoint: {now.strftime('%Y-%m-%d %H:%M:%S')} UTC")
     lines.append("")
 
     # Summary
+    codex_count = sum(1 for e in cli_entries if e.get("tool") == "codex")
+    gemini_count = sum(1 for e in cli_entries if e.get("tool") == "gemini")
+    total_files = sum(len(v) for v in file_changes.values())
+    total_tasks = sum(len(t.get("tasks", [])) for t in teams_data)
+    completed_tasks = sum(
+        1
+        for t in teams_data
+        for task in t.get("tasks", [])
+        if task.get("status") == "completed"
+    )
+
     lines.append("## Summary")
     lines.append("")
-    total_files = (
-        len(file_changes["created"])
-        + len(file_changes["modified"])
-        + len(file_changes["deleted"])
-    )
+    lines.append(f"- **Branch**: `{branch}`")
     lines.append(f"- **Commits**: {len(commits)}")
     lines.append(
         f"- **Files changed**: {total_files} "
@@ -303,6 +285,13 @@ def generate_full_checkpoint(since: str | None = None) -> Path | None:
     )
     lines.append(f"- **Codex consultations**: {codex_count}")
     lines.append(f"- **Gemini researches**: {gemini_count}")
+    if teams_data:
+        total_members = sum(len(t.get("members", [])) for t in teams_data)
+        lines.append(
+            f"- **Agent Teams sessions**: {len(teams_data)} "
+            f"({total_members} teammates)"
+        )
+        lines.append(f"- **Tasks**: {completed_tasks}/{total_tasks} completed")
     if since:
         lines.append(f"- **Since**: {since}")
     lines.append("")
@@ -314,92 +303,176 @@ def generate_full_checkpoint(since: str | None = None) -> Path | None:
     if commits:
         lines.append("### Commits")
         lines.append("")
-        for commit in commits[:20]:  # Limit to 20 commits
+        for commit in commits[:30]:
             lines.append(f"- `{commit['hash']}` {commit['message']}")
-        if len(commits) > 20:
-            lines.append(f"- ... and {len(commits) - 20} more commits")
+        if len(commits) > 30:
+            lines.append(f"- ... and {len(commits) - 30} more commits")
         lines.append("")
 
-    # File Changes
     lines.append("### File Changes")
     lines.append("")
 
-    if file_changes["created"]:
-        lines.append("**Created:**")
-        for f in file_changes["created"][:15]:
-            stat = file_stats.get(f, (0, 0))
-            lines.append(f"- `{f}` (+{stat[0]})")
-        if len(file_changes["created"]) > 15:
-            lines.append(f"- ... and {len(file_changes['created']) - 15} more files")
-        lines.append("")
-
-    if file_changes["modified"]:
-        lines.append("**Modified:**")
-        for f in file_changes["modified"][:15]:
-            stat = file_stats.get(f, (0, 0))
-            lines.append(f"- `{f}` (+{stat[0]}, -{stat[1]})")
-        if len(file_changes["modified"]) > 15:
-            lines.append(f"- ... and {len(file_changes['modified']) - 15} more files")
-        lines.append("")
-
-    if file_changes["deleted"]:
-        lines.append("**Deleted:**")
-        for f in file_changes["deleted"][:15]:
-            lines.append(f"- `{f}`")
-        if len(file_changes["deleted"]) > 15:
-            lines.append(f"- ... and {len(file_changes['deleted']) - 15} more files")
-        lines.append("")
+    for category, label in [
+        ("created", "Created"),
+        ("modified", "Modified"),
+        ("deleted", "Deleted"),
+    ]:
+        files = file_changes[category]
+        if files:
+            lines.append(f"**{label}:**")
+            for f in files[:20]:
+                stat = file_stats.get(f, (0, 0))
+                if category == "deleted":
+                    lines.append(f"- `{f}`")
+                else:
+                    lines.append(f"- `{f}` (+{stat[0]}, -{stat[1]})")
+            if len(files) > 20:
+                lines.append(f"- ... and {len(files) - 20} more files")
+            lines.append("")
 
     if not any(file_changes.values()):
         lines.append("No file changes detected.")
         lines.append("")
 
-    # CLI Tool Consultations
-    lines.append("## CLI Tool Consultations")
+    # CLI Consultations
+    lines.append("## CLI Consultations")
     lines.append("")
 
-    codex_entries = [e for e in entries if e.get("tool") == "codex"]
-    gemini_entries = [e for e in entries if e.get("tool") == "gemini"]
+    codex_entries = [e for e in cli_entries if e.get("tool") == "codex"]
+    gemini_entries = [e for e in cli_entries if e.get("tool") == "gemini"]
 
-    if codex_entries:
-        lines.append(f"### Codex ({len(codex_entries)} consultations)")
-        lines.append("")
-        for entry in codex_entries[:10]:
-            status = "✓" if entry.get("success", False) else "✗"
-            prompt = entry.get("prompt", "")[:80].replace("\n", " ")
-            lines.append(f"- {status} {prompt}...")
-        if len(codex_entries) > 10:
-            lines.append(f"- ... and {len(codex_entries) - 10} more consultations")
-        lines.append("")
+    for entries, name in [(codex_entries, "Codex"), (gemini_entries, "Gemini")]:
+        if entries:
+            lines.append(f"### {name} ({len(entries)} {'consultations' if name == 'Codex' else 'researches'})")
+            lines.append("")
+            for entry in entries[:15]:
+                status = "✓" if entry.get("success", False) else "✗"
+                prompt = entry.get("prompt", "")[:100].replace("\n", " ")
+                lines.append(f"- {status} {prompt}...")
+            if len(entries) > 15:
+                lines.append(f"- ... and {len(entries) - 15} more")
+            lines.append("")
 
-    if gemini_entries:
-        lines.append(f"### Gemini ({len(gemini_entries)} researches)")
-        lines.append("")
-        for entry in gemini_entries[:10]:
-            status = "✓" if entry.get("success", False) else "✗"
-            prompt = entry.get("prompt", "")[:80].replace("\n", " ")
-            lines.append(f"- {status} {prompt}...")
-        if len(gemini_entries) > 10:
-            lines.append(f"- ... and {len(gemini_entries) - 10} more researches")
+    if not cli_entries:
+        lines.append("No CLI consultations recorded.")
         lines.append("")
 
-    if not entries:
-        lines.append("No CLI tool consultations recorded.")
+    # Agent Teams Activity
+    if teams_data:
+        lines.append("## Agent Teams Activity")
+        lines.append("")
+
+        for team in teams_data:
+            lines.append(f"### Team: {team['name']}")
+            lines.append("")
+
+            # Members
+            members = team.get("members", [])
+            if members:
+                lines.append("**Composition:**")
+                for member in members:
+                    name = member.get("name", "unknown")
+                    agent_type = member.get("agent_type", "")
+                    lines.append(f"- {name} ({agent_type})")
+                lines.append("")
+
+            # Tasks
+            tasks = team.get("tasks", [])
+            if tasks:
+                lines.append("**Task List:**")
+                for task in tasks:
+                    subject = task.get("task_subject", task.get("subject", "unknown"))
+                    status = task.get("status", "unknown")
+                    owner = task.get("teammate_name", "")
+                    checkbox = "x" if status == "completed" else " "
+                    owner_str = f" ({owner})" if owner else ""
+                    lines.append(f"- [{checkbox}] {subject}{owner_str}")
+                lines.append("")
+
+                # Effectiveness
+                completed = sum(1 for t in tasks if t.get("status") == "completed")
+                lines.append("**Effectiveness:**")
+                lines.append(f"- Tasks: {completed}/{len(tasks)} completed")
+                lines.append("")
+
+    # Design Decisions
+    if design_diff:
+        lines.append("## Design Decisions (Changes)")
+        lines.append("")
+
+        # Extract added lines from diff
+        added_lines = [
+            line[1:].strip()
+            for line in design_diff.split("\n")
+            if line.startswith("+") and not line.startswith("+++")
+            and line.strip() not in ("+", "")
+        ]
+        for added in added_lines[:20]:
+            lines.append(f"- {added}")
         lines.append("")
 
     # Footer
+    timestamp = now.strftime("%Y-%m-%d-%H%M%S")
     lines.append("---")
     lines.append(f"*Generated by checkpointing skill at {timestamp}*")
 
-    # Write checkpoint file
-    checkpoint_file.write_text("\n".join(lines), encoding="utf-8")
+    return "\n".join(lines)
 
-    return checkpoint_file
+
+def generate_session_summary(
+    commits: list[dict],
+    file_changes: dict[str, list[str]],
+    cli_entries: list[dict],
+    teams_data: list[dict],
+) -> str:
+    """Generate concise session summary for CLAUDE.md."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    total_files = sum(len(v) for v in file_changes.values())
+    codex_count = sum(1 for e in cli_entries if e.get("tool") == "codex")
+    gemini_count = sum(1 for e in cli_entries if e.get("tool") == "gemini")
+
+    summary_lines = [f"### {today}", ""]
+    summary_lines.append(f"- {len(commits)} commits, {total_files} files changed")
+
+    if codex_count:
+        summary_lines.append(f"- Codex: {codex_count} consultations")
+    if gemini_count:
+        summary_lines.append(f"- Gemini: {gemini_count} researches")
+
+    for team in teams_data:
+        tasks = team.get("tasks", [])
+        members = team.get("members", [])
+        completed = sum(1 for t in tasks if t.get("status") == "completed")
+        summary_lines.append(
+            f"- Agent Teams: {team['name']} "
+            f"({len(members)} teammates, {completed}/{len(tasks)} tasks)"
+        )
+
+    summary_lines.append("")
+    return "\n".join(summary_lines)
+
+
+def update_claude_md(session_summary: str) -> bool:
+    """Update CLAUDE.md with session history summary."""
+    if not CLAUDE_MD.exists():
+        return False
+
+    content = CLAUDE_MD.read_text(encoding="utf-8")
+
+    if SESSION_HISTORY_HEADER in content:
+        # Append to existing section
+        content = content.rstrip() + "\n\n" + session_summary
+    else:
+        # Create new section
+        content = content.rstrip() + "\n\n" + SESSION_HISTORY_HEADER + "\n\n" + session_summary
+
+    CLAUDE_MD.write_text(content, encoding="utf-8")
+    return True
 
 
 def generate_skill_analysis_prompt(checkpoint_content: str) -> str:
-    """Generate a prompt for AI to analyze checkpoint and suggest skills."""
-    return f'''Analyze the following checkpoint and identify reusable work patterns that could become skills.
+    """Generate prompt for AI skill pattern discovery."""
+    return f"""Analyze the following checkpoint and identify reusable work patterns that could become skills.
 
 A "skill" is a repeatable workflow pattern that can be triggered by specific phrases and executed consistently.
 
@@ -409,149 +482,100 @@ A "skill" is a repeatable workflow pattern that can be triggered by specific phr
 
 ## Analysis Instructions
 
-1. **Identify Patterns**: Look for regularities in:
-   - Sequences of commits that form a logical workflow
+1. **Identify Patterns** in:
+   - Sequences of commits forming logical workflows
    - File change patterns (e.g., test + implementation together)
-   - CLI consultation patterns (design → implementation → review)
+   - CLI consultation sequences (research → design → implement)
+   - Agent Teams coordination patterns (team composition, task sizing, communication)
    - Multi-step operations that could be templated
 
 2. **For each potential skill, provide**:
-   - **Name**: Short, descriptive name (e.g., "tdd-feature", "research-implement")
+   - **Name**: Short, descriptive (e.g., "tdd-feature", "research-implement")
    - **Description**: What this skill accomplishes
-   - **Trigger phrases**: When should this skill be invoked (Japanese + English)
+   - **Trigger phrases**: Japanese + English
    - **Workflow steps**: Ordered list of actions
-   - **Files typically involved**: Patterns like `tests/**/*.py`, `src/**/*.py`
-   - **Confidence**: How confident are you this is a reusable pattern (0.0-1.0)
+   - **Confidence**: 0.0-1.0 (only suggest >= 0.6)
    - **Evidence**: What in the checkpoint suggests this pattern
 
-3. **Output format**:
-
-```markdown
-## Skill Suggestions
-
-### Skill 1: {{name}}
-**Confidence:** {{0.0-1.0}}
-**Description:** {{description}}
-
-**Trigger phrases:**
-- "{{Japanese phrase}}"
-- "{{English phrase}}"
-
-**Workflow:**
-1. {{step 1}}
-2. {{step 2}}
-3. {{step 3}}
-
-**Files involved:**
-- `{{pattern 1}}`
-- `{{pattern 2}}`
-
-**Evidence:**
-- {{evidence from checkpoint}}
-```
+3. **Check against existing skills** in `.claude/skills/`:
+   - startproject, team-implement, team-review, plan, tdd, simplify
+   - codex-system, gemini-system, design-tracker, checkpointing
+   - research-lib, update-design, update-lib-docs, init
+   - If pattern matches an existing skill, note it but still report
 
 4. **Quality criteria**:
-   - Only suggest skills with confidence >= 0.6
    - Skip trivial patterns (single file edits, simple commits)
    - Focus on multi-step workflows that save time when repeated
-   - Consider what would be valuable to automate in future sessions
+   - Agent Teams patterns are especially valuable (team composition, task sizing)
 
-Provide your analysis:'''
+Provide your analysis:"""
 
 
-def save_skill_suggestions(checkpoint_file: Path, suggestions: str) -> Path:
-    """Save skill suggestions to a file next to the checkpoint."""
-    suggestions_file = checkpoint_file.with_suffix(".skills.md")
-    suggestions_file.write_text(suggestions, encoding="utf-8")
-    return suggestions_file
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Checkpoint session context",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python checkpoint.py                    # Update session history in agent configs
-  python checkpoint.py --full             # Create full checkpoint file
-  python checkpoint.py --full --since 2026-01-26  # Full checkpoint since date
-  python checkpoint.py --full --analyze   # Full checkpoint + skill analysis prompt
-        """,
+        description="Full session checkpoint with skill pattern discovery",
     )
     parser.add_argument(
         "--since",
         help="Only include data since this date (YYYY-MM-DD)",
     )
-    parser.add_argument(
-        "--full",
-        action="store_true",
-        help="Create full checkpoint file with git history and file changes",
-    )
-    parser.add_argument(
-        "--analyze",
-        action="store_true",
-        help="Output skill analysis prompt (use with --full)",
-    )
     args = parser.parse_args()
 
-    if args.full:
-        # Full checkpoint mode
-        print("Creating full checkpoint...")
-        checkpoint_file = generate_full_checkpoint(args.since)
-        if checkpoint_file:
-            print(f"\nCheckpoint created: {checkpoint_file}")
-            print("\nCheckpoint includes:")
-            print("  - Git commits and file changes")
-            print("  - CLI tool consultations (Codex/Gemini)")
-            print("  - Session summary")
+    print("Collecting session data...")
 
-            if args.analyze:
-                # Generate skill analysis prompt
-                checkpoint_content = checkpoint_file.read_text(encoding="utf-8")
-                prompt = generate_skill_analysis_prompt(checkpoint_content)
+    # 1. Collect everything
+    branch = get_git_branch()
+    commits = get_git_commits(args.since)
+    file_changes = get_file_changes(args.since)
+    file_stats = get_file_stats(args.since)
+    cli_entries = parse_cli_logs(args.since)
+    teams_data = collect_agent_teams_data()
+    design_diff = get_design_decisions_diff(args.since)
 
-                # Save prompt to file
-                prompt_file = checkpoint_file.with_suffix(".analyze-prompt.md")
-                prompt_file.write_text(prompt, encoding="utf-8")
+    print(f"  Git: {len(commits)} commits, {sum(len(v) for v in file_changes.values())} files")
+    print(f"  CLI: {len(cli_entries)} consultations")
+    print(f"  Agent Teams: {len(teams_data)} teams")
 
-                print(f"\n{'='*60}")
-                print("SKILL ANALYSIS MODE")
-                print(f"{'='*60}")
-                print(f"\nAnalysis prompt saved to: {prompt_file}")
-                print("\nNext step: Use a subagent to analyze and suggest skills:")
-                print(f'  Read the prompt file and pass it to a subagent for analysis.')
-                print(f"\nThe subagent will identify reusable patterns and suggest new skills.")
-        else:
-            print("Failed to create checkpoint.")
-        return
+    # 2. Generate checkpoint
+    CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
+    checkpoint_file = CHECKPOINTS_DIR / f"{timestamp}.md"
 
-    # Session history mode (default)
-    entries = parse_logs(args.since)
-    if not entries:
-        print("No log entries found.")
-        print(f"Log file: {LOG_FILE}")
-        return
+    checkpoint_content = generate_checkpoint(
+        commits=commits,
+        file_changes=file_changes,
+        file_stats=file_stats,
+        cli_entries=cli_entries,
+        teams_data=teams_data,
+        design_diff=design_diff,
+        branch=branch,
+        since=args.since,
+    )
+    checkpoint_file.write_text(checkpoint_content, encoding="utf-8")
+    print(f"\nCheckpoint: {checkpoint_file}")
 
-    print(f"Found {len(entries)} log entries")
+    # 3. Update CLAUDE.md
+    session_summary = generate_session_summary(
+        commits=commits,
+        file_changes=file_changes,
+        cli_entries=cli_entries,
+        teams_data=teams_data,
+    )
+    if update_claude_md(session_summary):
+        print(f"Session history: {CLAUDE_MD}")
 
-    # Summarize
-    by_date = summarize_entries(entries)
+    # 4. Generate skill analysis prompt
+    prompt = generate_skill_analysis_prompt(checkpoint_content)
+    prompt_file = checkpoint_file.with_suffix(".analyze-prompt.md")
+    prompt_file.write_text(prompt, encoding="utf-8")
+    print(f"Analysis prompt: {prompt_file}")
 
-    # Generate session history
-    session_history = generate_session_history(by_date)
-    if not session_history:
-        print("No session history to write")
-        return
-
-    # Update each context file
-    for name, file_path in CONTEXT_FILES.items():
-        if update_context_file(file_path, session_history):
-            print(f"Updated: {file_path}")
-        else:
-            print(f"Skipped: {file_path}")
-
-    print("\nSession history has been written to all context files.")
-    print("All agents (Claude, Codex, Gemini) can now see the session history.")
+    print("\nDone. Next: spawn subagent to analyze the prompt file for skill patterns.")
 
 
 if __name__ == "__main__":

@@ -13,19 +13,20 @@ metadata:
 
 # Codex System — Deep Reasoning Partner
 
-**Codex CLI (gpt-5.2-codex) is your highly capable supporter for deep reasoning tasks.**
+**Codex CLI (gpt-5.3-codex) is your highly capable supporter for deep reasoning tasks.**
 
 > **詳細ルール**: `.claude/rules/codex-delegation.md`
 
-## Context Management (CRITICAL)
+## Context Management (Opus 4.6)
 
-**サブエージェント経由を推奨。** メインオーケストレーターのコンテキストを節約するため。
+Claude の 1M コンテキストにより、直接呼び出しの許容範囲が拡大した。ただし大きな出力はサブエージェント経由を推奨。
 
 | 状況 | 方法 |
 |------|------|
+| 短い質問（〜50行回答） | 直接呼び出しOK |
 | 詳細な設計相談 | サブエージェント経由（推奨） |
 | デバッグ分析 | サブエージェント経由（推奨） |
-| 短い質問 (1-2文回答) | 直接呼び出しOK |
+| Agent Teams 内での相談 | Teammate が直接呼び出し |
 
 ## When to Consult (MUST)
 
@@ -44,12 +45,24 @@ metadata:
 - Following explicit user instructions
 - git commit, running tests, linting
 - Tasks with obvious single solutions
+- **Codebase analysis** → Claude does this directly (1M context)
 
 ## How to Consult
 
-### Recommended: Subagent Pattern
+### In Agent Teams (Preferred for /startproject)
 
-**Use Task tool with `subagent_type='general-purpose'` to preserve main context.**
+Architect Teammate が Codex を直接呼び出し、Researcher Teammate と双方向通信する。
+
+```
+/startproject 内の Phase 2 で、Architect Teammate として Codex を活用:
+- 設計検討 → Codex に相談
+- Researcher からの調査結果を受けて設計を修正
+- 設計決定を .claude/docs/DESIGN.md に記録
+```
+
+### Subagent Pattern (Standalone consultation)
+
+**Use Task tool with `subagent_type='general-purpose'` for larger outputs.**
 
 ```
 Task tool parameters:
@@ -58,26 +71,18 @@ Task tool parameters:
 - prompt: |
     Consult Codex about: {topic}
 
-    codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
+    codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
     {question for Codex}
     " 2>/dev/null
 
     Return CONCISE summary (key recommendation + rationale).
 ```
 
-### Direct Call (Short Questions Only)
-
-For quick questions expecting 1-2 sentence answers:
+### Direct Call (Up to ~50 lines response)
 
 ```bash
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
+codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
 ```
-
-### Workflow (Subagent)
-
-1. **Spawn subagent** with Codex consultation prompt
-2. **Continue your work** → Subagent runs in parallel
-3. **Receive summary** → Subagent returns concise insights
 
 ### Sandbox Modes
 
@@ -98,7 +103,7 @@ codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "Brief question
 ### Design Review
 
 ```bash
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
+codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
 Review this design approach for: {feature}
 
 Context:
@@ -115,7 +120,7 @@ Evaluate:
 ### Debug Analysis
 
 ```bash
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
+codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
 Debug this issue:
 
 Error: {error message}
@@ -138,13 +143,14 @@ See: `references/refactoring-task.md`
 
 | Task | Use |
 |------|-----|
-| Need research first | Gemini → then Codex |
+| Need external research first | Gemini → then Codex |
 | Design decision | Codex directly |
 | Library comparison | Gemini research → Codex decision |
+| /startproject | Agent Teams: Researcher (Gemini) ↔ Architect (Codex) |
 
 ## Why Codex?
 
 - **Deep reasoning**: Complex analysis and problem-solving
 - **Code expertise**: Implementation strategies and patterns
 - **Consistency**: Same project context via `context-loader` skill
-- **Parallel work**: Background execution keeps you productive
+- **Parallel work**: Background execution or Agent Teams teammate

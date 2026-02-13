@@ -54,7 +54,7 @@ uv run ruff format .
 
 ```toml
 [tool.ruff]
-target-version = "py312"
+target-version = "py311"
 line-length = 88
 
 [tool.ruff.lint]

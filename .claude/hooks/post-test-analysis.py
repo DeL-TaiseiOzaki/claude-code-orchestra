@@ -99,8 +99,9 @@ def main():
             sys.exit(0)
 
         tool_input = data.get("tool_input", {})
-        tool_output = data.get("tool_output", "")
+        tool_response = data.get("tool_response", {})
         command = tool_input.get("command", "")
+        tool_output = tool_response.get("stdout", "") or tool_response.get("content", "")
 
         # Check if it's a test/build command
         if not is_test_or_build_command(command):

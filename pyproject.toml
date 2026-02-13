@@ -9,7 +9,7 @@ dependencies = []
 [project.optional-dependencies]
 dev = [
     "ruff>=0.8",
-    "mypy>=1.13",
+    "ty>=0.1",
     "pytest>=8.0",
     "poethepoet>=0.31",
 ]
@@ -42,20 +42,6 @@ ignore = [
 quote-style = "double"
 
 # ============================================================
-# mypy
-# ============================================================
-[tool.mypy]
-python_version = "3.11"
-strict = true
-warn_return_any = true
-warn_unused_ignores = true
-disallow_untyped_defs = true
-
-[[tool.mypy.overrides]]
-module = ["tests.*"]
-disallow_untyped_defs = false
-
-# ============================================================
 # pytest
 # ============================================================
 [tool.pytest.ini_options]
@@ -67,8 +53,8 @@ addopts = "-v --tb=short"
 # poethepoet
 # ============================================================
 [tool.poe.tasks]
-lint = "ruff check . --fix"
-format = "ruff format ."
-typecheck = "mypy src/"
-test = "pytest"
-all = ["lint", "format", "typecheck", "test"]
+lint = "ruff check . && ruff format --check ."
+format = "ruff check --fix . && ruff format ."
+typecheck = "ty check src/"
+test = "pytest -v"
+all = ["lint", "typecheck", "test"]

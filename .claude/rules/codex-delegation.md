@@ -1,39 +1,24 @@
 # Codex Delegation Rule
 
-**Codex CLI is your highly capable supporter.**
+**Codex CLI is your highly capable supporter for deep reasoning.**
 
-## Context Management (CRITICAL)
+## Context Management (Opus 4.6)
 
-**コンテキスト消費を意識してCodexを使う。** 大きな出力が予想される場合はサブエージェント経由を推奨。
+Claude の 1M コンテキストにより、以前より直接呼び出しの許容範囲が拡大した。ただし大きな出力の場合はサブエージェント経由を推奨。
 
 | 状況 | 推奨方法 |
 |------|----------|
-| 短い質問・短い回答 | 直接呼び出しOK |
+| 短い質問・短い回答（〜50行） | 直接呼び出しOK |
 | 詳細な設計相談 | サブエージェント経由 |
 | デバッグ分析 | サブエージェント経由 |
-| 複数の質問がある | サブエージェント経由 |
-
-```
-┌──────────────────────────────────────────────────────────┐
-│  Main Claude Code                                        │
-│  → 短い質問なら直接呼び出しOK                             │
-│  → 大きな出力が予想されるならサブエージェント経由          │
-│                                                          │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │  Subagent (general-purpose)                         │ │
-│  │  → Calls Codex CLI                                  │ │
-│  │  → Processes full response                          │ │
-│  │  → Returns key insights only                        │ │
-│  └────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────┘
-```
+| Agent Teams 内での相談 | Teammate が直接呼び出し |
 
 ## About Codex
 
 Codex CLI is an AI with exceptional reasoning and task completion abilities.
 Think of it as a trusted senior expert you can always consult.
 
-**When facing difficult decisions → Delegate to subagent → Subagent consults Codex.**
+**When facing difficult decisions → Consult Codex.**
 
 ## When to Consult Codex
 
@@ -43,91 +28,64 @@ ALWAYS consult Codex BEFORE:
 2. **Debugging** - If cause isn't obvious or first fix failed
 3. **Implementation planning** - Multi-step tasks, multiple approaches
 4. **Trade-off evaluation** - Choosing between options
+5. **Code review** - Quality and correctness analysis
 
 ### Trigger Phrases (User Input)
-
-Consult Codex when user says:
 
 | Japanese | English |
 |----------|---------|
 | 「どう設計すべき？」「どう実装する？」 | "How should I design/implement?" |
 | 「なぜ動かない？」「原因は？」「エラーが出る」 | "Why doesn't this work?" "Error" |
 | 「どちらがいい？」「比較して」「トレードオフは？」 | "Which is better?" "Compare" |
-| 「〜を作りたい」「〜を実装して」 | "Build X" "Implement X" |
 | 「考えて」「分析して」「深く考えて」 | "Think" "Analyze" "Think deeper" |
 
 ## When NOT to Consult
-
-Skip Codex for simple, straightforward tasks:
 
 - Simple file edits (typo fixes, small changes)
 - Following explicit user instructions
 - Standard operations (git commit, running tests)
 - Tasks with clear, single solutions
 - Reading/searching files
+- **Codebase analysis** → Claude does this directly (1M context)
 
-## Quick Check
+## How to Consult
 
-Ask yourself: "Am I about to make a non-trivial decision?"
+### In Agent Teams (Preferred for /startproject)
 
-- YES → Consult Codex first
-- NO → Proceed with execution
+Architect Teammate が Codex を直接呼び出し、Researcher Teammate と双方向通信する。
 
-## How to Consult (via Subagent)
-
-**IMPORTANT: Use subagent to preserve main context.**
-
-### Recommended: Subagent Pattern
-
-Use Task tool with `subagent_type: "general-purpose"`:
+### Subagent Pattern
 
 ```
 Task tool parameters:
 - subagent_type: "general-purpose"
 - run_in_background: true (for parallel work)
 - prompt: |
-    {Task description}
+    Consult Codex about: {topic}
 
-    Call Codex CLI:
-    codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
-    {Question for Codex}
+    codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
+    {question for Codex}
     " 2>/dev/null
 
-    Return CONCISE summary:
-    - Key recommendation
-    - Main rationale (2-3 points)
-    - Any concerns or risks
+    Return CONCISE summary (key recommendation + rationale).
 ```
 
-### Direct Call (Only When Necessary)
-
-Only use direct Bash call when:
-- Quick, simple question (< 1 paragraph response expected)
-- Subagent overhead not justified
+### Direct Call (Short Questions, up to ~50 lines response)
 
 ```bash
-# Only for simple queries
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
+codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
 ```
 
 ### Sandbox Modes
 
 | Mode | Sandbox | Use Case |
 |------|---------|----------|
-| Analysis | `read-only` | Design review, debugging analysis, trade-offs |
-| Work | `workspace-write` | Implement, fix, refactor (subagent recommended) |
+| Analysis | `read-only` | Design review, debugging, trade-offs |
+| Work | `workspace-write` | Implement, fix, refactor |
 
-**Language protocol:**
+## Language Protocol
+
 1. Ask Codex in **English**
-2. Subagent receives response in **English**
-3. Subagent summarizes and returns to main
-4. Main reports to user in **Japanese**
-
-## Why Subagent Pattern?
-
-- **Context preservation**: Main orchestrator stays lightweight
-- **Full analysis**: Subagent can process entire Codex response
-- **Concise handoff**: Main only receives actionable summary
-- **Parallel work**: Background subagents enable concurrent tasks
-
-**Don't hesitate to delegate. Subagents + Codex = efficient collaboration.**
+2. Receive response in **English**
+3. Execute based on advice
+4. Report to user in **Japanese**

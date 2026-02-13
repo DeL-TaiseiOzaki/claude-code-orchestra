@@ -51,7 +51,7 @@ Both tools are called via Bash tool, so output is visible in Claude Code UI, but
 Each line is a complete JSON object:
 
 ```json
-{"timestamp": "2026-01-26T10:30:45+00:00", "tool": "codex", "model": "gpt-5.2-codex", "prompt": "How should I design...", "response": "I recommend...", "success": true, "exit_code": 0}
+{"timestamp": "2026-01-26T10:30:45+00:00", "tool": "codex", "model": "gpt-5.3-codex", "prompt": "How should I design...", "response": "I recommend...", "success": true, "exit_code": 0}
 {"timestamp": "2026-01-26T10:32:12+00:00", "tool": "gemini", "model": "gemini-3-pro-preview", "prompt": "Research best practices...", "response": "Based on...", "success": true, "exit_code": 0}
 ```
 
@@ -374,7 +374,7 @@ python .claude/tools/export-logs-to-db.py
 ### Unit Tests
 ```python
 def test_extract_codex_prompt():
-    cmd = 'codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "test prompt"'
+    cmd = 'codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "test prompt"'
     result = extract_codex_prompt(cmd)
     assert result["tool"] == "codex"
     assert result["prompt"] == "test prompt"

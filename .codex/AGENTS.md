@@ -48,7 +48,7 @@ You can read project context from `.claude/`:
 ## How You're Called
 
 ```bash
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "{task}"
+codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "{task}"
 ```
 
 ## Output Format

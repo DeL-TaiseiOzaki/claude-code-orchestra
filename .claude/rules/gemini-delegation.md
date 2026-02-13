@@ -1,75 +1,56 @@
 # Gemini Delegation Rule
 
-**Gemini CLI is your research specialist with massive context and multimodal capabilities.**
+**Gemini CLI is your external information and multimodal specialist.**
 
-## Context Management (CRITICAL)
+## Role Change (Opus 4.6)
 
-**コンテキスト消費を意識してGeminiを使う。** Gemini出力は大きくなりがちなので、サブエージェント経由を推奨。
+> **重要**: Claude 自身が 1M トークンのコンテキストを持つため、コードベース分析は Claude が直接行う。
+> Gemini の役割は「外部情報の取得」と「マルチモーダル処理」に特化した。
+
+| Task | Before (Opus 4.5) | After (Opus 4.6) |
+|------|-------------------|-------------------|
+| コードベース分析 | Gemini | **Claude 直接** |
+| ライブラリ調査 | Gemini | Gemini (外部Web検索) |
+| 最新ドキュメント検索 | Gemini | Gemini (Google Search) |
+| マルチモーダル | Gemini | Gemini (変更なし) |
+| 設計判断 | Codex | Codex (変更なし) |
+
+## Context Management
 
 | 状況 | 推奨方法 |
 |------|----------|
 | 短い質問・短い回答 | 直接呼び出しOK |
-| コードベース分析 | サブエージェント経由（出力大） |
-| ライブラリ調査 | サブエージェント経由（出力大） |
+| ライブラリ調査 | サブエージェント経由（出力が大きい場合） |
 | マルチモーダル処理 | サブエージェント経由 |
-
-```
-┌──────────────────────────────────────────────────────────┐
-│  Main Claude Code                                        │
-│  → 短い質問なら直接呼び出しOK                             │
-│  → 大きな出力が予想されるならサブエージェント経由          │
-│                                                          │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │  Subagent (general-purpose)                         │ │
-│  │  → Calls Gemini CLI                                 │ │
-│  │  → Saves full output to .claude/docs/research/      │ │
-│  │  → Returns key findings only                        │ │
-│  └────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────┘
-```
+| Agent Teams 内での調査 | Teammate が直接呼び出し |
 
 ## About Gemini
 
 Gemini CLI excels at:
-- **1M token context window** — Analyze entire codebases at once
-- **Google Search grounding** — Access latest information
+- **Google Search grounding** — Access latest information, official docs
 - **Multimodal processing** — Video, audio, PDF analysis
+- **Web research** — Library comparison, best practices, API specs
 
-Think of Gemini as your research assistant who can quickly gather and synthesize information.
-
-**When you need research → Delegate to subagent → Subagent consults Gemini.**
-
-## Gemini vs Codex: Choose the Right Tool
-
-| Task | Codex | Gemini |
-|------|-------|--------|
-| Design decisions | ✓ | |
-| Debugging | ✓ | |
-| Code implementation | ✓ | |
-| Trade-off analysis | ✓ | |
-| Large codebase understanding | | ✓ |
-| Pre-implementation research | | ✓ |
-| Latest docs/library research | | ✓ |
-| Video/Audio/PDF analysis | | ✓ |
+**Gemini does NOT excel at** (use Claude/Codex instead):
+- Codebase analysis (Claude has 1M context now)
+- Design decisions (Codex)
+- Debugging (Codex)
+- Code implementation (Claude)
 
 ## When to Consult Gemini
 
-ALWAYS consult Gemini BEFORE:
+ALWAYS consult Gemini for:
 
-1. **Pre-implementation research** - Best practices, library comparison
-2. **Large codebase analysis** - Repository-wide understanding
-3. **Documentation search** - Latest official docs, breaking changes
-4. **Multimodal tasks** - Video, audio, PDF content extraction
+1. **External information** - Latest docs, library updates, API specs
+2. **Library research** - Comparison, best practices, known issues
+3. **Multimodal tasks** - Video, audio, PDF content extraction
 
 ### Trigger Phrases (User Input)
-
-Consult Gemini when user says:
 
 | Japanese | English |
 |----------|---------|
 | 「調べて」「リサーチして」「調査して」 | "Research" "Investigate" "Look up" |
 | 「このPDF/動画/音声を見て」 | "Analyze this PDF/video/audio" |
-| 「コードベース全体を理解して」 | "Understand the entire codebase" |
 | 「最新のドキュメントを確認して」 | "Check the latest documentation" |
 | 「〜について情報を集めて」 | "Gather information about X" |
 
@@ -77,19 +58,19 @@ Consult Gemini when user says:
 
 Skip Gemini for:
 
-- Design decisions (use Codex instead)
-- Code implementation (use Codex instead)
-- Debugging (use Codex instead)
-- Simple file operations (do directly)
-- Running tests/linting (do directly)
+- **コードベース分析** → Claude が 1M コンテキストで直接読む
+- Design decisions → Codex
+- Debugging → Codex
+- Code implementation → Claude
+- Simple file operations → Claude
 
-## How to Consult (via Subagent)
+## How to Consult
 
-**IMPORTANT: Use subagent to preserve main context.**
+### In Agent Teams (Preferred for /startproject)
 
-### Recommended: Subagent Pattern
+Researcher Teammate が Gemini を直接呼び出し、Architect Teammate と双方向通信する。
 
-Use Task tool with `subagent_type: "general-purpose"`:
+### Subagent Pattern (For standalone research)
 
 ```
 Task tool parameters:
@@ -98,75 +79,23 @@ Task tool parameters:
 - prompt: |
     Research: {topic}
 
-    1. Call Gemini CLI:
-       gemini -p "{research question}" 2>/dev/null
+    gemini -p "{research question}" 2>/dev/null
 
-    2. Save full output to: .claude/docs/research/{topic}.md
-
-    3. Return CONCISE summary (5-7 bullet points):
-       - Key findings
-       - Recommended approach
-       - Important caveats
+    Save full output to: .claude/docs/research/{topic}.md
+    Return CONCISE summary (5-7 bullet points).
 ```
 
-### Subagent Patterns by Task Type
-
-**Research Pattern:**
-```
-prompt: |
-  Research best practices for {topic}.
-
-  gemini -p "Research: {topic}. Include recommended approaches,
-  common pitfalls, and library recommendations." 2>/dev/null
-
-  Save to .claude/docs/research/{topic}.md
-  Return 5-7 key bullet points.
-```
-
-**Codebase Analysis Pattern:**
-```
-prompt: |
-  Analyze codebase for {purpose}.
-
-  gemini -p "Analyze architecture, key modules, data flow,
-  and entry points." --include-directories . 2>/dev/null
-
-  Save to .claude/docs/research/codebase-analysis.md
-  Return architecture summary and key insights.
-```
-
-**Multimodal Pattern:**
-```
-prompt: |
-  Extract information from {file}.
-
-  gemini -p "{extraction prompt}" < {file_path} 2>/dev/null
-
-  Save to .claude/docs/research/{output}.md
-  Return key extracted information.
-```
-
-### Step 2: Continue Your Work
-
-While subagent is processing, you can:
-- Work on other files
-- Run tests
-- Spawn another subagent for Codex consultation
-
-### Step 3: Receive Summary
-
-Subagent returns concise summary. Full output available in `.claude/docs/research/` if needed.
-
-## Gemini CLI Commands Reference
-
-For use within subagents:
+### Direct Call (Short Questions Only)
 
 ```bash
-# Research
-gemini -p "{question}" 2>/dev/null
+gemini -p "Brief question" 2>/dev/null
+```
 
-# Codebase analysis
-gemini -p "{question}" --include-directories . 2>/dev/null
+## CLI Commands Reference
+
+```bash
+# External research
+gemini -p "{question}" 2>/dev/null
 
 # Multimodal
 gemini -p "{prompt}" < /path/to/file.pdf 2>/dev/null
@@ -175,17 +104,11 @@ gemini -p "{prompt}" < /path/to/file.pdf 2>/dev/null
 gemini -p "{question}" --output-format json 2>/dev/null
 ```
 
-**Language protocol:**
+**Note**: `--include-directories .` is no longer needed for codebase analysis — Claude handles this directly.
+
+## Language Protocol
+
 1. Ask Gemini in **English**
-2. Subagent receives response in **English**
-3. Subagent summarizes and saves full output
-4. Main receives summary, reports to user in **Japanese**
-
-## Why Subagent Pattern?
-
-- **Context preservation**: Main orchestrator stays lightweight
-- **Full capture**: Subagent can save entire Gemini output to file
-- **Concise handoff**: Main only receives key findings
-- **Parallel work**: Background subagents enable concurrent research
-
-**Use Gemini (via subagent) for research, Codex (via subagent) for reasoning, Claude for orchestration.**
+2. Receive response in **English**
+3. Subagent/Teammate summarizes and saves full output
+4. Main reports to user in **Japanese**

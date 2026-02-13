@@ -68,7 +68,7 @@ Well-implemented points
 ## Example Invocation
 
 ```bash
-codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
+codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
 Review this code change:
 
 ## Changes

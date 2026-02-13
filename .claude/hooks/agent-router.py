@@ -87,7 +87,7 @@ def main():
                     "additionalContext": (
                         f"[Agent Routing] Detected '{trigger}' - this task may benefit from "
                         "Codex CLI's deep reasoning capabilities. Consider: "
-                        "`codex exec --model gpt-5.2-codex --sandbox read-only --full-auto "
+                        "`codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
                         '"{task description}"` for design decisions, debugging, or complex analysis.'
                     )
                 }

@@ -1,65 +1,76 @@
 ---
 name: gemini-system
 description: |
-  PROACTIVELY consult Gemini CLI for research, large codebase comprehension,
-  and multimodal data processing. Gemini excels at: massive context windows (1M tokens),
-  Google Search grounding, video/audio/PDF analysis, and repository-wide understanding.
-  Use for pre-implementation research, documentation analysis, and multimodal tasks.
-  Explicit triggers: "research", "investigate", "analyze video/audio/PDF", "understand codebase".
+  PROACTIVELY consult Gemini CLI for external web research and multimodal
+  data processing. Gemini excels at: Google Search grounding for latest
+  information, video/audio/PDF analysis, and library/API documentation lookup.
+  NOTE: Codebase analysis is handled by Claude directly (1M context).
+  Explicit triggers: "research", "investigate", "analyze video/audio/PDF",
+  "latest docs", "library research".
 metadata:
-  short-description: Claude Code ↔ Gemini CLI collaboration (research & multimodal)
+  short-description: Claude Code ↔ Gemini CLI collaboration (external research & multimodal)
 ---
 
-# Gemini System — Research & Multimodal Specialist
+# Gemini System — External Research & Multimodal Specialist
 
-**Gemini CLI (gemini-3-pro-preview) is your research specialist with 1M token context.**
+**Gemini CLI is your specialist for external information and multimodal processing.**
 
 > **詳細ルール**: `.claude/rules/gemini-delegation.md`
 
-## Context Management (CRITICAL)
+## Role (Opus 4.6)
 
-**サブエージェント経由を推奨。** Gemini出力は大きくなりがちなため。
+> **重要**: Claude 自身が 1M トークンのコンテキストを持つため、コードベース分析は Claude が直接行う。
+> Gemini の役割は「外部情報の取得」と「マルチモーダル処理」に特化した。
+
+| Task | Agent |
+|------|-------|
+| **コードベース分析** | **Claude 直接** (1M context) |
+| **外部ライブラリ調査** | Gemini (Google Search) |
+| **最新ドキュメント検索** | Gemini (Google Search) |
+| **マルチモーダル (PDF/動画/音声)** | Gemini |
+| **設計判断** | Codex |
+| **デバッグ** | Codex |
+
+## Context Management
 
 | 状況 | 方法 |
 |------|------|
-| コードベース分析 | サブエージェント経由（推奨） |
-| ライブラリ調査 | サブエージェント経由（推奨） |
-| マルチモーダル | サブエージェント経由（推奨） |
-| 短い質問 (1-2文回答) | 直接呼び出しOK |
-
-## Gemini vs Codex
-
-| Task | Gemini | Codex |
-|------|--------|-------|
-| **リポジトリ全体理解** | ✓ | |
-| **ライブラリ調査** | ✓ | |
-| **マルチモーダル (PDF/動画/音声)** | ✓ | |
-| **最新ドキュメント検索** | ✓ | |
-| **設計判断** | | ✓ |
-| **デバッグ** | | ✓ |
-| **コード実装** | | ✓ |
+| 短い質問・短い回答 | 直接呼び出しOK |
+| ライブラリ調査 | サブエージェント経由（出力が大きい場合） |
+| マルチモーダル処理 | サブエージェント経由 |
+| Agent Teams 内での調査 | Teammate が直接呼び出し |
 
 ## When to Consult (MUST)
 
 | Situation | Trigger Examples |
 |-----------|------------------|
-| **Research** | 「調べて」「リサーチ」 / "Research" "Investigate" |
+| **External research** | 「調べて」「リサーチ」 / "Research" "Investigate" |
 | **Library docs** | 「ライブラリ」「ドキュメント」 / "Library" "Docs" |
-| **Codebase analysis** | 「コードベース全体」 / "Entire codebase" |
+| **Latest information** | 「最新の〜」「2026年の〜」 / "Latest" "Current" |
 | **Multimodal** | 「PDF」「動画」「音声」 / "PDF" "Video" "Audio" |
 
 ## When NOT to Consult
 
-- Design decisions (use Codex)
-- Debugging (use Codex)
-- Code implementation (use Codex)
-- Simple file operations (do directly)
+- **コードベース分析** → Claude が 1M コンテキストで直接読む
+- Design decisions → Codex
+- Debugging → Codex
+- Code implementation → Claude
+- Simple file operations → Claude
 
 ## How to Consult
 
-### Recommended: Subagent Pattern
+### In Agent Teams (Preferred for /startproject)
 
-**Use Task tool with `subagent_type='general-purpose'` to preserve main context.**
+Researcher Teammate が Gemini を直接呼び出し、Architect Teammate と双方向通信する。
+
+```
+/startproject 内の Phase 2 で、Researcher Teammate として Gemini を活用:
+- 外部情報の収集 → Gemini に調査依頼
+- Architect からの追加調査依頼に対応
+- 調査結果を .claude/docs/research/ に保存
+```
+
+### Subagent Pattern (Standalone research)
 
 ```
 Task tool parameters:
@@ -76,8 +87,6 @@ Task tool parameters:
 
 ### Direct Call (Short Questions Only)
 
-For quick questions expecting brief answers:
-
 ```bash
 gemini -p "Brief question" 2>/dev/null
 ```
@@ -85,8 +94,8 @@ gemini -p "Brief question" 2>/dev/null
 ### CLI Options Reference
 
 ```bash
-# Codebase analysis
-gemini -p "{question}" --include-directories . 2>/dev/null
+# External research (primary use case)
+gemini -p "{question}" 2>/dev/null
 
 # Multimodal (PDF/video/audio)
 gemini -p "{prompt}" < /path/to/file.pdf 2>/dev/null
@@ -95,12 +104,7 @@ gemini -p "{prompt}" < /path/to/file.pdf 2>/dev/null
 gemini -p "{question}" --output-format json 2>/dev/null
 ```
 
-### Workflow (Subagent)
-
-1. **Spawn subagent** with Gemini research prompt
-2. **Continue your work** → Subagent runs in parallel
-3. **Receive summary** → Subagent returns key findings
-4. **Full output saved** → `.claude/docs/research/{topic}.md`
+> **Note**: `--include-directories .` is no longer needed for codebase analysis — Claude handles this directly with 1M context.
 
 ## Language Protocol
 
@@ -114,38 +118,36 @@ gemini -p "{question}" --output-format json 2>/dev/null
 Save Gemini research results to:
 ```
 .claude/docs/research/{topic}.md
+.claude/docs/libraries/{library}.md
 ```
 
 This allows Claude and Codex to reference the research later.
 
 ## Task Templates
 
-### Pre-Implementation Research
+### Library Research
 
 ```bash
-gemini -p "Research best practices for {feature} in Python 2025.
+gemini -p "Research best practices for {library} in Python 2026.
 Include:
+- Installation and setup
 - Common patterns and anti-patterns
-- Library recommendations (with comparison)
+- Known limitations and constraints
 - Performance considerations
 - Security concerns
 - Code examples" 2>/dev/null
 ```
 
-### Repository Analysis
+### Latest Documentation Lookup
 
 ```bash
-gemini -p "Analyze this repository:
-1. Architecture overview
-2. Key modules and responsibilities
-3. Data flow between components
-4. Entry points and extension points
-5. Existing patterns to follow" --include-directories . 2>/dev/null
+gemini -p "Find the latest documentation for {library/API}.
+Include:
+- Current stable version
+- Breaking changes from previous version
+- New features
+- Migration guide if applicable" 2>/dev/null
 ```
-
-### Library Research
-
-See: `references/lib-research-task.md`
 
 ### Multimodal Analysis
 
@@ -160,18 +162,19 @@ gemini -p "Extract: API specs, examples, constraints" < api-docs.pdf 2>/dev/null
 gemini -p "Transcribe and summarize: decisions, action items" < meeting.mp3 2>/dev/null
 ```
 
+See also: `references/lib-research-task.md`
+
 ## Integration with Codex
 
 | Workflow | Steps |
 |----------|-------|
 | **New feature** | Gemini research → Codex design review |
 | **Library choice** | Gemini comparison → Codex decision |
-| **Bug investigation** | Gemini codebase search → Codex debug |
+| **/startproject** | Agent Teams: Researcher (Gemini) ↔ Architect (Codex) |
 
 ## Why Gemini?
 
-- **1M token context**: Entire repositories at once
-- **Google Search**: Latest information and docs
+- **Google Search**: Latest information, official docs, best practices
 - **Multimodal**: Native PDF/video/audio processing
-- **Fast exploration**: Quick overview before deep work
-- **Shared context**: Results saved for Claude/Codex
+- **Web grounding**: Verified facts with source URLs
+- **Shared context**: Results saved for Claude/Codex to reference

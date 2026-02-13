@@ -99,7 +99,7 @@ def main() -> None:
     if is_codex:
         tool = "codex"
         prompt = extract_codex_prompt(command)
-        model = extract_model(command) or "gpt-5.2-codex"
+        model = extract_model(command) or "gpt-5.3-codex"
     else:
         tool = "gemini"
         prompt = extract_gemini_prompt(command)
@@ -126,12 +126,13 @@ def main() -> None:
 
     log_entry(entry)
 
-    # Output notification (shown to user via hook output)
+    # Output notification via hookSpecificOutput
     print(
         json.dumps(
             {
-                "result": "continue",
-                "message": f"[LOG] {tool.capitalize()} call logged to .claude/logs/cli-tools.jsonl",
+                "hookSpecificOutput": {
+                    "additionalContext": f"[LOG] {tool.capitalize()} call logged to .claude/logs/cli-tools.jsonl",
+                }
             }
         )
     )

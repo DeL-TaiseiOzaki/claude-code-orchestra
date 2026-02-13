@@ -91,7 +91,9 @@ gemini login
 .
 ├── .claude/
 │   ├── agents/
-│   │   └── general-purpose.md   # サブエージェント設定
+│   │   ├── general-purpose.md   # 汎用サブエージェント
+│   │   ├── codex-debugger.md    # エラー分析エージェント
+│   │   └── gemini-explore.md    # コードベース探索エージェント
 │   │
 │   ├── skills/                  # 再利用可能なワークフロー
 │   │   ├── startproject/        # プロジェクト開始
@@ -216,7 +218,7 @@ Red-Green-Refactorサイクルで実装します。
 |--------|------|
 | **uv** | パッケージ管理（pip禁止） |
 | **ruff** | リント・フォーマット |
-| **mypy** | 型チェック |
+| **ty** | 型チェック |
 | **pytest** | テスト |
 | **poethepoet** | タスクランナー |
 
@@ -230,7 +232,7 @@ uv sync                    # 依存関係同期
 
 # 品質チェック
 poe lint                   # ruff check + format
-poe typecheck              # mypy
+poe typecheck              # ty
 poe test                   # pytest
 poe all                    # 全チェック実行
 

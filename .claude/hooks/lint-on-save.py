@@ -26,15 +26,12 @@ def validate_path(file_path: str) -> bool:
 
 
 def get_file_path() -> str | None:
-    """Extract file path from tool input."""
-    tool_input = os.environ.get("CLAUDE_TOOL_INPUT", "")
-    if not tool_input:
-        return None
-
+    """Extract file path from hook input via stdin."""
     try:
-        data = json.loads(tool_input)
-        return data.get("file_path")
-    except json.JSONDecodeError:
+        data = json.load(sys.stdin)
+        tool_input = data.get("tool_input", {})
+        return tool_input.get("file_path")
+    except (json.JSONDecodeError, Exception):
         return None
 
 
