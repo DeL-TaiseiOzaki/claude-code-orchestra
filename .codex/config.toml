@@ -7,7 +7,7 @@ model_reasoning_effort = "xhigh"
 model_reasoning_summary = "detailed"
 
 # Web search
-web_search = "enabled"
+web_search = "live"
 
 # Approval policy
 approval_policy = "on-request"
