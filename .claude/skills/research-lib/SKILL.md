@@ -10,7 +10,17 @@ Research $ARGUMENTS and create documentation in `.claude/docs/libraries/`.
 
 ## Research Items
 
-### Always Verify via Web Search
+### Primary Tool: Gemini CLI
+
+Use Gemini CLI (with Google Search grounding) for comprehensive library research:
+
+```bash
+gemini -p "Research: {library}. Find latest version, official documentation, key features, constraints, best practices, known issues, and usage patterns" 2>/dev/null
+```
+
+### Fallback: WebSearch/WebFetch
+
+If Gemini unavailable, verify via manual web search:
 
 - Official documentation
 - GitHub README

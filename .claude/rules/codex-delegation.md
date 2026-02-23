@@ -1,60 +1,66 @@
 # Codex Delegation Rule
 
-**Codex CLI is your highly capable supporter for deep reasoning.**
+**Codex CLI は計画・設計と難しいコード実装を担当する。**
 
-## Context Management (Opus 4.6)
+## Codex の2つの役割
 
-Claude の 1M コンテキストにより、以前より直接呼び出しの許容範囲が拡大した。ただし大きな出力の場合はサブエージェント経由を推奨。
+### 1. 計画・設計（Plan & Design）
 
-| 状況 | 推奨方法 |
-|------|----------|
-| 短い質問・短い回答（〜50行） | 直接呼び出しOK |
-| 詳細な設計相談 | サブエージェント経由 |
-| デバッグ分析 | サブエージェント経由 |
-| Agent Teams 内での相談 | Teammate が直接呼び出し |
+- アーキテクチャ設計、モジュール構成
+- 実装計画の策定（ステップ分解、依存関係整理）
+- トレードオフ評価、技術選定
+- コードレビュー（品質・正確性分析）
 
-## About Codex
+### 2. 難しいコード実装（Complex Implementation）
 
-Codex CLI is an AI with exceptional reasoning and task completion abilities.
-Think of it as a trusted senior expert you can always consult.
-
-**When facing difficult decisions → Consult Codex.**
+- 複雑なアルゴリズム、最適化
+- 根本原因が不明なデバッグ
+- 高度なリファクタリング
+- マルチステップの実装タスク
 
 ## When to Consult Codex
 
-ALWAYS consult Codex BEFORE:
-
-1. **Design decisions** - How to structure code, which pattern to use
-2. **Debugging** - If cause isn't obvious or first fix failed
-3. **Implementation planning** - Multi-step tasks, multiple approaches
-4. **Trade-off evaluation** - Choosing between options
-5. **Code review** - Quality and correctness analysis
+| 状況 | 例 |
+|------|------|
+| **計画が必要** | 「どう設計？」「計画を立てて」「アーキテクチャ」 |
+| **難しい実装** | 複雑なロジック、最適化、パフォーマンス改善 |
+| **デバッグ** | 「なぜ動かない？」「エラーの原因は？」（初回失敗後） |
+| **比較検討** | 「AとBどちらがいい？」「トレードオフは？」 |
+| **コードレビュー** | 「レビューして」「品質チェック」 |
 
 ### Trigger Phrases (User Input)
 
 | Japanese | English |
 |----------|---------|
 | 「どう設計すべき？」「どう実装する？」 | "How should I design/implement?" |
+| 「計画を立てて」「アーキテクチャ」 | "Create a plan" "Architecture" |
 | 「なぜ動かない？」「原因は？」「エラーが出る」 | "Why doesn't this work?" "Error" |
 | 「どちらがいい？」「比較して」「トレードオフは？」 | "Which is better?" "Compare" |
 | 「考えて」「分析して」「深く考えて」 | "Think" "Analyze" "Think deeper" |
 
 ## When NOT to Consult
 
-- Simple file edits (typo fixes, small changes)
-- Following explicit user instructions
-- Standard operations (git commit, running tests)
-- Tasks with clear, single solutions
-- Reading/searching files
-- **Codebase analysis** → Claude does this directly (1M context)
+- 単純なファイル編集（typo修正、小さな変更）
+- 明示的なユーザー指示に従うだけの作業
+- 標準操作（git commit、テスト実行）
+- 明確な単一解があるタスク
+- ファイル検索・読み取り
+- **コードベース分析** → Claude が直接行う（1M context）
+- **外部情報取得** → サブエージェント（WebSearch/WebFetch）が行う
+- **マルチモーダル処理** → Gemini が行う
+
+## Context Management
+
+| 状況 | 推奨方法 |
+|------|----------|
+| 短い質問・短い回答（〜50行） | 直接呼び出しOK |
+| 詳細な設計・計画 | サブエージェント経由 |
+| デバッグ分析 | サブエージェント経由 |
+| 複雑なコード実装 | サブエージェント経由（workspace-write） |
 
 ## How to Consult
 
-### In Agent Teams (Preferred for /startproject)
-
-Architect Teammate が Codex を直接呼び出し、Researcher Teammate と双方向通信する。
-
-### Subagent Pattern
+### Subagent Pattern（推奨）
 
 ```
 Task tool parameters:
@@ -70,18 +76,33 @@ Task tool parameters:
     Return CONCISE summary (key recommendation + rationale).
 ```
 
-### Direct Call (Short Questions, up to ~50 lines response)
+### Direct Call (短い質問、〜50行の回答)
 
 ```bash
 codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
+```
+
+### Codex に実装させる場合
+
+```bash
+codex exec --model gpt-5.3-codex --sandbox workspace-write --full-auto "
+Implement: {detailed implementation task}
+
+Requirements:
+- {requirement 1}
+- {requirement 2}
+
+Files to create/modify:
+- {file paths}
+" 2>/dev/null
 ```
 
 ### Sandbox Modes
 
 | Mode | Sandbox | Use Case |
 |------|---------|----------|
-| Analysis | `read-only` | Design review, debugging, trade-offs |
-| Work | `workspace-write` | Implement, fix, refactor |
+| Analysis | `read-only` | 設計レビュー、デバッグ、トレードオフ |
+| Implementation | `workspace-write` | 実装、修正、リファクタリング |
 
 ## Language Protocol
 

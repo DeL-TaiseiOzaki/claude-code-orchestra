@@ -1,114 +1,148 @@
 # Gemini Delegation Rule
 
-**Gemini CLI is your external information and multimodal specialist.**
+**Gemini CLI は 1M context を活かし、大規模分析・リサーチ・マルチモーダル読取を担当する。**
 
-## Role Change (Opus 4.6)
+## Gemini の3つの役割
 
-> **重要**: Claude 自身が 1M トークンのコンテキストを持つため、コードベース分析は Claude が直接行う。
-> Gemini の役割は「外部情報の取得」と「マルチモーダル処理」に特化した。
+### 1. コードベース・リポジトリ理解（Codebase Analysis）
 
-| Task | Before (Opus 4.5) | After (Opus 4.6) |
-|------|-------------------|-------------------|
-| コードベース分析 | Gemini | **Claude 直接** |
-| ライブラリ調査 | Gemini | Gemini (外部Web検索) |
-| 最新ドキュメント検索 | Gemini | Gemini (Google Search) |
-| マルチモーダル | Gemini | Gemini (変更なし) |
-| 設計判断 | Codex | Codex (変更なし) |
+- プロジェクト全体の構造分析
+- 主要モジュール・責務の把握
+- 既存パターン・規約の理解
+- 依存関係の分析
 
-## Context Management
+> Claude Code のコンテキストは **200K トークン**（実質 140-150K）。
+> 大規模コードベースの全体分析は Gemini の **1M context** に委譲する。
 
-| 状況 | 推奨方法 |
-|------|----------|
-| 短い質問・短い回答 | 直接呼び出しOK |
-| ライブラリ調査 | サブエージェント経由（出力が大きい場合） |
-| マルチモーダル処理 | サブエージェント経由 |
-| Agent Teams 内での調査 | Teammate が直接呼び出し |
+### 2. 外部リサーチ・サーベイ（Research & Survey）
 
-## About Gemini
+- 最新ドキュメント・API仕様の調査
+- ライブラリの比較検討・ベストプラクティス
+- 技術的なサーベイ・トレンド調査
+- 既知の問題・制約の調査
 
-Gemini CLI excels at:
-- **Google Search grounding** — Access latest information, official docs
-- **Multimodal processing** — Video, audio, PDF analysis
-- **Web research** — Library comparison, best practices, API specs
+> Gemini CLI は Google Search grounding を内蔵しており、外部情報の取得に最適。
 
-**Gemini does NOT excel at** (use Claude/Codex instead):
-- Codebase analysis (Claude has 1M context now)
-- Design decisions (Codex)
-- Debugging (Codex)
-- Code implementation (Claude)
+### 3. マルチモーダルファイル読取（Multimodal Reading）
 
-## When to Consult Gemini
+- PDF、動画、音声、画像ファイルの内容抽出
+- 図表・ダイアグラムの詳細分析
+- 動画の要約・タイムスタンプ抽出
+- 音声の文字起こし・要約
 
-ALWAYS consult Gemini for:
+## When to Use Gemini
 
-1. **External information** - Latest docs, library updates, API specs
-2. **Library research** - Comparison, best practices, known issues
-3. **Multimodal tasks** - Video, audio, PDF content extraction
+| 状況 | 例 |
+|------|------|
+| **コードベース分析** | 「プロジェクト全体を理解して」「構造を分析して」 |
+| **外部リサーチ** | 「調べて」「リサーチして」「最新のドキュメント」 |
+| **ライブラリ調査** | 「ライブラリを比較して」「ベストプラクティスは？」 |
+| **マルチモーダル** | PDF/動画/音声/画像ファイルが登場した場合（自動委譲） |
 
 ### Trigger Phrases (User Input)
 
 | Japanese | English |
 |----------|---------|
-| 「調べて」「リサーチして」「調査して」 | "Research" "Investigate" "Look up" |
-| 「このPDF/動画/音声を見て」 | "Analyze this PDF/video/audio" |
-| 「最新のドキュメントを確認して」 | "Check the latest documentation" |
-| 「〜について情報を集めて」 | "Gather information about X" |
+| 「コードベースを理解して」「全体構造を見て」 | "Understand the codebase" "Analyze structure" |
+| 「調べて」「リサーチして」「サーベイして」 | "Research" "Investigate" "Survey" |
+| 「ライブラリを比較」「ベストプラクティス」 | "Compare libraries" "Best practices" |
+| 「このPDF/動画/画像を見て」 | "Read this PDF/video/image" |
 
-## When NOT to Consult
+## When NOT to Use Gemini
 
-Skip Gemini for:
+- 単純なファイル読み取り（Claude の Read ツールで十分）
+- スクリーンショットの単純確認（Claude の Read ツールで直接可能）
+- 計画・設計・アーキテクチャ → **Codex** が担当
+- デバッグ・エラー解析 → **Codex** が担当
+- コード実装 → **Claude / サブエージェント** が担当
 
-- **コードベース分析** → Claude が 1M コンテキストで直接読む
-- Design decisions → Codex
-- Debugging → Codex
-- Code implementation → Claude
-- Simple file operations → Claude
+## 対象ファイル拡張子（マルチモーダル）
 
-## How to Consult
+| カテゴリ | 拡張子 |
+|----------|--------|
+| PDF | `.pdf` |
+| 動画 | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm` |
+| 音声 | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg` |
+| 画像（高度な分析） | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` |
 
-### In Agent Teams (Preferred for /startproject)
+## How to Use
 
-Researcher Teammate が Gemini を直接呼び出し、Architect Teammate と双方向通信する。
+### コードベース分析
 
-### Subagent Pattern (For standalone research)
+```bash
+# プロジェクト構造の分析（Gemini がワークスペースを読む）
+gemini -p "Analyze this codebase: directory structure, key modules, patterns, dependencies, and architecture" 2>/dev/null
+
+# 特定ファイルの詳細分析
+gemini -p "Analyze this code: purpose, patterns, dependencies" < /path/to/file 2>/dev/null
+```
+
+### 外部リサーチ
+
+```bash
+# ライブラリ調査
+gemini -p "Research: {library name}. Find latest version, key features, constraints, best practices, and common pitfalls" 2>/dev/null
+
+# ベストプラクティス調査
+gemini -p "Research best practices for {topic}. Include latest recommendations, common patterns, and anti-patterns" 2>/dev/null
+
+# 技術比較
+gemini -p "Compare {A} vs {B} for {use case}. Include pros, cons, performance, and community support" 2>/dev/null
+```
+
+### マルチモーダルファイル読取
+
+```bash
+# PDF — 構造・内容の抽出
+gemini -p "Extract: {what information to extract}" < /path/to/file.pdf 2>/dev/null
+
+# 動画 — 要約・キーポイント・タイムスタンプ
+gemini -p "Summarize: key concepts, decisions, timestamps" < /path/to/video.mp4 2>/dev/null
+
+# 音声 — 文字起こし・要約
+gemini -p "Transcribe and summarize: decisions, action items" < /path/to/audio.mp3 2>/dev/null
+
+# 画像 — 図表・ダイアグラムの詳細分析
+gemini -p "Analyze this diagram: components, relationships, data flow" < /path/to/diagram.png 2>/dev/null
+```
+
+## Context Management
+
+| 状況 | 推奨方法 |
+|------|----------|
+| 短い抽出・回答（〜30行） | 直接呼び出しOK |
+| 詳細な分析レポート | サブエージェント経由 |
+| リサーチ結果 | サブエージェント経由 → ファイル保存 |
+
+### Subagent Pattern（出力が大きい場合）
 
 ```
 Task tool parameters:
-- subagent_type: "general-purpose"
+- subagent_type: "gemini-explore"
 - run_in_background: true (for parallel work)
 - prompt: |
-    Research: {topic}
+    {task description}
 
-    gemini -p "{research question}" 2>/dev/null
+    gemini -p "{prompt}" 2>/dev/null
 
-    Save full output to: .claude/docs/research/{topic}.md
-    Return CONCISE summary (5-7 bullet points).
+    Save results to .claude/docs/research/{topic}.md
+    Return CONCISE summary (key findings + recommendations).
 ```
 
-### Direct Call (Short Questions Only)
+### Direct Call（短い質問・回答）
 
 ```bash
-gemini -p "Brief question" 2>/dev/null
+gemini -p "Brief question about {topic}" 2>/dev/null
 ```
 
-## CLI Commands Reference
+## Auto-Trigger（ユーザー指示なしで自動発動）
 
-```bash
-# External research
-gemini -p "{question}" 2>/dev/null
-
-# Multimodal
-gemini -p "{prompt}" < /path/to/file.pdf 2>/dev/null
-
-# JSON output
-gemini -p "{question}" --output-format json 2>/dev/null
-```
-
-**Note**: `--include-directories .` is no longer needed for codebase analysis — Claude handles this directly.
+- タスク内で PDF/動画/音声ファイルが参照されている
+- ユーザーがファイルパスを提示し、拡張子がマルチモーダル対象
 
 ## Language Protocol
 
 1. Ask Gemini in **English**
 2. Receive response in **English**
-3. Subagent/Teammate summarizes and saves full output
-4. Main reports to user in **Japanese**
+3. Execute based on findings
+4. Report to user in **Japanese**

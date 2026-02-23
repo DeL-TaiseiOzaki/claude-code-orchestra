@@ -5,9 +5,9 @@
 Multi-Agent AI Development Environment
 
 ```
-Claude Code (Orchestrator) ─┬─ Codex CLI (Deep Reasoning)
-                            ├─ Gemini CLI (Research)
-                            └─ Subagents (Parallel Tasks)
+Claude Code (Orchestrator, 200K) ─┬─ Codex CLI (Planning & Complex Code)
+                                   ├─ Gemini CLI (1M context: Analysis, Research, Multimodal)
+                                   └─ Subagents/Opus (Implementation, Codex Delegation)
 ```
 
 ## Quick Start
@@ -53,34 +53,37 @@ gemini login
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│           Claude Code (Orchestrator)                        │
+│           Claude Code (Orchestrator — 200K context)          │
 │           → コンテキスト節約が最優先                         │
-│           → ユーザー対話・調整・実行を担当                   │
+│           → ユーザー対話・調整・簡潔な編集を担当             │
 │                      ↓                                      │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │              Subagent (general-purpose)               │  │
-│  │              → 独立したコンテキストを持つ               │  │
-│  │              → Codex/Gemini を呼び出し可能             │  │
-│  │              → 結果を要約してメインに返す              │  │
-│  │                                                       │  │
-│  │   ┌──────────────┐        ┌──────────────┐           │  │
-│  │   │  Codex CLI   │        │  Gemini CLI  │           │  │
-│  │   │  設計・推論  │        │  リサーチ    │           │  │
-│  │   │  デバッグ    │        │  マルチモーダル│          │  │
-│  │   └──────────────┘        └──────────────┘           │  │
-│  └───────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────┐  ┌──────────────────────────┐    │
+│  │  Subagent (Opus)      │  │  gemini-explore (Opus)    │    │
+│  │  general-purpose      │  │  → Gemini CLI 1M context  │    │
+│  │  → コード実装         │  │  → コードベース分析       │    │
+│  │  → Codex委譲          │  │  → 外部リサーチ           │    │
+│  │                       │  │  → マルチモーダル読取     │    │
+│  │  ┌──────────────┐    │  │                            │    │
+│  │  │  Codex CLI   │    │  │  ┌──────────────┐          │    │
+│  │  │  設計・推論  │    │  │  │  Gemini CLI  │          │    │
+│  │  │  デバッグ    │    │  │  │  1M context  │          │    │
+│  │  └──────────────┘    │  │  └──────────────┘          │    │
+│  └──────────────────────┘  └──────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### コンテキスト管理（重要）
 
-メインオーケストレーターのコンテキストを節約するため、大きな出力が予想されるタスクはサブエージェント経由で実行します。
+メインオーケストレーター（200K context）を節約するため、大規模タスクは適切なエージェントに委譲します。
 
 | 状況 | 推奨方法 |
 |------|----------|
-| 大きな出力が予想される | サブエージェント経由 |
+| コードベース全体分析 | **Gemini 経由**（1M context） |
+| 外部リサーチ・サーベイ | **Gemini 経由**（Google Search grounding） |
+| マルチモーダルファイル | **Gemini 経由** |
+| コード実装 | サブエージェント（Opus）経由 |
+| 設計・計画相談 | サブエージェント → Codex |
 | 短い質問・短い回答 | 直接呼び出しOK |
-| Codex/Gemini相談 | サブエージェント経由 |
 | 詳細な分析が必要 | サブエージェント経由 → ファイル保存 |
 
 ## Directory Structure
@@ -91,22 +94,30 @@ gemini login
 .
 ├── .claude/
 │   ├── agents/
-│   │   ├── general-purpose.md   # 汎用サブエージェント
-│   │   ├── codex-debugger.md    # エラー分析エージェント
-│   │   └── gemini-explore.md    # コードベース探索エージェント
+│   │   ├── general-purpose.md   # 実装・Codex委譲エージェント (Opus)
+│   │   ├── codex-debugger.md    # エラー分析エージェント (Opus)
+│   │   └── gemini-explore.md    # 大規模分析・調査エージェント (Opus)
 │   │
-│   ├── skills/                  # 再利用可能なワークフロー
-│   │   ├── startproject/        # プロジェクト開始
+│   ├── skills/                  # 再利用可能なワークフロー (14個)
+│   │   ├── startproject/        # マルチエージェント協調でプロジェクト開始
+│   │   ├── team-implement/      # Agent Teams で並列実装
+│   │   ├── team-review/         # Agent Teams で並列レビュー
 │   │   ├── plan/                # 実装計画作成
 │   │   ├── tdd/                 # テスト駆動開発
-│   │   ├── checkpointing/       # セッション永続化
+│   │   ├── simplify/            # コードリファクタリング
 │   │   ├── codex-system/        # Codex CLI連携
 │   │   ├── gemini-system/       # Gemini CLI連携
-│   │   └── ...
+│   │   ├── design-tracker/      # 設計決定の自動追跡
+│   │   ├── update-design/       # 設計ドキュメント明示更新
+│   │   ├── research-lib/        # ライブラリ調査
+│   │   ├── update-lib-docs/     # ライブラリドキュメント更新
+│   │   ├── checkpointing/       # セッション永続化 + パターン発見
+│   │   └── init/                # プロジェクト初期化
 │   │
-│   ├── hooks/                   # 自動化フック
+│   ├── hooks/                   # 自動化フック (9個)
 │   │   ├── agent-router.py      # エージェントルーティング
 │   │   ├── lint-on-save.py      # 保存時自動lint
+│   │   ├── error-to-codex.py    # エラー検出→debugger提案
 │   │   └── ...
 │   │
 │   ├── rules/                   # 開発ガイドライン
@@ -116,7 +127,7 @@ gemini login
 │   │
 │   ├── docs/
 │   │   ├── DESIGN.md            # 設計決定記録
-│   │   ├── research/            # Gemini調査結果
+│   │   ├── research/            # 調査結果（Gemini/サブエージェント）
 │   │   └── libraries/           # ライブラリ制約
 │   │
 │   └── logs/
@@ -131,9 +142,29 @@ gemini login
     └── settings.json
 ```
 
+## Workflow
+
+メインのワークフローは3つのスキルを順に実行します。
+
+```
+/startproject <機能名>     Phase 1-3: コードベース理解 → 調査&設計 → 計画
+    ↓ ユーザー承認後
+/team-implement            Phase 4: Agent Teams で並列実装
+    ↓ 実装完了後
+/team-review               Phase 5: Agent Teams で並列レビュー
+```
+
+1. **Gemini** でコードベースを分析（1M context）+ **Claude** がユーザーと要件ヒアリング
+2. **Agent Teams** で Researcher（Gemini）↔ Architect（Codex）が並列に調査・設計
+3. **Claude** が調査と設計を統合し、計画をユーザーに提示
+4. 承認後、`/team-implement` でモジュール単位の並列実装
+5. `/team-review` でセキュリティ・品質・テストの並列レビュー
+
 ## Skills
 
-### `/startproject` — プロジェクト開始
+### Core Workflow
+
+#### `/startproject` — プロジェクト開始
 
 マルチエージェント協調でプロジェクトを開始します。
 
@@ -142,12 +173,40 @@ gemini login
 ```
 
 **ワークフロー:**
-1. **Gemini** → リポジトリ分析・事前調査
-2. **Claude** → 要件ヒアリング・計画作成
-3. **Codex** → 計画レビュー・リスク分析
-4. **Claude** → タスクリスト作成
+1. **Gemini** → コードベース分析・事前調査（1M context）
+2. **Claude** → ユーザーと要件ヒアリング
+3. **Agent Teams** → Researcher（Gemini）↔ Architect（Codex）で並列調査・設計
+4. **Claude** → 計画統合・ユーザー承認
 
-### `/plan` — 実装計画
+#### `/team-implement` — 並列実装
+
+Agent Teams による並列実装。`/startproject` で承認された計画に基づいて実行します。
+
+```
+/team-implement
+```
+
+**特徴:**
+- モジュール/レイヤー単位で Teammate を起動し、ファイル所有権を分離
+- 共有タスクリストで依存関係を管理し自律的に協調
+- 各 Teammate は完了時にワークログを `.claude/logs/agent-teams/` に記録
+
+#### `/team-review` — 並列レビュー
+
+Agent Teams による並列コードレビュー。実装完了後に実行します。
+
+```
+/team-review
+```
+
+**レビュアー構成:**
+- **Security Reviewer** — セキュリティ脆弱性の検出
+- **Quality Reviewer** — コード品質・パターン準拠の確認（Codex 活用）
+- **Test Reviewer** — テストカバレッジ・品質の検証
+
+### Development
+
+#### `/plan` — 実装計画
 
 要件を具体的なステップに分解します。
 
@@ -160,7 +219,7 @@ gemini login
 - 依存関係・リスク
 - 検証基準
 
-### `/tdd` — テスト駆動開発
+#### `/tdd` — テスト駆動開発
 
 Red-Green-Refactorサイクルで実装します。
 
@@ -174,17 +233,13 @@ Red-Green-Refactorサイクルで実装します。
 3. 最小限の実装（Green）
 4. リファクタリング（Refactor）
 
-### `/checkpointing` — セッション永続化
+#### `/simplify` — コードリファクタリング
 
-セッションの状態を保存します。
+コードを簡潔化・可読性向上させます。
 
-```bash
-/checkpointing              # 基本: 履歴ログ
-/checkpointing --full       # 完全: git履歴・ファイル変更含む
-/checkpointing --analyze    # 分析: 再利用可能なスキルパターン発見
-```
+### Agent Delegation
 
-### `/codex-system` — Codex CLI連携
+#### `/codex-system` — Codex CLI連携
 
 設計判断・デバッグ・トレードオフ分析に使用します。
 
@@ -193,22 +248,51 @@ Red-Green-Refactorサイクルで実装します。
 - 「なぜ動かない？」「エラーが出る」
 - 「どちらがいい？」「比較して」
 
-### `/gemini-system` — Gemini CLI連携
+#### `/gemini-system` — Gemini CLI連携
 
-リサーチ・大規模分析・マルチモーダル処理に使用します。
+Gemini の 1M context を活用した大規模分析・リサーチ・マルチモーダル処理。
 
 **トリガー例:**
-- 「調べて」「リサーチして」
+- 「コードベースを理解して」「全体構造を分析して」
+- 「調べて」「リサーチして」「サーベイして」
 - 「このPDF/動画を見て」
-- 「コードベース全体を理解して」
 
-### `/simplify` — コードリファクタリング
+### Documentation
 
-コードを簡潔化・可読性向上させます。
+#### `/design-tracker` — 設計決定追跡
 
-### `/design-tracker` — 設計決定追跡
+アーキテクチャ・実装決定を自動記録します。会話中の設計判断を検出して `.claude/docs/DESIGN.md` に自動追記します。
 
-アーキテクチャ・実装決定を自動記録します。
+#### `/update-design` — 設計ドキュメント更新
+
+会話内容から設計決定を抽出し、`.claude/docs/DESIGN.md` を明示的に更新します。
+
+#### `/research-lib` — ライブラリ調査
+
+ライブラリを調査し、`.claude/docs/libraries/` に包括的なドキュメントを生成します。
+
+```
+/research-lib httpx
+```
+
+#### `/update-lib-docs` — ライブラリドキュメント更新
+
+`.claude/docs/libraries/` の既存ドキュメントを最新情報で更新します。
+
+### Session Management
+
+#### `/checkpointing` — セッション永続化
+
+セッションの全活動（git履歴・CLI相談・Agent Teams活動・設計決定）を記録し、再利用可能なスキルパターンを発見します。
+
+```bash
+/checkpointing                    # 全記録 + パターン発見
+/checkpointing --since "2026-02-08"  # 特定日以降のみ
+```
+
+#### `/init` — プロジェクト初期化
+
+プロジェクト構造を分析し、Tech Stack・コマンド・設定を自動検出して AGENTS.md を更新します。
 
 ## Development
 
@@ -243,13 +327,18 @@ uv run ruff check .
 
 ## Hooks
 
-自動化フックにより、適切なタイミングでエージェント連携を提案します。
+自動化フックにより、適切なタイミングでエージェント連携・品質チェックを実行します。
 
 | フック | トリガー | 動作 |
 |--------|----------|------|
 | `agent-router.py` | ユーザー入力 | Codex/Geminiへのルーティング提案 |
 | `lint-on-save.py` | ファイル保存 | 自動lint実行 |
 | `check-codex-before-write.py` | ファイル書き込み前 | Codex相談提案 |
+| `check-codex-after-plan.py` | Task実行後 | 計画・設計タスク後にCodexレビュー提案 |
+| `error-to-codex.py` | Bashエラー検出 | codex-debuggerサブエージェント提案 |
+| `post-test-analysis.py` | テスト/ビルド失敗 | Codexによるデバッグ分析提案 |
+| `post-implementation-review.py` | 大規模実装後 | Codexによるコードレビュー提案 |
+| `suggest-gemini-research.py` | WebSearch/Fetch前 | 深い調査はGemini委譲を提案 |
 | `log-cli-tools.py` | Codex/Gemini実行 | 入出力ログ記録 |
 
 ## Language Rules

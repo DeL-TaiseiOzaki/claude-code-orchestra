@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\": {\"feedback\": \"Check the shared task list for pending tasks. If all tasks are complete, verify results and report to the team lead.\"}}'"
+            "command": "echo '{\"hookSpecificOutput\": {\"feedback\": \"Before going idle: (1) Check the shared task list for pending tasks. If all tasks are complete, verify results. (2) IMPORTANT: Write your work log to .claude/logs/agent-teams/{team-name}/{your-teammate-name}.md if you have not done so yet. The work log must include: Summary, Tasks Completed, Files Modified, Key Decisions, Communication with Teammates, and Issues Encountered. (3) Report to the team lead.\"}}'"
           }
         ]
       }

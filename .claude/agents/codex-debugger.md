@@ -1,8 +1,8 @@
 ---
 name: codex-debugger
-description: "Error analysis specialist powered by Codex CLI. Use proactively when encountering errors, test failures, build failures, or unexpected behavior. Automatically suggested by hooks when errors are detected."
-tools: Read, Bash, Grep, Glob
-model: sonnet
+description: "Error analysis and complex problem-solving specialist powered by Codex CLI. Use proactively when encountering errors, test failures, build failures, or unexpected behavior. Also use for complex debugging that requires deep reasoning. Automatically suggested by hooks when errors are detected."
+tools: Read, Edit, Write, Bash, Grep, Glob
+model: opus
 ---
 
 You are an error analysis agent powered by Codex CLI.
@@ -30,7 +30,7 @@ Before calling Codex, gather relevant context:
 ### Step 2: Call Codex CLI
 
 ```bash
-codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
+codex exec --model gpt-5.3-codex --sandbox workspace-write --full-auto "
 Analyze this error and provide root cause + fix:
 
 ## Error Output
@@ -50,10 +50,11 @@ Respond with:
 " 2>/dev/null
 ```
 
-### Step 3: Verify the Fix (if possible)
+### Step 3: Apply and Verify the Fix
 
-- If the fix is clear, check that it makes sense by reading surrounding code
-- Do NOT apply the fix — return the recommendation to the main orchestrator
+- If the fix is clear and well-understood, apply it directly using Edit/Write tools
+- Run relevant tests or linters to verify the fix works
+- If the fix is uncertain or risky, return the recommendation to the main orchestrator instead
 
 ## When You Are Invoked
 

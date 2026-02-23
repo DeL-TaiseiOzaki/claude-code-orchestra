@@ -29,6 +29,7 @@ CLAUDE_MD = PROJECT_ROOT / "CLAUDE.md"
 # Agent Teams data locations
 TEAMS_DIR = Path.home() / ".claude" / "teams"
 TASKS_DIR = Path.home() / ".claude" / "tasks"
+WORK_LOGS_DIR = PROJECT_ROOT / ".claude" / "logs" / "agent-teams"
 
 SESSION_HISTORY_HEADER = "## Session History"
 
@@ -225,6 +226,35 @@ def collect_agent_teams_data() -> list[dict]:
     return teams
 
 
+def collect_work_logs() -> dict[str, list[dict]]:
+    """Collect Teammate work logs from .claude/logs/agent-teams/{team}/."""
+    logs_by_team: dict[str, list[dict]] = {}
+
+    if not WORK_LOGS_DIR.exists():
+        return logs_by_team
+
+    for team_dir in WORK_LOGS_DIR.iterdir():
+        if not team_dir.is_dir():
+            continue
+
+        team_logs = []
+        for log_file in sorted(team_dir.glob("*.md")):
+            try:
+                content = log_file.read_text(encoding="utf-8")
+                team_logs.append({
+                    "teammate": log_file.stem,
+                    "file": str(log_file.relative_to(PROJECT_ROOT)),
+                    "content": content,
+                })
+            except OSError:
+                continue
+
+        if team_logs:
+            logs_by_team[team_dir.name] = team_logs
+
+    return logs_by_team
+
+
 def get_design_decisions_diff(since: str | None = None) -> str | None:
     """Get changes to DESIGN.md since last checkpoint or date."""
     if not DESIGN_FILE.exists():
@@ -249,6 +279,7 @@ def generate_checkpoint(
     file_stats: dict[str, tuple[int, int]],
     cli_entries: list[dict],
     teams_data: list[dict],
+    work_logs: dict[str, list[dict]],
     design_diff: str | None,
     branch: str,
     since: str | None,
@@ -292,6 +323,9 @@ def generate_checkpoint(
             f"({total_members} teammates)"
         )
         lines.append(f"- **Tasks**: {completed_tasks}/{total_tasks} completed")
+    total_work_logs = sum(len(logs) for logs in work_logs.values())
+    if total_work_logs:
+        lines.append(f"- **Teammate work logs**: {total_work_logs}")
     if since:
         lines.append(f"- **Since**: {since}")
     lines.append("")
@@ -393,6 +427,30 @@ def generate_checkpoint(
                 completed = sum(1 for t in tasks if t.get("status") == "completed")
                 lines.append("**Effectiveness:**")
                 lines.append(f"- Tasks: {completed}/{len(tasks)} completed")
+                lines.append("")
+
+    # Teammate Work Logs
+    if work_logs:
+        lines.append("## Teammate Work Logs")
+        lines.append("")
+
+        for team_name, logs in work_logs.items():
+            lines.append(f"### Team: {team_name}")
+            lines.append("")
+
+            for log in logs:
+                lines.append(f"#### {log['teammate']}")
+                lines.append(f"*Source: `{log['file']}`*")
+                lines.append("")
+                # Include first 50 lines of log content as summary
+                content_lines = log["content"].split("\n")
+                for content_line in content_lines[:50]:
+                    lines.append(content_line)
+                if len(content_lines) > 50:
+                    lines.append(
+                        f"... [truncated, {len(content_lines)} total lines — "
+                        f"see full log at `{log['file']}`]"
+                    )
                 lines.append("")
 
     # Design Decisions
@@ -535,11 +593,14 @@ def main():
     file_stats = get_file_stats(args.since)
     cli_entries = parse_cli_logs(args.since)
     teams_data = collect_agent_teams_data()
+    work_logs = collect_work_logs()
     design_diff = get_design_decisions_diff(args.since)
 
+    total_logs = sum(len(logs) for logs in work_logs.values())
     print(f"  Git: {len(commits)} commits, {sum(len(v) for v in file_changes.values())} files")
     print(f"  CLI: {len(cli_entries)} consultations")
     print(f"  Agent Teams: {len(teams_data)} teams")
+    print(f"  Work logs: {total_logs} teammate logs")
 
     # 2. Generate checkpoint
     CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -552,6 +613,7 @@ def main():
         file_stats=file_stats,
         cli_entries=cli_entries,
         teams_data=teams_data,
+        work_logs=work_logs,
         design_diff=design_diff,
         branch=branch,
         since=args.since,

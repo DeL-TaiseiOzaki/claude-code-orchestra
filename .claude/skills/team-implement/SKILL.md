@@ -113,7 +113,29 @@ Spawn teammates:
    - Run ruff check after each file change
    - Communicate with other teammates if you need interface changes
 
-   When done with each task, mark it completed in the task list."
+   When done with each task, mark it completed in the task list.
+
+   IMPORTANT — Work Log:
+   When ALL your assigned tasks are complete, write a work log file to:
+     .claude/logs/agent-teams/{team-name}/{your-teammate-name}.md
+
+   Use this format:
+   # Work Log: {your-teammate-name}
+   ## Summary
+   (1-2 sentence summary of what you accomplished)
+   ## Tasks Completed
+   - [x] {task}: {brief description of what was done}
+   ## Files Modified
+   - `{file path}`: {what was changed and why}
+   ## Key Decisions
+   - {decision made during implementation and rationale}
+   ## Communication with Teammates
+   - → {recipient}: {summary of message sent}
+   - ← {sender}: {summary of message received}
+   ## Issues Encountered
+   - {issue}: {how it was resolved}
+   (If none, write 'None')
+   "
 
 2. **Tester** (optional but recommended)
    Prompt: "You are the Tester for project: {feature}.
@@ -128,7 +150,29 @@ Spawn teammates:
    - Run uv run pytest after each test file
    - Report failing tests to the relevant implementer
 
-   Test coverage target: 80%+"
+   Test coverage target: 80%+
+
+   IMPORTANT — Work Log:
+   When ALL your assigned tasks are complete, write a work log file to:
+     .claude/logs/agent-teams/{team-name}/{your-teammate-name}.md
+
+   Use this format:
+   # Work Log: {your-teammate-name}
+   ## Summary
+   (1-2 sentence summary of what you accomplished)
+   ## Tasks Completed
+   - [x] {task}: {brief description of what was done}
+   ## Files Modified
+   - `{file path}`: {what was changed and why}
+   ## Key Decisions
+   - {decision made during implementation and rationale}
+   ## Communication with Teammates
+   - → {recipient}: {summary of message sent}
+   - ← {sender}: {summary of message received}
+   ## Issues Encountered
+   - {issue}: {how it was resolved}
+   (If none, write 'None')
+   "
 
 Use delegate mode (Shift+Tab) to prevent Lead from implementing directly.
 Wait for all teammates to complete their tasks.

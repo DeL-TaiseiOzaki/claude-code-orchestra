@@ -68,6 +68,13 @@ metadata:
 - Communication patterns (who messaged whom, about what)
 - Team effectiveness signals (tasks completed vs stuck, file conflicts)
 
+### Teammate Work Logs
+
+- Each Teammate's work log from `.claude/logs/agent-teams/{team-name}/{teammate}.md`
+- Contains: Summary, Tasks Completed, Files Modified, Key Decisions, Communication with Teammates, Issues Encountered
+- Written by each Teammate upon completing all assigned tasks
+- Only present when Agent Teams were used (`/startproject`, `/team-implement`, `/team-review`)
+
 ### Design Decisions
 
 - Changes to `.claude/docs/DESIGN.md` since last checkpoint
@@ -135,6 +142,37 @@ metadata:
 - All tasks completed
 - No file conflicts
 - 2 design iterations triggered by research findings
+
+## Teammate Work Logs
+
+### Team: project-planning
+
+#### researcher
+*Source: `.claude/logs/agent-teams/project-planning/researcher.md`*
+
+# Work Log: Researcher
+## Summary
+Researched httpx library constraints and API patterns for the new API client module.
+## Tasks Completed
+- [x] Research libraries: httpx supports HTTP/2 via h2 dependency
+- [x] Find documentation: httpx connection pool defaults to 100
+## Communication with Teammates
+- → Architect: httpx connection pool limit of 100, HTTP/2 requires h2
+- ← Architect: Requested HTTP/2 multiplexing research
+
+#### architect
+*Source: `.claude/logs/agent-teams/project-planning/architect.md`*
+
+# Work Log: Architect
+## Summary
+Designed API client module architecture with HTTP/2 support.
+## Design Decisions
+- Use httpx[http2] for multiplexed connections: reduces latency for parallel requests
+## Codex Consultations
+- Connection pool sizing strategy: Codex recommended dynamic pool based on load
+## Communication with Teammates
+- → Researcher: Request HTTP/2 multiplexing research
+- ← Researcher: httpx supports HTTP/2 via h2
 
 ## Design Decisions (New)
 - Agent Teams for Research ↔ Design (bidirectional)

@@ -85,7 +85,29 @@ Spawn reviewers:
    - Description of the issue
    - Recommended fix
 
-   Save report to .claude/docs/research/review-security-{feature}.md"
+   Save report to .claude/docs/research/review-security-{feature}.md
+
+   IMPORTANT — Work Log:
+   When your review is complete, write a work log file to:
+     .claude/logs/agent-teams/{team-name}/security-reviewer.md
+
+   Use this format:
+   # Work Log: Security Reviewer
+   ## Summary
+   (1-2 sentence summary of review scope and key findings)
+   ## Review Scope
+   - Files reviewed: {list}
+   - Focus areas: {list}
+   ## Findings
+   - [{severity}] {file}:{line} — {issue summary}
+   ## Communication with Teammates
+   - → {recipient}: {summary of message sent}
+   - ← {sender}: {summary of message received}
+   (If none, write 'None')
+   ## Issues Encountered
+   - {issue}: {how it was resolved}
+   (If none, write 'None')
+   "
 
 2. **Quality Reviewer**
    Prompt: "You are a Quality Reviewer for: {feature}.
@@ -111,7 +133,31 @@ Spawn reviewers:
    - Current code
    - Suggested improvement
 
-   Save report to .claude/docs/research/review-quality-{feature}.md"
+   Save report to .claude/docs/research/review-quality-{feature}.md
+
+   IMPORTANT — Work Log:
+   When your review is complete, write a work log file to:
+     .claude/logs/agent-teams/{team-name}/quality-reviewer.md
+
+   Use this format:
+   # Work Log: Quality Reviewer
+   ## Summary
+   (1-2 sentence summary of review scope and key findings)
+   ## Review Scope
+   - Files reviewed: {list}
+   - Focus areas: {list}
+   ## Findings
+   - [{severity}] {file}:{line} — {issue summary}
+   ## Codex Consultations
+   - {question asked to Codex}: {key insight from response}
+   ## Communication with Teammates
+   - → {recipient}: {summary of message sent}
+   - ← {sender}: {summary of message received}
+   (If none, write 'None')
+   ## Issues Encountered
+   - {issue}: {how it was resolved}
+   (If none, write 'None')
+   "
 
 3. **Test Reviewer**
    Prompt: "You are a Test Reviewer for: {feature}.
@@ -133,7 +179,32 @@ Spawn reviewers:
    - What test cases are needed
    - Priority: High / Medium / Low
 
-   Save report to .claude/docs/research/review-tests-{feature}.md"
+   Save report to .claude/docs/research/review-tests-{feature}.md
+
+   IMPORTANT — Work Log:
+   When your review is complete, write a work log file to:
+     .claude/logs/agent-teams/{team-name}/test-reviewer.md
+
+   Use this format:
+   # Work Log: Test Reviewer
+   ## Summary
+   (1-2 sentence summary of review scope and key findings)
+   ## Review Scope
+   - Files reviewed: {list}
+   - Coverage: {percentage}
+   ## Findings
+   - [{priority}] {file/function}: {missing test case description}
+   ## Test Execution Results
+   - Total: {N} tests, Passed: {N}, Failed: {N}
+   - Coverage: {percentage}
+   ## Communication with Teammates
+   - → {recipient}: {summary of message sent}
+   - ← {sender}: {summary of message received}
+   (If none, write 'None')
+   ## Issues Encountered
+   - {issue}: {how it was resolved}
+   (If none, write 'None')
+   "
 
 Wait for all reviewers to complete.
 ```

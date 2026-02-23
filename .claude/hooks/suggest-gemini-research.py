@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-PreToolUse hook: Suggest Gemini for research tasks.
+PreToolUse hook: Suggest using Gemini for deep research tasks.
 
-Analyzes web search/fetch operations and suggests using Gemini CLI
-for comprehensive research with its larger context window.
+Analyzes web search/fetch operations and suggests delegating
+comprehensive research to Gemini CLI (1M context + Google Search grounding)
+via the gemini-explore subagent to preserve main context.
 """
 
 import json
@@ -84,10 +85,11 @@ def main():
                     "hookEventName": "PreToolUse",
                     "additionalContext": (
                         f"[Gemini Research Suggestion] {reason}. "
-                        "For comprehensive research, consider using Gemini CLI (1M token context). "
-                        "**Recommended**: Use Task tool with subagent_type='general-purpose' "
-                        "to consult Gemini and save results to .claude/docs/research/. "
-                        "(Direct call OK for quick questions: `gemini -p '...' 2>/dev/null`)"
+                        "For comprehensive research, consider using Gemini CLI "
+                        "(1M context + Google Search grounding) via the gemini-explore "
+                        "subagent (Task tool with subagent_type='gemini-explore'). "
+                        "Gemini can gather and organize findings more efficiently. "
+                        "Save results to .claude/docs/research/."
                     )
                 }
             }
