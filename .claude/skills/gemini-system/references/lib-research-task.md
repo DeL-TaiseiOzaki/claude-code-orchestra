@@ -50,7 +50,7 @@ Provide documentation in this structure:
 ---
 
 Output in markdown format suitable for saving to .claude/docs/libraries/{library_name}.md
-Output documentation content in Japanese.
+Output documentation content in English.
 ```
 
 ## Example Invocation
@@ -105,7 +105,7 @@ All library documentation should be saved to:
 - Checking library specifications before implementation
 - Updating outdated library documentation
 - Investigating library conflicts or issues
-- When user says "このライブラリについて調べて", "research this library"
+- When user says "research this library", "look into this library"
 
 ## Integration with Codex
 

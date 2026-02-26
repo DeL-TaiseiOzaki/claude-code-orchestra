@@ -10,45 +10,45 @@ metadata:
 
 # Team Implement
 
-**Agent Teams による並列実装。`/startproject` で承認された計画に基づいて実行する。**
+**Parallel implementation using Agent Teams. Executes based on the plan approved in `/startproject`.**
 
 ## Prerequisites
 
-- `/startproject` が完了し、計画がユーザーに承認されていること
-- `.claude/docs/DESIGN.md` にアーキテクチャが記録されていること
-- タスクリストが作成されていること
+- `/startproject` is complete and the plan has been approved by the user
+- Architecture is documented in `.claude/docs/DESIGN.md`
+- Task list has been created
 
 ## Workflow
 
 ```
 Step 1: Analyze Plan & Design Team
-  計画からタスク依存関係を分析し、チーム構成を決定
+  Analyze task dependencies from the plan and determine team composition
     ↓
 Step 2: Spawn Agent Team
-  モジュール/レイヤー単位でTeammateを起動
+  Launch Teammates per module/layer
     ↓
 Step 3: Monitor & Coordinate
-  Lead がモニタリング、統合、品質管理
+  Lead monitors, integrates, and manages quality
     ↓
 Step 4: Integration & Verification
-  全タスク完了後、統合テスト実行
+  After all tasks complete, run integration tests
 ```
 
 ---
 
 ## Step 1: Analyze Plan & Design Team
 
-**タスクリストから並列化可能なワークストリームを特定する。**
+**Identify parallelizable workstreams from the task list.**
 
 ### Team Design Principles
 
-1. **ファイル所有権の分離**: 各Teammateが異なるファイルセットを所有
-2. **依存関係の尊重**: 依存タスクは同一Teammateか、依存順で実行
-3. **適切な粒度**: Teammate あたり 5-6 タスクが目安
+1. **File ownership separation**: Each Teammate owns a different set of files
+2. **Respect dependencies**: Dependent tasks go to the same Teammate or execute in dependency order
+3. **Appropriate granularity**: Target 5-6 tasks per Teammate
 
 ### Common Team Patterns
 
-**Pattern A: Module-Based (推奨)**
+**Pattern A: Module-Based (Recommended)**
 ```
 Teammate 1: Module A (models, core logic)
 Teammate 2: Module B (API, endpoints)
@@ -71,15 +71,15 @@ Teammate 3: Shared infrastructure
 
 ### Anti-patterns
 
-- 2つの Teammate が同じファイルを編集 → 上書きリスク
-- Teammate あたりのタスクが多すぎる → 長時間放置リスク
-- 依存関係が複雑すぎる → 調整コストが利益を上回る
+- Two Teammates editing the same file → overwrite risk
+- Too many tasks per Teammate → risk of prolonged idle time
+- Overly complex dependencies → coordination costs outweigh benefits
 
 ---
 
 ## Step 2: Spawn Agent Team
 
-**計画に基づいてチームを起動する。**
+**Launch the team based on the plan.**
 
 ```
 Create an agent team for implementing: {feature}
@@ -182,37 +182,37 @@ Wait for all teammates to complete their tasks.
 
 ## Step 3: Monitor & Coordinate
 
-**Lead は実装せず、モニタリングと統合に専念する。**
+**Lead focuses on monitoring and integration, not implementing.**
 
 ### Monitoring Checklist
 
-- [ ] タスクリストの進捗を確認（Ctrl+T）
-- [ ] 各 Teammate の出力を確認（Shift+Up/Down）
-- [ ] ファイル競合がないか確認
-- [ ] 行き詰まっている Teammate がいないか確認
+- [ ] Check task list progress (Ctrl+T)
+- [ ] Review each Teammate's output (Shift+Up/Down)
+- [ ] Verify no file conflicts
+- [ ] Check if any Teammate is stuck
 
 ### Intervention Triggers
 
-| 状況 | 対応 |
-|------|------|
-| Teammate が長時間タスクを進めない | メッセージで確認、必要なら再指示 |
-| ファイル競合が発生 | 所有権を再配分 |
-| テストが失敗し続ける | 関連する Implementer にメッセージ |
-| 想定外の技術的問題 | Codex に相談（サブエージェント経由） |
+| Situation | Response |
+|-----------|----------|
+| Teammate not making progress for a long time | Send a message to check, re-instruct if needed |
+| File conflict detected | Reassign file ownership |
+| Tests keep failing | Send message to the relevant Implementer |
+| Unexpected technical issue | Consult Codex (via subagent) |
 
 ### Quality Gates (via Hooks)
 
-`TeammateIdle` hook と `TaskCompleted` hook が自動で品質チェック：
+`TeammateIdle` hook and `TaskCompleted` hook automatically run quality checks:
 
-- lint チェック（ruff）
-- テスト実行（pytest）
-- 型チェック（ty）
+- Lint check (ruff)
+- Test execution (pytest)
+- Type check (ty)
 
 ---
 
 ## Step 4: Integration & Verification
 
-**全タスク完了後、統合検証を行う。**
+**After all tasks are complete, run integration verification.**
 
 ```bash
 # All quality checks
@@ -228,21 +228,21 @@ poe all
 ### Integration Report
 
 ```markdown
-## 実装完了: {feature}
+## Implementation Complete: {feature}
 
-### 完了タスク
+### Completed Tasks
 - [x] {task 1}
 - [x] {task 2}
 ...
 
-### 品質チェック
-- ruff: ✓ / ✗
-- ty: ✓ / ✗
-- pytest: ✓ ({N} tests passed)
+### Quality Checks
+- ruff: PASS / FAIL
+- ty: PASS / FAIL
+- pytest: PASS ({N} tests passed)
 - coverage: {N}%
 
-### 次のステップ
-`/team-review` で並列レビューを実行してください
+### Next Steps
+Run `/team-review` for parallel review
 ```
 
 ### Cleanup
@@ -255,8 +255,8 @@ Clean up the team
 
 ## Tips
 
-- **Delegate mode**: Shift+Tab で Lead が実装を避ける
-- **タスク粒度**: Teammate あたり 5-6 タスクが最適
-- **ファイル競合回避**: モジュール単位の所有権分離が最重要
-- **Tester 分離**: Implementer とは別に Tester を立てるとTDD的に回る
-- **コスト意識**: 各 Teammate は独立した Claude インスタンス（トークン消費大）
+- **Delegate mode**: Use Shift+Tab to prevent Lead from implementing directly
+- **Task granularity**: 5-6 tasks per Teammate is optimal
+- **File conflict prevention**: Module-level ownership separation is the most important factor
+- **Separate Tester**: Having a dedicated Tester separate from Implementers enables a TDD-like workflow
+- **Cost awareness**: Each Teammate is an independent Claude instance (high token consumption)

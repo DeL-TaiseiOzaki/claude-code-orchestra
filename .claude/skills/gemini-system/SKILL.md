@@ -13,42 +13,42 @@ metadata:
 
 # Gemini System — Analysis, Research & Multimodal
 
-**Gemini CLI は 1M context を活用し、大規模分析・リサーチ・マルチモーダル読取を担当する。**
+**Gemini CLI leverages 1M context for large-scale analysis, research, and multimodal file reading.**
 
-> **詳細ルール**: `.claude/rules/gemini-delegation.md`
+> **Detailed rules**: `.claude/rules/gemini-delegation.md`
 
-## Gemini の3つの役割
+## Three Roles of Gemini
 
-### 1. コードベース・リポジトリ理解
+### 1. Codebase and Repository Understanding
 
-Gemini の 1M context でプロジェクト全体を分析する（Claude の 200K では収まらない場合）。
+Use Gemini's 1M context to analyze the entire project (when Claude's 200K is insufficient).
 
 ```bash
-# プロジェクト構造の分析
+# Analyze project structure
 gemini -p "Analyze this codebase: directory structure, key modules, patterns, dependencies, and architecture" 2>/dev/null
 
-# 特定ファイルの詳細分析
+# Detailed analysis of specific files
 gemini -p "Analyze this code: purpose, patterns, dependencies" < /path/to/file 2>/dev/null
 ```
 
-### 2. 外部リサーチ・サーベイ
+### 2. External Research and Surveys
 
-Gemini の Google Search grounding で最新情報を調査する。
+Use Gemini's Google Search grounding to research the latest information.
 
 ```bash
-# ライブラリ調査
+# Library research
 gemini -p "Research: {library}. Latest version, features, constraints, best practices, pitfalls" 2>/dev/null
 
-# ベストプラクティス調査
+# Best practices research
 gemini -p "Research best practices for {topic}. Latest recommendations, patterns, anti-patterns" 2>/dev/null
 
-# 技術比較
+# Technology comparison
 gemini -p "Compare {A} vs {B} for {use case}. Pros, cons, performance, community" 2>/dev/null
 ```
 
-### 3. マルチモーダルファイル読取
+### 3. Multimodal File Reading
 
-PDF、動画、音声、画像ファイルの内容を抽出する。
+Extract content from PDF, video, audio, and image files.
 
 ```bash
 # PDF
@@ -64,30 +64,30 @@ gemini -p "Transcribe and summarize: decisions, action items" < /path/to/audio.m
 gemini -p "Analyze: components, relationships, data flow" < /path/to/diagram.png 2>/dev/null
 ```
 
-| 対象 | 拡張子 |
-|------|--------|
+| Target | Extensions |
+|--------|------------|
 | PDF | `.pdf` |
-| 動画 | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm` |
-| 音声 | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg` |
-| 画像（高度分析） | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` |
+| Video | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm` |
+| Audio | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg` |
+| Images (advanced analysis) | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` |
 
-> スクリーンショットの単純確認は Claude の Read ツールで直接可能。
+> Simple screenshot inspection can be done directly with Claude's Read tool.
 
-## Auto-Trigger（自動発動）
+## Auto-Trigger
 
-マルチモーダルファイルがタスクに登場した時点で、ユーザー指示を待たず自動で Gemini に渡す。
+When multimodal files appear in a task, automatically pass them to Gemini without waiting for user instructions.
 
-## Gemini を使わないこと
+## When NOT to Use Gemini
 
-| タスク | 正しい担当 |
-|--------|-----------|
-| 設計・計画 | **Codex** |
-| デバッグ | **Codex** |
-| コード実装 | **Claude / サブエージェント** |
+| Task | Correct Owner |
+|------|---------------|
+| Design and planning | **Codex** |
+| Debugging | **Codex** |
+| Code implementation | **Claude / Subagents** |
 
 ## How to Use
 
-### Subagent Pattern（出力が大きい場合）
+### Subagent Pattern (for large outputs)
 
 ```
 Task tool parameters:
@@ -101,7 +101,7 @@ Task tool parameters:
     Return CONCISE summary (5-7 bullet points).
 ```
 
-### Direct Call（短い抽出の場合）
+### Direct Call (for short extractions)
 
 ```bash
 gemini -p "{what to extract/research}" 2>/dev/null
@@ -111,4 +111,4 @@ gemini -p "{what to extract/research}" 2>/dev/null
 
 1. Ask Gemini in **English**
 2. Receive response in **English**
-3. Report to user in **Japanese**
+3. Report to user in **the user's language**

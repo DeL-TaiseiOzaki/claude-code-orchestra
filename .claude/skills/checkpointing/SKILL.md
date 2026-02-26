@@ -8,9 +8,9 @@ metadata:
   short-description: Full session checkpoint with skill pattern discovery
 ---
 
-# Checkpointing — セッションの全記録とパターン発見
+# Checkpointing — Full Session Recording and Pattern Discovery
 
-**セッションの全活動を記録し、再利用可能なパターンを発見する。毎回全部やる。**
+**Record all session activity and discover reusable patterns. Run everything, every time.**
 
 ## What It Does (Every Time)
 
@@ -248,15 +248,15 @@ The checkpoint is automatically analyzed to find reusable patterns:
 
 | Timing | Why |
 |--------|-----|
-| セッション終了前 | 全活動を記録、次セッションへの引き継ぎ |
-| `/team-implement` 完了後 | チーム活動パターンを捕捉 |
-| `/team-review` 完了後 | レビューパターンを捕捉 |
-| 大きな設計決定後 | 決定のコンテキストを永続化 |
-| 繰り返しパターンを感じた時 | スキル化の発見チャンス |
+| Before session ends | Record all activity, hand off to next session |
+| After `/team-implement` completes | Capture team activity patterns |
+| After `/team-review` completes | Capture review patterns |
+| After major design decisions | Persist the decision context |
+| When you notice recurring patterns | Opportunity to discover new skills |
 
 ## Notes
 
-- チェックポイントは `.claude/checkpoints/` に蓄積される（`.gitignore` 済み）
-- ログファイル自体は変更されない（読み取りのみ）
-- スキル提案は必ずユーザーがレビューしてから採用すること
-- Agent Teams のデータは `~/.claude/teams/` と `~/.claude/tasks/` から収集
+- Checkpoints accumulate in `.claude/checkpoints/` (already in `.gitignore`)
+- Log files themselves are not modified (read-only)
+- Skill suggestions must always be reviewed by the user before adoption
+- Agent Teams data is collected from `~/.claude/teams/` and `~/.claude/tasks/`

@@ -1,66 +1,66 @@
 # Codex Delegation Rule
 
-**Codex CLI は計画・設計と難しいコード実装を担当する。**
+**Codex CLI handles planning, design, and complex code implementation.**
 
-## Codex の2つの役割
+## Two Roles of Codex
 
-### 1. 計画・設計（Plan & Design）
+### 1. Planning & Design
 
-- アーキテクチャ設計、モジュール構成
-- 実装計画の策定（ステップ分解、依存関係整理）
-- トレードオフ評価、技術選定
-- コードレビュー（品質・正確性分析）
+- Architecture design, module structure
+- Implementation planning (step decomposition, dependency ordering)
+- Trade-off evaluation, technology selection
+- Code review (quality and correctness analysis)
 
-### 2. 難しいコード実装（Complex Implementation）
+### 2. Complex Code Implementation
 
-- 複雑なアルゴリズム、最適化
-- 根本原因が不明なデバッグ
-- 高度なリファクタリング
-- マルチステップの実装タスク
+- Complex algorithms, optimization
+- Debugging with unknown root causes
+- Advanced refactoring
+- Multi-step implementation tasks
 
 ## When to Consult Codex
 
-| 状況 | 例 |
+| Situation | Examples |
 |------|------|
-| **計画が必要** | 「どう設計？」「計画を立てて」「アーキテクチャ」 |
-| **難しい実装** | 複雑なロジック、最適化、パフォーマンス改善 |
-| **デバッグ** | 「なぜ動かない？」「エラーの原因は？」（初回失敗後） |
-| **比較検討** | 「AとBどちらがいい？」「トレードオフは？」 |
-| **コードレビュー** | 「レビューして」「品質チェック」 |
+| **Planning needed** | "How to design?" "Create a plan" "Architecture" |
+| **Complex implementation** | Complex logic, optimization, performance improvements |
+| **Debugging** | "Why doesn't this work?" "What caused the error?" (after initial failure) |
+| **Comparison and trade-off analysis** | "Which is better, A or B?" "What are the trade-offs?" |
+| **Code review** | "Review this" "Quality check" |
 
 ### Trigger Phrases (User Input)
 
-| Japanese | English |
+| Phrase | English Equivalent |
 |----------|---------|
-| 「どう設計すべき？」「どう実装する？」 | "How should I design/implement?" |
-| 「計画を立てて」「アーキテクチャ」 | "Create a plan" "Architecture" |
-| 「なぜ動かない？」「原因は？」「エラーが出る」 | "Why doesn't this work?" "Error" |
-| 「どちらがいい？」「比較して」「トレードオフは？」 | "Which is better?" "Compare" |
-| 「考えて」「分析して」「深く考えて」 | "Think" "Analyze" "Think deeper" |
+| "How should I design/implement?" | "How should I design/implement?" |
+| "Create a plan" "Architecture" | "Create a plan" "Architecture" |
+| "Why doesn't this work?" "What caused it?" "There's an error" | "Why doesn't this work?" "Error" |
+| "Which is better?" "Compare" "Trade-offs?" | "Which is better?" "Compare" |
+| "Think about this" "Analyze" "Think deeper" | "Think" "Analyze" "Think deeper" |
 
 ## When NOT to Consult
 
-- 単純なファイル編集（typo修正、小さな変更）
-- 明示的なユーザー指示に従うだけの作業
-- 標準操作（git commit、テスト実行）
-- 明確な単一解があるタスク
-- ファイル検索・読み取り
-- **コードベース分析** → Claude が直接行う（1M context）
-- **外部情報取得** → サブエージェント（WebSearch/WebFetch）が行う
-- **マルチモーダル処理** → Gemini が行う
+- Simple file edits (typo fixes, small changes)
+- Tasks that simply follow explicit user instructions
+- Standard operations (git commit, running tests)
+- Tasks with a single clear solution
+- File search and reading
+- **Codebase analysis** -- Claude handles directly (1M context)
+- **External information retrieval** -- Subagent (WebSearch/WebFetch) handles
+- **Multimodal processing** -- Gemini handles
 
 ## Context Management
 
-| 状況 | 推奨方法 |
+| Situation | Recommended Method |
 |------|----------|
-| 短い質問・短い回答（〜50行） | 直接呼び出しOK |
-| 詳細な設計・計画 | サブエージェント経由 |
-| デバッグ分析 | サブエージェント経由 |
-| 複雑なコード実装 | サブエージェント経由（workspace-write） |
+| Short question and answer (~50 lines) | Direct call OK |
+| Detailed design or planning | Via subagent |
+| Debug analysis | Via subagent |
+| Complex code implementation | Via subagent (workspace-write) |
 
 ## How to Consult
 
-### Subagent Pattern（推奨）
+### Subagent Pattern (Recommended)
 
 ```
 Task tool parameters:
@@ -76,13 +76,13 @@ Task tool parameters:
     Return CONCISE summary (key recommendation + rationale).
 ```
 
-### Direct Call (短い質問、〜50行の回答)
+### Direct Call (Short questions, ~50 line responses)
 
 ```bash
 codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
 ```
 
-### Codex に実装させる場合
+### Having Codex Implement Code
 
 ```bash
 codex exec --model gpt-5.3-codex --sandbox workspace-write --full-auto "
@@ -101,12 +101,12 @@ Files to create/modify:
 
 | Mode | Sandbox | Use Case |
 |------|---------|----------|
-| Analysis | `read-only` | 設計レビュー、デバッグ、トレードオフ |
-| Implementation | `workspace-write` | 実装、修正、リファクタリング |
+| Analysis | `read-only` | Design review, debugging, trade-off analysis |
+| Implementation | `workspace-write` | Implementation, fixes, refactoring |
 
 ## Language Protocol
 
 1. Ask Codex in **English**
 2. Receive response in **English**
 3. Execute based on advice
-4. Report to user in **Japanese**
+4. Report to user in **English**

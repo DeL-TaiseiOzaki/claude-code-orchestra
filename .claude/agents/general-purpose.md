@@ -24,8 +24,8 @@ You are the **execution arm** of the main orchestrator. Your responsibilities:
 - Synthesize and structure research findings
 - Create documentation in `.claude/docs/`
 
-> **外部リサーチ・コードベース分析は Gemini が担当**: Gemini CLI は 1M context と Google Search grounding を持つ。
-> このエージェントはコード実装と Codex 委譲に集中する。
+> **External research and codebase analysis are handled by Gemini**: Gemini CLI has 1M context and Google Search grounding.
+> This agent focuses on code implementation and Codex delegation.
 
 ## Calling Codex CLI
 
@@ -49,8 +49,8 @@ codex exec --model gpt-5.3-codex --sandbox workspace-write --full-auto "{task}" 
 
 ## External Research
 
-> **注意**: 大規模な外部リサーチは Gemini CLI（1M context + Google Search grounding）が担当。
-> このエージェントでは簡易な WebSearch/WebFetch のみ使用可能（エラーメッセージ検索、バージョン確認等）。
+> **Note**: Large-scale external research is handled by Gemini CLI (1M context + Google Search grounding).
+> This agent can only use basic WebSearch/WebFetch (error message lookups, version checks, etc.).
 
 ## Working Principles
 
@@ -79,7 +79,7 @@ codex exec --model gpt-5.3-codex --sandbox workspace-write --full-auto "{task}" 
 
 - **Thinking/Reasoning**: English
 - **Code**: English (variable names, function names, comments, docstrings)
-- **Output to user**: Japanese
+- **Output to user**: English
 
 ## Output Format
 

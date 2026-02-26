@@ -13,50 +13,50 @@ metadata:
 
 # Codex System — Planning, Design & Complex Implementation
 
-**Codex CLI は計画・設計と難しいコード実装を担当する。**
+**Codex CLI handles planning, design, and complex code implementation.**
 
-> **詳細ルール**: `.claude/rules/codex-delegation.md`
+> **Detailed rules**: `.claude/rules/codex-delegation.md`
 
-## Codex の2つの役割
+## Two Roles of Codex
 
-### 1. 計画・設計（Plan & Design）
+### 1. Planning & Design
 
-- アーキテクチャ設計、モジュール構成
-- 実装計画の策定（ステップ分解、依存関係整理）
-- トレードオフ評価、技術選定
-- コードレビュー（品質・正確性分析）
+- Architecture design, module composition
+- Implementation plan creation (step breakdown, dependency ordering)
+- Trade-off evaluation, technology selection
+- Code review (quality and correctness analysis)
 
-### 2. 難しいコード実装（Complex Implementation）
+### 2. Complex Implementation
 
-- 複雑なアルゴリズム、最適化
-- 根本原因が不明なデバッグ
-- 高度なリファクタリング
-- マルチステップの実装タスク
+- Complex algorithms, optimization
+- Debugging with unknown root causes
+- Advanced refactoring
+- Multi-step implementation tasks
 
 ## When to Consult (MUST)
 
 | Situation | Trigger Examples |
 |-----------|------------------|
-| **Planning** | 「計画を立てて」「アーキテクチャ」 / "Plan" "Architecture" |
-| **Design decisions** | 「どう設計？」 / "How to design?" |
-| **Complex implementation** | 「実装方法」「どう作る？」 / "How to implement?" |
-| **Debugging** | 「なぜ動かない？」「エラー」 / "Debug" "Error" |
-| **Trade-off analysis** | 「どちらがいい？」「比較して」 / "Compare" "Which?" |
-| **Refactoring** | 「リファクタ」「シンプルに」 / "Refactor" "Simplify" |
-| **Code review** | 「レビューして」 / "Review" "Check" |
+| **Planning** | "Create a plan" "Architecture" |
+| **Design decisions** | "How to design?" |
+| **Complex implementation** | "How to implement?" "How to build?" |
+| **Debugging** | "Why doesn't this work?" "Error" "Debug" |
+| **Trade-off analysis** | "Which is better?" "Compare" |
+| **Refactoring** | "Refactor" "Simplify" |
+| **Code review** | "Review" "Check" |
 
 ## When NOT to Consult
 
-- 単純なファイル編集、typo修正
-- 明示的なユーザー指示に従うだけの作業
-- git commit、テスト実行、lint
-- **コードベース分析** → Gemini CLI（1M context で大規模分析対応）
-- **外部情報取得** → Gemini CLI（Google Search grounding）
-- **マルチモーダル処理** → Gemini CLI（PDF/動画/音声/画像）
+- Simple file edits, typo fixes
+- Tasks that simply follow explicit user instructions
+- git commit, test execution, lint
+- **Codebase analysis** → Gemini CLI (1M context for large-scale analysis)
+- **External information retrieval** → Gemini CLI (Google Search grounding)
+- **Multimodal processing** → Gemini CLI (PDF/video/audio/images)
 
 ## How to Consult
 
-### Subagent Pattern（推奨）
+### Subagent Pattern (Recommended)
 
 ```
 Task tool parameters:
@@ -72,13 +72,13 @@ Task tool parameters:
     Return CONCISE summary (key recommendation + rationale).
 ```
 
-### Direct Call (〜50行の回答)
+### Direct Call (responses up to ~50 lines)
 
 ```bash
 codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
 ```
 
-### Codex に実装させる場合
+### Having Codex Implement Code
 
 ```bash
 codex exec --model gpt-5.3-codex --sandbox workspace-write --full-auto "
@@ -92,8 +92,8 @@ Files: {file paths}
 
 | Mode | Use Case |
 |------|----------|
-| `read-only` | 設計、レビュー、デバッグ分析 |
-| `workspace-write` | 実装、修正、リファクタリング |
+| `read-only` | Design, review, debug analysis |
+| `workspace-write` | Implementation, fixes, refactoring |
 
 ## Task Templates
 
@@ -148,7 +148,7 @@ Analyze root cause and suggest fixes.
 1. Ask Codex in **English**
 2. Receive response in **English**
 3. Execute based on advice
-4. Report to user in **Japanese**
+4. Report to user in **the user's language**
 
 ## Why Codex?
 

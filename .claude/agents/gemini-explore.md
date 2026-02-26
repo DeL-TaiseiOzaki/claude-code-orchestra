@@ -108,7 +108,7 @@ After Gemini extracts content, use Read/Grep/Glob to connect findings with the l
 
 - **Gemini queries**: English
 - **Thinking/Reasoning**: English
-- **Output to main**: Japanese
+- **Output to main**: English
 
 ## Output Format
 

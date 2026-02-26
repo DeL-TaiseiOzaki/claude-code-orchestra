@@ -1,8 +1,8 @@
-# Agent Prompts — テンプレート集
+# Agent Prompts — Template Collection
 
 ## Architect Agent
 
-### テンプレート
+### Template
 
 ```
 You are an Architecture Reviewer analyzing {component_name}.
@@ -36,7 +36,7 @@ You are an Architecture Reviewer analyzing {component_name}.
 
 ## Analyzer Agent
 
-### テンプレート
+### Template
 
 ```
 You are a Deep Analyst investigating a persistent issue.
@@ -57,7 +57,7 @@ You are a Deep Analyst investigating a persistent issue.
 
 ## Optimizer Agent
 
-### テンプレート
+### Template
 
 ```
 You are a Performance Optimizer improving {function_name}.
@@ -79,7 +79,7 @@ You are a Performance Optimizer improving {function_name}.
 
 ## Security Agent
 
-### テンプレート
+### Template
 
 ```
 You are a Security Auditor reviewing {scope}.
