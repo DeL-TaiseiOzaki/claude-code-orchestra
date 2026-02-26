@@ -10,34 +10,34 @@ metadata:
 
 # Team Review
 
-**Agent Teams による並列レビュー。実装完了後に複数の視点から同時にレビューする。**
+**Parallel review using Agent Teams. Review from multiple perspectives simultaneously after implementation is complete.**
 
 ## Prerequisites
 
-- 実装が完了していること（`/team-implement` 後、または手動実装後）
-- 全テストが通過していること
+- Implementation is complete (after `/team-implement` or manual implementation)
+- All tests are passing
 
 ## Workflow
 
 ```
 Step 1: Gather Diff
-  実装範囲の変更差分を収集
+  Collect change diffs from the implementation scope
     ↓
 Step 2: Spawn Review Team
-  専門レビュアーを並列起動
+  Launch specialized reviewers in parallel
     ↓
 Step 3: Synthesize Findings
-  レビュー結果を統合、優先度付け
+  Integrate review results and prioritize
     ↓
 Step 4: Report to User
-  発見事項と推奨アクションを提示
+  Present findings and recommended actions
 ```
 
 ---
 
 ## Step 1: Gather Diff
 
-**レビュー対象の変更範囲を特定する。**
+**Identify the scope of changes to review.**
 
 ```bash
 # All changes from main branch
@@ -54,7 +54,7 @@ git log main..HEAD --oneline
 
 ## Step 2: Spawn Review Team
 
-**専門的な視点を持つレビュアーを並列起動する。**
+**Launch reviewers with specialized perspectives in parallel.**
 
 ```
 Create an agent team to review implementation of: {feature}
@@ -222,7 +222,7 @@ Have them actively try to disprove each other's theories.
 
 ## Step 3: Synthesize Findings
 
-**全レビュアーの結果を統合し、優先度付けする。**
+**Integrate results from all reviewers and assign priorities.**
 
 Read review reports:
 - `.claude/docs/research/review-security-{feature}.md`
@@ -242,35 +242,35 @@ Read review reports:
 
 ## Step 4: Report to User
 
-**統合レビュー結果をユーザーに提示する（日本語）。**
+**Present the integrated review results to the user.**
 
 ```markdown
-## レビュー結果: {feature}
+## Review Results: {feature}
 
-### サマリー
-- セキュリティ: {N}件 (Critical: {n}, High: {n}, Medium: {n})
-- コード品質: {N}件 (High: {n}, Medium: {n}, Low: {n})
-- テストカバレッジ: {N}% (目標80%に対して {above/below})
+### Summary
+- Security: {N} findings (Critical: {n}, High: {n}, Medium: {n})
+- Code Quality: {N} findings (High: {n}, Medium: {n}, Low: {n})
+- Test Coverage: {N}% ({above/below} the 80% target)
 
-### Critical / High 発見事項
+### Critical / High Findings
 
 #### [{Severity}] {Issue Title}
-- **ファイル**: `{file}:{line}`
-- **問題**: {description}
-- **修正案**: {recommended fix}
+- **File**: `{file}:{line}`
+- **Issue**: {description}
+- **Recommended Fix**: {recommended fix}
 
 ...
 
-### 推奨アクション
+### Recommended Actions
 1. {Action 1 — Critical fix}
 2. {Action 2 — High priority fix}
 3. {Action 3 — Test gap to fill}
 
-### Medium / Low 発見事項
+### Medium / Low Findings
 {Brief list — details in review reports}
 
 ---
-修正を行いますか？
+Shall we proceed with fixes?
 ```
 
 ### Cleanup
@@ -283,8 +283,8 @@ Clean up the team
 
 ## Tips
 
-- **レビュアーの専門分化**: 各レビュアーが異なる視点に集中することで漏れを防ぐ
-- **Codex 活用**: Quality Reviewer が複雑なロジックを Codex に分析させる
-- **レポート永続化**: `.claude/docs/research/` にレビュー結果を保存し、修正時の参照に
-- **競合仮説モード**: バグ調査時は adversarial review パターンが有効
-- **コスト注意**: 3レビュアー = 3x トークン消費。小規模変更にはサブエージェント経由のレビューで十分
+- **Reviewer specialization**: Each reviewer focuses on a different perspective to prevent blind spots
+- **Codex utilization**: Quality Reviewer delegates complex logic analysis to Codex
+- **Report persistence**: Save review results in `.claude/docs/research/` for reference during fixes
+- **Competing hypotheses mode**: Adversarial review pattern is effective for bug investigation
+- **Cost awareness**: 3 reviewers = 3x token consumption. For small changes, a subagent-based review is sufficient

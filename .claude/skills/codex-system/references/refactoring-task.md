@@ -55,7 +55,7 @@ Refactoring Patterns to Apply:
 
 Provide:
 1. Refactored code
-2. Explanation of changes (in Japanese)
+2. Explanation of changes
 3. Verification that library constraints are preserved
 ```
 
@@ -103,6 +103,6 @@ $(cat src/services/llm_client.py)
 ## When to Use
 
 - When code becomes hard to read/maintain
-- When user says "リファクタリングして", "シンプルにして", "simplify this"
+- When user says "refactor this", "simplify this", "clean up this code"
 - Before adding new features to complex code
 - When code review identifies complexity issues

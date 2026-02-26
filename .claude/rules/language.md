@@ -23,4 +23,4 @@
 ## Documentation
 
 - Technical documentation: English
-- User-facing documentation (README, etc.): Japanese is acceptable
+- User-facing documentation (README, etc.): English

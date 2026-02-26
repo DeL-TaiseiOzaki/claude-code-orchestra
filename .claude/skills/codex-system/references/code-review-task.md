@@ -90,5 +90,5 @@ $(git diff HEAD~1)
 
 - After completing a feature implementation
 - Before committing significant changes
-- When user says "レビューして", "コードを確認して", "review this"
+- When user says "review this", "check the code", "code review"
 - Proactively after modifying critical code paths

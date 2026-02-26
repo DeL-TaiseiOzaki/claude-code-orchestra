@@ -1,78 +1,78 @@
-# トラブルシューティング
+# Troubleshooting
 
-## Codex CLI が見つからない
+## Codex CLI Not Found
 
 ```bash
-# 確認
+# Check installation
 which codex
 codex --version
 
-# インストール
+# Install
 npm install -g @openai/codex
 ```
 
-## 認証エラー
+## Authentication Error
 
 ```bash
-# 再認証
+# Re-authenticate
 codex login
 
-# ステータス確認
+# Check status
 codex login status
 ```
 
-## タイムアウト
+## Timeout
 
-| reasoning_effort | 推奨タイムアウト |
-|-----------------|-----------------|
-| low             | 60s             |
-| medium          | 180s            |
-| high            | 600s            |
-| xhigh           | 900s            |
+| reasoning_effort | Recommended timeout |
+|-----------------|---------------------|
+| low             | 60s                 |
+| medium          | 180s                |
+| high            | 600s                |
+| xhigh           | 900s                |
 
-config.toml で設定:
+Configure in config.toml:
 ```toml
 [mcp_servers.codex]
 tool_timeout_sec = 600
 ```
 
-## Git リポジトリエラー
+## Git Repository Error
 
 ```bash
-# Git 管理外で実行する場合
+# Run outside of a Git repository
 codex exec --skip-git-repo-check ...
 ```
 
-## reasoning 出力が多すぎる
+## Excessive Reasoning Output
 
 ```bash
-# stderr 抑制
+# Suppress stderr
 codex exec ... 2>/dev/null
 
-# または config.toml で
+# Or configure in config.toml
 hide_agent_reasoning = true
 ```
 
-## セッション継続できない
+## Cannot Continue Session
 
 ```bash
-# 最近のセッション一覧
+# List recent sessions
 codex sessions list
 
-# 特定セッションの詳細
+# Show details for a specific session
 codex sessions show {SESSION_ID}
 ```
 
-## sandbox 権限エラー
+## Sandbox Permission Error
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| Permission denied | read-only で書き込み | workspace-write に変更 |
-| Network blocked | sandbox 制限 | danger-full-access（慎重に） |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Permission denied | Write attempted in read-only mode | Change to workspace-write |
+| Network blocked | Sandbox restriction | Use danger-full-access (with caution) |
 
-## メモリ不足
+## Out of Memory
 
-大きなコードベースを分析する場合:
-1. 対象ファイルを絞る
-2. 段階的に分析
-3. `--config context_limit=...` で調整
+When analyzing large codebases:
+1. Narrow down the target files
+2. Analyze in stages
+3. Adjust with `--config context_limit=...`
