@@ -87,7 +87,7 @@ Return actionable results, not raw Codex dumps.
 
 - **Codex queries**: English
 - **Thinking/Reasoning**: English
-- **Output to main**: Japanese
+- **Output to main**: English
 
 ## Output Format
 

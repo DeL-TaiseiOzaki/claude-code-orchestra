@@ -12,47 +12,47 @@ metadata:
 
 # Start Project
 
-**Gemini の 1M コンテキストと Agent Teams を活用したプロジェクト開始スキル。**
+**Project kickoff skill leveraging Gemini's 1M context and Agent Teams.**
 
 ## Overview
 
-このスキルは計画フェーズ（Phase 1-3）を担当する。実装は `/team-implement`、レビューは `/team-review` で行う。
+This skill handles the planning phases (Phase 1-3). Implementation is done via `/team-implement`, and review via `/team-review`.
 
 ```
-/startproject <feature>     ← このスキル（計画）
-    ↓ 承認後
-/team-implement             ← 並列実装
-    ↓ 完了後
-/team-review                ← 並列レビュー
+/startproject <feature>     ← This skill (planning)
+    ↓ After approval
+/team-implement             ← Parallel implementation
+    ↓ After completion
+/team-review                ← Parallel review
 ```
 
 ## Workflow
 
 ```
 Phase 1: UNDERSTAND (Gemini 1M context + Claude Lead)
-  Gemini がコードベースを分析（1M context）、Claude がユーザーと対話
+  Gemini analyzes the codebase (1M context), Claude interacts with the user
     ↓
-Phase 2: RESEARCH & DESIGN (Agent Teams — 並列)
-  Researcher（Gemini）←→ Architect（Codex）が双方向通信しながら調査・設計
+Phase 2: RESEARCH & DESIGN (Agent Teams — Parallel)
+  Researcher (Gemini) ←→ Architect (Codex) communicate bidirectionally for research and design
     ↓
 Phase 3: PLAN & APPROVE (Claude Lead + User)
-  調査と設計を統合し、計画を作成してユーザー承認
+  Integrate research and design, create plan and get user approval
 ```
 
 ---
 
 ## Phase 1: UNDERSTAND (Gemini + Claude Lead)
 
-**Gemini の 1M コンテキストでコードベースを分析し、Claude がユーザーと対話する。**
+**Analyze the codebase with Gemini's 1M context while Claude interacts with the user.**
 
-> Claude Code のコンテキストは 200K。大規模コードベースの全体分析は Gemini（1M context）に委譲する。
+> Claude Code's context is 200K. Large-scale codebase analysis is delegated to Gemini (1M context).
 
 ### Step 1: Analyze Codebase with Gemini
 
-Gemini CLI を使い、コードベース全体を分析する：
+Use Gemini CLI to analyze the entire codebase:
 
 ```bash
-# gemini-explore サブエージェント経由（推奨）
+# Via gemini-explore subagent (recommended)
 Task tool:
   subagent_type: "gemini-explore"
   prompt: |
@@ -69,21 +69,21 @@ Task tool:
     Return concise summary (5-7 key findings).
 ```
 
-Gemini の分析結果を補完するため、Claude は Glob/Grep/Read で特定ファイルを確認できる。
+To supplement Gemini's analysis, Claude can use Glob/Grep/Read to inspect specific files.
 
 ### Step 2: Requirements Gathering
 
-ユーザーに質問して要件を明確化（日本語で）：
+Ask the user questions to clarify requirements:
 
-1. **目的**: 何を達成したいですか？
-2. **スコープ**: 含めるもの・除外するものは？
-3. **技術的要件**: 特定のライブラリ、制約は？
-4. **成功基準**: 完了の判断基準は？
-5. **最終デザイン**: どのような形にしたいですか？
+1. **Purpose**: What do you want to achieve?
+2. **Scope**: What to include / exclude?
+3. **Technical requirements**: Specific libraries, constraints?
+4. **Success criteria**: How do you determine completion?
+5. **Final design**: What form should it take?
 
 ### Step 3: Create Project Brief
 
-コードベース理解 + 要件を「プロジェクト概要書」にまとめる：
+Combine codebase understanding + requirements into a "Project Brief":
 
 ```markdown
 ## Project Brief: {feature}
@@ -114,10 +114,10 @@ This brief is passed to Phase 2 teammates as shared context.
 
 ## Phase 2: RESEARCH & DESIGN (Agent Teams — Parallel)
 
-**Agent Teams で Researcher と Architect を並列起動し、双方向通信させる。**
+**Launch Researcher and Architect in parallel via Agent Teams with bidirectional communication.**
 
-> サブエージェントとの決定的な違い: Teammates は相互通信できる。
-> Researcher の発見が Architect の設計を変え、Architect の要求が新たな調査を生む。
+> Key difference from subagents: Teammates can communicate with each other.
+> Researcher's findings change Architect's design, and Architect's requests trigger new research.
 
 ### Team Setup
 
@@ -126,7 +126,7 @@ Create an agent team for project planning: {feature}
 
 Spawn two teammates:
 
-1. **Researcher** — Gemini CLI (1M context + Google Search grounding) で外部調査を行う
+1. **Researcher** — Uses Gemini CLI (1M context + Google Search grounding) for external research
    Prompt: "You are the Researcher for project: {feature}.
 
    Your job: Research external information needed for this project.
@@ -175,7 +175,7 @@ Spawn two teammates:
    (If none, write 'None')
    "
 
-2. **Architect** — Codex CLI を使って設計・計画を行う
+2. **Architect** — Uses Codex CLI for design and planning
    Prompt: "You are the Architect for project: {feature}.
 
    Your job: Use Codex CLI to design the architecture and create implementation plan.
@@ -248,7 +248,7 @@ Agent Teams collapses this into a single parallel session with real-time interac
 
 ## Phase 3: PLAN & APPROVE (Claude Lead)
 
-**Agent Teams の結果を統合し、実装計画を作成してユーザーに承認を求める。**
+**Integrate Agent Teams results, create an implementation plan, and request user approval.**
 
 ### Step 1: Synthesize Results
 
@@ -298,35 +298,35 @@ Add project context to CLAUDE.md for cross-session persistence:
 
 ### Step 4: Present to User
 
-Present the plan in Japanese:
+Present the plan to the user:
 
 ```markdown
-## プロジェクト計画: {feature}
+## Project Plan: {feature}
 
-### コードベース分析
+### Codebase Analysis
 {Key findings from Phase 1 — 3-5 bullet points}
 
-### 調査結果 (Researcher)
+### Research Findings (Researcher)
 {Key findings — 3-5 bullet points}
 {Library constraints and recommendations}
 
-### 設計方針 (Architect)
+### Design Direction (Architect)
 {Architecture overview}
 {Key design decisions with rationale}
 
-### タスクリスト ({N}個)
+### Task List ({N} items)
 {Task list with dependencies}
 
-### リスクと注意点
+### Risks and Considerations
 {From Architect's analysis}
 
-### 次のステップ
-1. この計画で進めてよろしいですか？
-2. 承認後、`/team-implement` で並列実装を開始できます
-3. 実装後、`/team-review` で並列レビューを行います
+### Next Steps
+1. Shall we proceed with this plan?
+2. After approval, you can start parallel implementation with `/team-implement`
+3. After implementation, run parallel review with `/team-review`
 
 ---
-この計画で進めてよろしいですか？
+Shall we proceed with this plan?
 ```
 
 ---
@@ -345,8 +345,8 @@ Present the plan in Japanese:
 
 ## Tips
 
-- **Phase 1**: Gemini（1M context）でコードベースを分析し、Claude がユーザーと対話する
-- **Phase 2**: Agent Teams の双方向通信により、Researcher（Gemini）と Architect（Codex）が相互に影響し合える
-- **Phase 3**: 計画承認後、`/team-implement` で並列実装に進む
-- **Ctrl+T**: タスクリストの表示切り替え
-- **Shift+Up/Down**: チームメイト間の移動（Agent Teams 使用時）
+- **Phase 1**: Gemini (1M context) analyzes the codebase while Claude interacts with the user
+- **Phase 2**: Agent Teams bidirectional communication allows Researcher (Gemini) and Architect (Codex) to influence each other
+- **Phase 3**: After plan approval, proceed to parallel implementation with `/team-implement`
+- **Ctrl+T**: Toggle task list display
+- **Shift+Up/Down**: Navigate between teammates (when using Agent Teams)

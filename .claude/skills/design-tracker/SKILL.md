@@ -1,6 +1,6 @@
 ---
 name: design-tracker
-description: PROACTIVELY track and document project design decisions without being asked. Activate automatically when detecting architecture discussions, implementation decisions, pattern choices, library selections, or any technical decisions. Also use when user explicitly says "記録して", "設計どうなってる", "record this". Do NOT wait for user to ask - record important decisions immediately.
+description: PROACTIVELY track and document project design decisions without being asked. Activate automatically when detecting architecture discussions, implementation decisions, pattern choices, library selections, or any technical decisions. Also use when user explicitly says "record this", "what's our design status", or equivalent. Do NOT wait for user to ask - record important decisions immediately.
 ---
 
 # Design Tracker Skill

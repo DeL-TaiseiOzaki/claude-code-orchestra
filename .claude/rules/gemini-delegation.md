@@ -1,120 +1,120 @@
 # Gemini Delegation Rule
 
-**Gemini CLI は 1M context を活かし、大規模分析・リサーチ・マルチモーダル読取を担当する。**
+**Gemini CLI leverages its 1M context for large-scale analysis, research, and multimodal reading.**
 
-## Gemini の3つの役割
+## Three Roles of Gemini
 
-### 1. コードベース・リポジトリ理解（Codebase Analysis）
+### 1. Codebase & Repository Understanding (Codebase Analysis)
 
-- プロジェクト全体の構造分析
-- 主要モジュール・責務の把握
-- 既存パターン・規約の理解
-- 依存関係の分析
+- Analyze overall project structure
+- Identify key modules and their responsibilities
+- Understand existing patterns and conventions
+- Analyze dependencies
 
-> Claude Code のコンテキストは **200K トークン**（実質 140-150K）。
-> 大規模コードベースの全体分析は Gemini の **1M context** に委譲する。
+> Claude Code's context is **200K tokens** (effectively 140-150K).
+> Delegate full codebase analysis to Gemini's **1M context**.
 
-### 2. 外部リサーチ・サーベイ（Research & Survey）
+### 2. External Research & Survey (Research & Survey)
 
-- 最新ドキュメント・API仕様の調査
-- ライブラリの比較検討・ベストプラクティス
-- 技術的なサーベイ・トレンド調査
-- 既知の問題・制約の調査
+- Investigate latest documentation and API specifications
+- Compare libraries and identify best practices
+- Conduct technical surveys and trend research
+- Investigate known issues and constraints
 
-> Gemini CLI は Google Search grounding を内蔵しており、外部情報の取得に最適。
+> Gemini CLI has built-in Google Search grounding, making it ideal for retrieving external information.
 
-### 3. マルチモーダルファイル読取（Multimodal Reading）
+### 3. Multimodal File Reading (Multimodal Reading)
 
-- PDF、動画、音声、画像ファイルの内容抽出
-- 図表・ダイアグラムの詳細分析
-- 動画の要約・タイムスタンプ抽出
-- 音声の文字起こし・要約
+- Extract content from PDF, video, audio, and image files
+- Detailed analysis of charts and diagrams
+- Video summarization and timestamp extraction
+- Audio transcription and summarization
 
 ## When to Use Gemini
 
-| 状況 | 例 |
+| Situation | Examples |
 |------|------|
-| **コードベース分析** | 「プロジェクト全体を理解して」「構造を分析して」 |
-| **外部リサーチ** | 「調べて」「リサーチして」「最新のドキュメント」 |
-| **ライブラリ調査** | 「ライブラリを比較して」「ベストプラクティスは？」 |
-| **マルチモーダル** | PDF/動画/音声/画像ファイルが登場した場合（自動委譲） |
+| **Codebase analysis** | "Understand the whole project" "Analyze the structure" |
+| **External research** | "Look this up" "Research this" "Latest documentation" |
+| **Library investigation** | "Compare libraries" "What are the best practices?" |
+| **Multimodal** | When PDF/video/audio/image files are encountered (auto-delegation) |
 
 ### Trigger Phrases (User Input)
 
-| Japanese | English |
+| Phrase | English Equivalent |
 |----------|---------|
-| 「コードベースを理解して」「全体構造を見て」 | "Understand the codebase" "Analyze structure" |
-| 「調べて」「リサーチして」「サーベイして」 | "Research" "Investigate" "Survey" |
-| 「ライブラリを比較」「ベストプラクティス」 | "Compare libraries" "Best practices" |
-| 「このPDF/動画/画像を見て」 | "Read this PDF/video/image" |
+| "Understand the codebase" "Look at overall structure" | "Understand the codebase" "Analyze structure" |
+| "Look this up" "Research this" "Survey this" | "Research" "Investigate" "Survey" |
+| "Compare libraries" "Best practices" | "Compare libraries" "Best practices" |
+| "Read this PDF/video/image" | "Read this PDF/video/image" |
 
 ## When NOT to Use Gemini
 
-- 単純なファイル読み取り（Claude の Read ツールで十分）
-- スクリーンショットの単純確認（Claude の Read ツールで直接可能）
-- 計画・設計・アーキテクチャ → **Codex** が担当
-- デバッグ・エラー解析 → **Codex** が担当
-- コード実装 → **Claude / サブエージェント** が担当
+- Simple file reading (Claude's Read tool is sufficient)
+- Simple screenshot verification (Claude's Read tool can handle directly)
+- Planning, design, architecture -- **Codex** handles these
+- Debugging, error analysis -- **Codex** handles these
+- Code implementation -- **Claude / subagent** handles these
 
-## 対象ファイル拡張子（マルチモーダル）
+## Supported File Extensions (Multimodal)
 
-| カテゴリ | 拡張子 |
+| Category | Extensions |
 |----------|--------|
 | PDF | `.pdf` |
-| 動画 | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm` |
-| 音声 | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg` |
-| 画像（高度な分析） | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` |
+| Video | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm` |
+| Audio | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg` |
+| Image (detailed analysis) | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` |
 
 ## How to Use
 
-### コードベース分析
+### Codebase Analysis
 
 ```bash
-# プロジェクト構造の分析（Gemini がワークスペースを読む）
+# Analyze project structure (Gemini reads the workspace)
 gemini -p "Analyze this codebase: directory structure, key modules, patterns, dependencies, and architecture" 2>/dev/null
 
-# 特定ファイルの詳細分析
+# Detailed analysis of a specific file
 gemini -p "Analyze this code: purpose, patterns, dependencies" < /path/to/file 2>/dev/null
 ```
 
-### 外部リサーチ
+### External Research
 
 ```bash
-# ライブラリ調査
+# Library investigation
 gemini -p "Research: {library name}. Find latest version, key features, constraints, best practices, and common pitfalls" 2>/dev/null
 
-# ベストプラクティス調査
+# Best practices survey
 gemini -p "Research best practices for {topic}. Include latest recommendations, common patterns, and anti-patterns" 2>/dev/null
 
-# 技術比較
+# Technology comparison
 gemini -p "Compare {A} vs {B} for {use case}. Include pros, cons, performance, and community support" 2>/dev/null
 ```
 
-### マルチモーダルファイル読取
+### Multimodal File Reading
 
 ```bash
-# PDF — 構造・内容の抽出
+# PDF -- Extract structure and content
 gemini -p "Extract: {what information to extract}" < /path/to/file.pdf 2>/dev/null
 
-# 動画 — 要約・キーポイント・タイムスタンプ
+# Video -- Summarize, key points, timestamps
 gemini -p "Summarize: key concepts, decisions, timestamps" < /path/to/video.mp4 2>/dev/null
 
-# 音声 — 文字起こし・要約
+# Audio -- Transcription and summarization
 gemini -p "Transcribe and summarize: decisions, action items" < /path/to/audio.mp3 2>/dev/null
 
-# 画像 — 図表・ダイアグラムの詳細分析
+# Image -- Detailed analysis of charts and diagrams
 gemini -p "Analyze this diagram: components, relationships, data flow" < /path/to/diagram.png 2>/dev/null
 ```
 
 ## Context Management
 
-| 状況 | 推奨方法 |
+| Situation | Recommended Method |
 |------|----------|
-| 短い抽出・回答（〜30行） | 直接呼び出しOK |
-| 詳細な分析レポート | サブエージェント経由 |
-| リサーチ結果 | サブエージェント経由 → ファイル保存 |
+| Short extraction or answer (~30 lines) | Direct call OK |
+| Detailed analysis report | Via subagent |
+| Research findings | Via subagent -- save to file |
 
-### Subagent Pattern（出力が大きい場合）
+### Subagent Pattern (For large output)
 
 ```
 Task tool parameters:
@@ -129,20 +129,20 @@ Task tool parameters:
     Return CONCISE summary (key findings + recommendations).
 ```
 
-### Direct Call（短い質問・回答）
+### Direct Call (Short questions and answers)
 
 ```bash
 gemini -p "Brief question about {topic}" 2>/dev/null
 ```
 
-## Auto-Trigger（ユーザー指示なしで自動発動）
+## Auto-Trigger (Activates automatically without user instruction)
 
-- タスク内で PDF/動画/音声ファイルが参照されている
-- ユーザーがファイルパスを提示し、拡張子がマルチモーダル対象
+- PDF/video/audio files are referenced within a task
+- User provides a file path with a multimodal-supported extension
 
 ## Language Protocol
 
 1. Ask Gemini in **English**
 2. Receive response in **English**
 3. Execute based on findings
-4. Report to user in **Japanese**
+4. Report to user in **English**

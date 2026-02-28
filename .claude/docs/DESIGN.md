@@ -34,11 +34,11 @@ Claude Code Orchestra is a multi-agent collaboration framework. Claude Code (200
 
 | Agent | Role | Responsibilities |
 |-------|------|------------------|
-| Claude Code（メイン） | 全体統括 | ユーザー対話、タスク管理、簡潔なコード編集 |
-| general-purpose（Opus） | 実装・Codex委譲 | コード実装、Codex委譲、ファイル操作 |
-| gemini-explore（Opus） | 大規模分析・調査 | コードベース理解、外部リサーチ、マルチモーダル読取 |
-| Codex CLI | 計画・難実装 | アーキテクチャ設計、実装計画、複雑なコード、デバッグ |
-| Gemini CLI（1M context） | 分析・調査・読取 | コードベース分析、外部リサーチ、マルチモーダル読取 |
+| Claude Code (Main) | Overall orchestration | User interaction, task management, simple code edits |
+| general-purpose (Opus) | Implementation & Codex delegation | Code implementation, Codex delegation, file operations |
+| gemini-explore (Opus) | Large-scale analysis & research | Codebase understanding, external research, multimodal reading |
+| Codex CLI | Planning & complex implementation | Architecture design, implementation planning, complex code, debugging |
+| Gemini CLI (1M context) | Analysis, research & reading | Codebase analysis, external research, multimodal reading |
 
 ## Implementation Plan
 
