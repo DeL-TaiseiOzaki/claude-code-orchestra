@@ -126,7 +126,7 @@ Agent tool:
 | **gemini-explore** | Opus 4.6 | 200K + Gemini 1M | Codebase analysis, research, multimodal |
 | **codex-debugger** | Opus 4.6 | 200K + Codex | Error analysis, debugging |
 | **Explore** | Opus 4.6 | 200K | Fast codebase search and exploration |
-| **Codex CLI** | gpt-5.3-codex | — | Planning, design, complex code |
+| **Codex CLI** | gpt-5.4 | — | Planning, design, complex code |
 | **Gemini CLI** | gemini-3-pro | 1M | Large-scale analysis, Google Search, multimodal |
 | **Agent Teams** | Opus 4.6 | 200K each | Parallel work with inter-agent communication |
 
@@ -146,6 +146,8 @@ Task received
 ```
 
 - Codex rules: @.claude/rules/codex-delegation.md
+- Codex-first default: delegate non-trivial development tasks to Codex via `general-purpose` unless the edit is tiny and obvious.
+- Codex handoff templates: @.claude/docs/CODEX_HANDOFF_PLAYBOOK.md
 - Gemini rules: @.claude/rules/gemini-delegation.md
 
 ## Workflow

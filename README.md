@@ -12,10 +12,10 @@ Claude Code (Orchestrator, 200K) ─┬─ Codex CLI (Planning & Complex Code)
 
 ## Quick Start
 
-既存プロジェクトのルートで実行:
+既存プロジェクトのルートで実行（事前に Codex/Gemini の起動・ログイン確認）:
 
 ```bash
-git clone --depth 1 https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git .starter && cp -r .starter/.claude .starter/.codex .starter/.gemini .starter/CLAUDE.md . && rm -rf .starter && claude
+codex --version && codex login && gemini --version && gemini login && git clone --depth 1 https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git .starter && cp -r .starter/.claude .starter/.codex .starter/.gemini .starter/CLAUDE.md . && rm -rf .starter && claude
 ```
 
 ## Prerequisites
@@ -136,6 +136,12 @@ gemini login
     ├── GEMINI.md
     └── settings.json
 ```
+
+### Codex連携を安定化するための運用
+
+- `@.claude/docs/CODEX_HANDOFF_PLAYBOOK.md` のテンプレートで Codex への依頼を統一
+- `.claude/rules/codex-delegation.md` で「Codex優先で渡す」方針と例外条件を明確化
+- `.codex/config.toml` は `approval_policy = "never"` を採用し、非対話フローでも止まりにくくする
 
 ## Workflow
 

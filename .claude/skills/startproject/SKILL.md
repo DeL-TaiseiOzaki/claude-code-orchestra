@@ -190,7 +190,7 @@ Spawn two teammates:
    4. Identify risks and mitigation strategies
 
    How to consult Codex:
-   codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "{question}" 2>/dev/null
+   codex exec --model gpt-5.4 --sandbox read-only --full-auto "{question}" 2>/dev/null
 
    Update .claude/docs/DESIGN.md with architecture decisions.
 
