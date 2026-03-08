@@ -18,45 +18,30 @@
 - Advanced refactoring
 - Multi-step implementation tasks
 
-## When to Consult Codex
+## Delegation Decision
 
-| Situation | Examples |
-|------|------|
-| **Planning needed** | "How to design?" "Create a plan" "Architecture" |
-| **Complex implementation** | Complex logic, optimization, performance improvements |
-| **Debugging** | "Why doesn't this work?" "What caused the error?" (after initial failure) |
-| **Comparison and trade-off analysis** | "Which is better, A or B?" "What are the trade-offs?" |
-| **Code review** | "Review this" "Quality check" |
+Default to Codex-first delegation for development tasks.
 
-### Trigger Phrases (User Input)
+Consult Codex when **any** of these apply (recommended default):
 
-| Phrase | English Equivalent |
-|----------|---------|
-| "How should I design/implement?" | "How should I design/implement?" |
-| "Create a plan" "Architecture" | "Create a plan" "Architecture" |
-| "Why doesn't this work?" "What caused it?" "There's an error" | "Why doesn't this work?" "Error" |
-| "Which is better?" "Compare" "Trade-offs?" | "Which is better?" "Compare" |
-| "Think about this" "Analyze" "Think deeper" | "Think" "Analyze" "Think deeper" |
+- Design/architecture decisions are involved.
+- Change spans 2+ files with behavior impact.
+- Root cause is unclear.
+- User requests comparison/trade-off analysis.
+- You need a step-by-step implementation plan.
+- You are unsure and want a safe implementation direction.
 
-## When NOT to Consult
+Skip Codex only for obvious one-file tiny edits.
 
-- Simple file edits (typo fixes, small changes)
-- Tasks that simply follow explicit user instructions
-- Standard operations (git commit, running tests)
-- Tasks with a single clear solution
-- File search and reading
-- **Codebase analysis** -- Claude handles directly (1M context)
-- **External information retrieval** -- Subagent (WebSearch/WebFetch) handles
-- **Multimodal processing** -- Gemini handles
+## Prompt Contract (Always Include)
 
-## Context Management
+1. Objective (single sentence)
+2. Constraints (style, limits, forbidden approaches)
+3. Relevant files (explicit paths)
+4. Acceptance checks (commands)
+5. Output format (structured markdown sections)
 
-| Situation | Recommended Method |
-|------|----------|
-| Short question and answer (~50 lines) | Direct call OK |
-| Detailed design or planning | Via subagent |
-| Debug analysis | Via subagent |
-| Complex code implementation | Via subagent (workspace-write) |
+Detailed templates: `@.claude/docs/CODEX_HANDOFF_PLAYBOOK.md`
 
 ## How to Consult
 
@@ -69,31 +54,47 @@ Task tool parameters:
 - prompt: |
     Consult Codex about: {topic}
 
-    codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
-    {question for Codex}
+    codex exec --model gpt-5.4 --sandbox read-only --full-auto "
+    Objective: {single-sentence objective}
+    Constraints:
+    - {constraint 1}
+    Relevant files:
+    - {file paths}
+    Acceptance checks:
+    - {commands}
+    Output format:
+    ## Analysis
+    ## Recommendation
+    ## Implementation Plan
+    ## Risks
+    ## Next Steps
     " 2>/dev/null
 
     Return CONCISE summary (key recommendation + rationale).
 ```
 
-### Direct Call (Short questions, ~50 line responses)
+### Direct Call (Short questions only)
 
 ```bash
-codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
+codex exec --model gpt-5.4 --sandbox read-only --full-auto "Objective: {brief question}" 2>/dev/null
 ```
 
 ### Having Codex Implement Code
 
 ```bash
-codex exec --model gpt-5.3-codex --sandbox workspace-write --full-auto "
-Implement: {detailed implementation task}
-
-Requirements:
-- {requirement 1}
-- {requirement 2}
-
-Files to create/modify:
+codex exec --model gpt-5.4 --sandbox workspace-write --full-auto "
+Objective: Implement {detailed implementation task}
+Constraints:
+- Follow existing project conventions
+- Keep diffs minimal
+Relevant files:
 - {file paths}
+Acceptance checks:
+- {commands}
+Output format:
+## Changes Made
+## Validation
+## Remaining Risks
 " 2>/dev/null
 ```
 

@@ -146,7 +146,7 @@ def main():
                     "additionalContext": (
                         f"[Agent Routing] Detected '{trigger}' — this task may benefit from "
                         "Codex CLI for planning, design, or complex implementation. Consider: "
-                        "`codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
+                        "`codex exec --model gpt-5.4 --sandbox read-only --full-auto "
                         '"{task description}"` for design decisions, planning, debugging, '
                         "or complex analysis."
                     )

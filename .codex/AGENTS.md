@@ -54,10 +54,10 @@ You can read project context from `.claude/`:
 
 ```bash
 # Analysis and planning (read-only)
-codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "{task}"
+codex exec --model gpt-5.4 --sandbox read-only --full-auto "{task}"
 
 # Implementation (can write files)
-codex exec --model gpt-5.3-codex --sandbox workspace-write --full-auto "{task}"
+codex exec --model gpt-5.4 --sandbox workspace-write --full-auto "{task}"
 ```
 
 ## Output Format
