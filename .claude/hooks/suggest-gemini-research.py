@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-PreToolUse hook: Suggest using Gemini for deep research tasks.
+PreToolUse hook: Suggest using Opus subagent for deep research tasks.
 
 Analyzes web search/fetch operations and suggests delegating
-comprehensive research to Gemini CLI (1M context + Google Search grounding)
-via the gemini-explore subagent to preserve main context.
+comprehensive research to a general-purpose Opus subagent (1M context)
+to preserve main context.
 """
 
 import json
 import sys
 
-# Keywords that suggest deep research would benefit from Gemini
+# Keywords that suggest deep research would benefit from Opus subagent
 RESEARCH_INDICATORS = [
     "documentation",
     "best practice",
@@ -29,7 +29,7 @@ RESEARCH_INDICATORS = [
     "specification",
 ]
 
-# Simple lookups that don't need Gemini
+# Simple lookups that don't need delegation
 SIMPLE_LOOKUP_PATTERNS = [
     "error message",
     "stack trace",
@@ -39,8 +39,8 @@ SIMPLE_LOOKUP_PATTERNS = [
 ]
 
 
-def should_suggest_gemini(query: str, url: str = "") -> tuple[bool, str]:
-    """Determine if Gemini should be suggested for this research."""
+def should_suggest_opus_research(query: str, url: str = "") -> tuple[bool, str]:
+    """Determine if Opus subagent should be suggested for this research."""
     query_lower = query.lower()
     url_lower = url.lower()
     combined = f"{query_lower} {url_lower}"
@@ -77,18 +77,17 @@ def main():
             url = tool_input.get("url", "")
             query = tool_input.get("prompt", "")
 
-        should_suggest, reason = should_suggest_gemini(query, url)
+        should_suggest, reason = should_suggest_opus_research(query, url)
 
         if should_suggest:
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
                     "additionalContext": (
-                        f"[Gemini Research Suggestion] {reason}. "
-                        "For comprehensive research, consider using Gemini CLI "
-                        "(1M context + Google Search grounding) via the gemini-explore "
-                        "subagent (Task tool with subagent_type='gemini-explore'). "
-                        "Gemini can gather and organize findings more efficiently. "
+                        f"[Research Suggestion] {reason}. "
+                        "For comprehensive research, consider using a general-purpose subagent (Opus) "
+                        "with WebSearch/WebFetch to gather and organize findings efficiently. "
+                        "Use Agent tool with subagent_type='general-purpose'. "
                         "Save results to .claude/docs/research/."
                     )
                 }

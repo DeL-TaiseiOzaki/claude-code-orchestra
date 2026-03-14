@@ -1,29 +1,11 @@
 # Gemini Delegation Rule
 
-**Gemini CLI leverages its 1M context for large-scale analysis, research, and multimodal reading.**
+**Gemini CLI is specialized for multimodal file processing (PDF, video, audio, image).**
 
-## Three Roles of Gemini
+> Opus/Sonnet now support 1M context. Research and codebase analysis are handled by Opus subagents (general-purpose).
+> Gemini is used exclusively for multimodal content extraction that Claude cannot process directly.
 
-### 1. Codebase & Repository Understanding (Codebase Analysis)
-
-- Analyze overall project structure
-- Identify key modules and their responsibilities
-- Understand existing patterns and conventions
-- Analyze dependencies
-
-> Claude Code's context is **200K tokens** (effectively 140-150K).
-> Delegate full codebase analysis to Gemini's **1M context**.
-
-### 2. External Research & Survey (Research & Survey)
-
-- Investigate latest documentation and API specifications
-- Compare libraries and identify best practices
-- Conduct technical surveys and trend research
-- Investigate known issues and constraints
-
-> Gemini CLI has built-in Google Search grounding, making it ideal for retrieving external information.
-
-### 3. Multimodal File Reading (Multimodal Reading)
+## Role: Multimodal File Processing
 
 - Extract content from PDF, video, audio, and image files
 - Detailed analysis of charts and diagrams
@@ -34,27 +16,20 @@
 
 | Situation | Examples |
 |------|------|
-| **Codebase analysis** | "Understand the whole project" "Analyze the structure" |
-| **External research** | "Look this up" "Research this" "Latest documentation" |
-| **Library investigation** | "Compare libraries" "What are the best practices?" |
-| **Multimodal** | When PDF/video/audio/image files are encountered (auto-delegation) |
-
-### Trigger Phrases (User Input)
-
-| Phrase | English Equivalent |
-|----------|---------|
-| "Understand the codebase" "Look at overall structure" | "Understand the codebase" "Analyze structure" |
-| "Look this up" "Research this" "Survey this" | "Research" "Investigate" "Survey" |
-| "Compare libraries" "Best practices" | "Compare libraries" "Best practices" |
-| "Read this PDF/video/image" | "Read this PDF/video/image" |
+| **PDF content extraction** | "Extract API specs from this PDF" |
+| **Video analysis** | "Summarize this tutorial video" |
+| **Audio transcription** | "Transcribe this meeting recording" |
+| **Diagram/chart analysis** | "Analyze this architecture diagram" |
 
 ## When NOT to Use Gemini
 
-- Simple file reading (Claude's Read tool is sufficient)
-- Simple screenshot verification (Claude's Read tool can handle directly)
-- Planning, design, architecture -- **Codex** handles these
-- Debugging, error analysis -- **Codex** handles these
-- Code implementation -- **Claude / subagent** handles these
+- **Research and investigation** → Opus subagent (general-purpose) with WebSearch/WebFetch
+- **Codebase analysis** → Opus subagent (general-purpose) with Read/Grep/Glob
+- **Planning, design, architecture** → Codex CLI
+- **Debugging, error analysis** → Codex CLI
+- **Code implementation** → Claude / subagent
+- **Simple file reading** → Claude's Read tool
+- **Simple screenshot inspection** → Claude's Read tool
 
 ## Supported File Extensions (Multimodal)
 
@@ -66,29 +41,6 @@
 | Image (detailed analysis) | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` |
 
 ## How to Use
-
-### Codebase Analysis
-
-```bash
-# Analyze project structure (Gemini reads the workspace)
-gemini -p "Analyze this codebase: directory structure, key modules, patterns, dependencies, and architecture" 2>/dev/null
-
-# Detailed analysis of a specific file
-gemini -p "Analyze this code: purpose, patterns, dependencies" < /path/to/file 2>/dev/null
-```
-
-### External Research
-
-```bash
-# Library investigation
-gemini -p "Research: {library name}. Find latest version, key features, constraints, best practices, and common pitfalls" 2>/dev/null
-
-# Best practices survey
-gemini -p "Research best practices for {topic}. Include latest recommendations, common patterns, and anti-patterns" 2>/dev/null
-
-# Technology comparison
-gemini -p "Compare {A} vs {B} for {use case}. Include pros, cons, performance, and community support" 2>/dev/null
-```
 
 ### Multimodal File Reading
 
@@ -111,8 +63,7 @@ gemini -p "Analyze this diagram: components, relationships, data flow" < /path/t
 | Situation | Recommended Method |
 |------|----------|
 | Short extraction or answer (~30 lines) | Direct call OK |
-| Detailed analysis report | Via subagent |
-| Research findings | Via subagent -- save to file |
+| Detailed analysis report | Via gemini-explore subagent |
 
 ### Subagent Pattern (For large output)
 
@@ -123,16 +74,15 @@ Task tool parameters:
 - prompt: |
     {task description}
 
-    gemini -p "{prompt}" 2>/dev/null
+    gemini -p "{prompt}" < /path/to/file 2>/dev/null
 
-    Save results to .claude/docs/research/{topic}.md
-    Return CONCISE summary (key findings + recommendations).
+    Return CONCISE summary (key findings + extracted content).
 ```
 
-### Direct Call (Short questions and answers)
+### Direct Call (Short extractions)
 
 ```bash
-gemini -p "Brief question about {topic}" 2>/dev/null
+gemini -p "Extract: {specific content}" < /path/to/file 2>/dev/null
 ```
 
 ## Auto-Trigger (Activates automatically without user instruction)

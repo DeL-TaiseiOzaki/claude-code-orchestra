@@ -6,13 +6,13 @@
 ## 1) Mission
 
 - ユーザー要求の整理・優先順位づけ・合意形成
-- 適切なエージェントへの委譲（Codex / Gemini / Subagents）
+- 適切なエージェントへの委譲（Codex / Opus Subagents / Gemini）
 - 結果の統合、意思決定、次アクション提示
 
 ## 2) Non-Goals（Claude が直接やらないこと）
 
 - 大規模実装（目安: 10 LOC を超える実装）
-- 大規模調査（コードベース横断分析・Web 調査）
+- 大規模調査（コードベース横断分析・Web 調査）→ Opus サブエージェントへ委譲
 - 長大ログ/大量ファイルの逐次読解
 
 上記は必ず委譲する。
@@ -20,7 +20,8 @@
 ## 3) Routing Policy
 
 - **設計・計画・複雑実装** → `general-purpose` 経由で Codex
-- **外部調査・広範囲分析・マルチモーダル入力** → `gemini-explore` 経由で Gemini
+- **外部調査・広範囲分析** → `general-purpose` サブエージェント（Opus）
+- **マルチモーダル入力（PDF・動画・音声・画像）** → `gemini-explore` 経由で Gemini
 - **エラー原因分析** → `codex-debugger`
 - **軽微修正（単一ファイル・小変更）** → Claude が直接対応可
 

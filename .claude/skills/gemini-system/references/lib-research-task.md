@@ -1,17 +1,21 @@
-# Library Research Task for Gemini
+# Library Research Task
 
-When delegating library research to Gemini, use this prompt template.
+When delegating library research, use a general-purpose subagent (Opus) with WebSearch/WebFetch.
+
+> Gemini CLI is specialized for multimodal processing only. For research tasks, use general-purpose subagent.
 
 ## Prompt Template
+
+When assigning library research to a general-purpose subagent, include these research items:
 
 ```
 Research the library "{library_name}" comprehensively.
 
-Use Google Search to find:
+Use WebSearch to find:
 - Official documentation
 - GitHub README, Issues, Discussions
 - PyPI / npm pages
-- Latest blog posts, tutorials (2024-2025)
+- Latest blog posts, tutorials (2025-2026)
 
 ---
 
@@ -55,39 +59,26 @@ Output documentation content in English.
 
 ## Example Invocation
 
-```bash
-# Basic library research
-gemini -p "Research the library 'httpx' comprehensively.
+```
+# Via general-purpose subagent (recommended)
+Agent tool:
+  subagent_type: "general-purpose"
+  prompt: |
+    Research the library "httpx" comprehensively.
+    Use WebSearch and WebFetch to gather information from official docs,
+    GitHub, PyPI, and recent blog posts.
 
-Use Google Search to find:
-- Official documentation
-- GitHub README, Issues, Discussions
-- PyPI pages
-- Latest blog posts, tutorials (2024-2025)
-
-[Template structure as above...]
-" 2>/dev/null
-
-# Research with specific focus
-gemini -p "Research 'pydantic' v2 with focus on:
-- Migration from v1 to v2
-- Performance improvements
-- New validation patterns
-- Breaking changes
-
-[Template structure as above...]
-" 2>/dev/null
+    Save results to .claude/docs/libraries/httpx.md
+    Return concise summary (key features, constraints, recommendations).
 ```
 
 ## Workflow
 
-1. **Run Gemini research** (background)
-   ```bash
-   gemini -p "Research: {library}" 2>/dev/null
-   ```
+1. **Launch general-purpose subagent** (background)
+   - Subagent uses WebSearch/WebFetch for research
 
 2. **Save output to docs**
-   - Claude saves Gemini's output to `.claude/docs/libraries/{library}.md`
+   - Subagent saves findings to `.claude/docs/libraries/{library}.md`
 
 3. **Update existing docs**
    - If documentation already exists, compare and update
@@ -109,7 +100,7 @@ All library documentation should be saved to:
 
 ## Integration with Codex
 
-After Gemini researches a library:
+After research is complete:
 1. Documentation is saved to `.claude/docs/libraries/`
 2. Codex can reference this when reviewing code or refactoring
 3. Ensures library constraints are respected across all agents
