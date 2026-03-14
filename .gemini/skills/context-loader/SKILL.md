@@ -11,7 +11,7 @@ Load shared project context from `.claude/` directory to ensure Gemini CLI opera
 
 ## When to Activate
 
-**ALWAYS** - This skill should run at the beginning of research or analysis tasks.
+**ALWAYS** - This skill should run at the beginning of multimodal processing tasks.
 
 ## Workflow
 

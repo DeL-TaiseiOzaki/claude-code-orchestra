@@ -5,7 +5,7 @@
 
 ## Overview
 
-Claude Code Orchestra is a multi-agent collaboration framework. Claude Code (200K context) is the orchestrator, with Codex CLI for planning/design/complex code, Gemini CLI (1M context) for codebase analysis, research, and multimodal reading, and subagents (Opus) for code implementation and Codex delegation.
+Claude Code Orchestra is a multi-agent collaboration framework. Claude Code is the orchestrator, with Codex CLI for planning/design/complex code, Opus subagents (1M context) for research/analysis/implementation, and Gemini CLI for multimodal file processing (PDF/video/audio/image).
 
 ## Architecture
 
@@ -24,9 +24,9 @@ Claude Code Orchestra is a multi-agent collaboration framework. Claude Code (200
 │  └──────────────────────┘  └──────────────────────┘             │
 │                                                                   │
 │  External CLIs:                                                   │
-│  ├── Codex CLI (gpt-5.4) — planning, design, complex code  │
-│  └── Gemini CLI (1M context) — codebase analysis, research,      │
-│       multimodal reading                                          │
+│  ├── Codex CLI (gpt-5.4) — planning, design, complex code        │
+│  └── Gemini CLI — multimodal file processing (PDF/video/audio/    │
+│       image) only                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -35,10 +35,10 @@ Claude Code Orchestra is a multi-agent collaboration framework. Claude Code (200
 | Agent | Role | Responsibilities |
 |-------|------|------------------|
 | Claude Code (Main) | Overall orchestration | User interaction, task management, simple code edits |
-| general-purpose (Opus) | Implementation & Codex delegation | Code implementation, Codex delegation, file operations |
-| gemini-explore (Opus) | Large-scale analysis & research | Codebase understanding, external research, multimodal reading |
+| general-purpose (Opus) | Research, analysis & implementation | Research, codebase analysis, code implementation, Codex delegation |
+| gemini-explore (Opus) | Multimodal file processing | PDF, video, audio, image content extraction |
 | Codex CLI | Planning & complex implementation | Architecture design, implementation planning, complex code, debugging |
-| Gemini CLI (1M context) | Analysis, research & reading | Codebase analysis, external research, multimodal reading |
+| Gemini CLI | Multimodal processing | PDF/video/audio/image content extraction (called via gemini-explore) |
 
 ## Implementation Plan
 
@@ -67,6 +67,7 @@ Claude Code Orchestra is a multi-agent collaboration framework. Claude Code (200
 | Claude Code context corrected to 200K | 1M is Beta/pay-as-you-go only; most users have 200K; design must work for common case | Assume 1M (only works for Tier 4+ users) | 2026-02-19 |
 | Subagent delegation threshold lowered to ~20 lines | 200K context requires more aggressive context management | 50 lines (was based on 1M assumption) | 2026-02-19 |
 | Codex role unchanged (planning + complex code) | Codex excels at deep reasoning for both design and implementation | Keep Codex advisory-only | 2026-02-17 |
+| Gemini narrowed to multimodal only; research moved to Opus subagents | Opus/Sonnet now support 1M context; Gemini's context advantage is obsolete for text tasks | Keep Gemini for research (redundant with Opus 1M) | 2026-03-14 |
 | /startproject split into 3 skills | Separation of Plan/Implement/Review gives user control gates | Single monolithic skill | 2026-02-08 |
 | Agent Teams for Research ↔ Design | Bidirectional communication enables iterative refinement | Sequential subagents (old approach) | 2026-02-08 |
 | Agent Teams for parallel implementation | Module-based ownership avoids file conflicts | Single-agent sequential implementation | 2026-02-08 |
@@ -87,6 +88,7 @@ Claude Code Orchestra is a multi-agent collaboration framework. Claude Code (200
 
 | Date | Changes |
 |------|---------|
+| 2026-03-14 | Gemini narrowed to multimodal-only; research/analysis delegated to Opus subagents (1M context) |
 | 2026-02-19 | Context-aware redesign: Claude=200K, Gemini=1M (codebase+research+multimodal), all subagents/teams→Opus |
 | 2026-02-17 | Role clarification: Gemini → multimodal only, Codex → planning + complex code, Subagents → external research |
 | 2026-02-08 | Major redesign for Opus 4.6: 1M context, Agent Teams, skill pipeline |
