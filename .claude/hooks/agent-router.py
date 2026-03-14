@@ -4,8 +4,8 @@ UserPromptSubmit hook: Route to appropriate agent based on user intent.
 
 Routing rules:
 - Multimodal files (PDF/video/audio/image) → Gemini CLI (HIGHEST PRIORITY)
-- Codebase understanding / large analysis → Gemini CLI (1M context)
-- External research / survey → Gemini CLI (Google Search grounding)
+- Codebase understanding / large analysis → Opus subagent (1M context)
+- External research / survey → Opus subagent
 - Planning, design, complex code → Codex CLI
 """
 
@@ -59,8 +59,8 @@ CODEX_TRIGGERS = {
     ],
 }
 
-# Triggers for Gemini research (codebase analysis + external research)
-GEMINI_RESEARCH_TRIGGERS = {
+# Triggers for Opus research (codebase analysis + external research)
+OPUS_RESEARCH_TRIGGERS = {
     "ja": [
         "調べて", "リサーチ", "調査", "サーベイ",
         "最新", "ドキュメント",
@@ -104,11 +104,11 @@ def detect_agent(prompt: str) -> tuple[str | None, str, bool]:
             if trigger in prompt_lower:
                 return "codex", trigger, False
 
-    # Gemini research triggers (codebase analysis + external research)
-    for triggers in GEMINI_RESEARCH_TRIGGERS.values():
+    # Opus research triggers (codebase analysis + external research)
+    for triggers in OPUS_RESEARCH_TRIGGERS.values():
         for trigger in triggers:
             if trigger in prompt_lower:
-                return "gemini-research", trigger, False
+                return "opus-research", trigger, False
 
     return None, "", False
 
@@ -154,16 +154,16 @@ def main():
             }
             print(json.dumps(output))
 
-        elif agent == "gemini-research":
+        elif agent == "opus-research":
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "UserPromptSubmit",
                     "additionalContext": (
-                        f"[Gemini Research] Detected '{trigger}' — use Gemini CLI (1M context) "
-                        "for this task. Gemini handles codebase analysis and external research "
-                        "with its native 1M context and Google Search grounding. "
-                        "Use via gemini-explore subagent or direct call: "
-                        '`gemini -p "{research/analysis prompt}" 2>/dev/null` '
+                        f"[Opus Research] Detected '{trigger}' — use a general-purpose subagent (Opus) "
+                        "for this task. Opus subagents handle research, codebase analysis, and investigation "
+                        "with 1M context and WebSearch/WebFetch. "
+                        "Use via general-purpose subagent: "
+                        "Agent tool with subagent_type='general-purpose'. "
                         "Save results to .claude/docs/research/."
                     )
                 }

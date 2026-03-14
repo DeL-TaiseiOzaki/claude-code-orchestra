@@ -12,7 +12,7 @@ Claude Code からの委譲先として、再利用可能な出力を返すこ�
 
 ## 2) Explicit Non-Responsibilities
 
-- 外部 Web リサーチの一次実行（Gemini が担当）
+- 外部 Web リサーチの一次実行（Opus サブエージェントが担当）
 - 画像/PDF/動画/音声の解析（Gemini が担当）
 - ユーザーとの最終コミュニケーション（Claude が担当）
 

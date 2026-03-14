@@ -315,7 +315,7 @@ def generate_checkpoint(
         f"{len(file_changes['deleted'])} deleted)"
     )
     lines.append(f"- **Codex consultations**: {codex_count}")
-    lines.append(f"- **Gemini researches**: {gemini_count}")
+    lines.append(f"- **Gemini multimodal**: {gemini_count}")
     if teams_data:
         total_members = sum(len(t.get("members", [])) for t in teams_data)
         lines.append(
@@ -495,7 +495,7 @@ def generate_session_summary(
     if codex_count:
         summary_lines.append(f"- Codex: {codex_count} consultations")
     if gemini_count:
-        summary_lines.append(f"- Gemini: {gemini_count} researches")
+        summary_lines.append(f"- Gemini: {gemini_count} multimodal tasks")
 
     for team in teams_data:
         tasks = team.get("tasks", [])

@@ -10,12 +10,19 @@ Research $ARGUMENTS and create documentation in `.claude/docs/libraries/`.
 
 ## Research Items
 
-### Primary Tool: Gemini CLI
+### Primary Tool: General-Purpose Subagent (Opus)
 
-Use Gemini CLI (with Google Search grounding) for comprehensive library research:
+Use a general-purpose subagent (Opus) with WebSearch/WebFetch for comprehensive library research:
 
-```bash
-gemini -p "Research: {library}. Find latest version, official documentation, key features, constraints, best practices, known issues, and usage patterns" 2>/dev/null
+```
+Agent tool:
+  subagent_type: "general-purpose"
+  prompt: |
+    Research: {library}. Find latest version, official documentation,
+    key features, constraints, best practices, known issues, and usage patterns.
+    Use WebSearch and WebFetch to gather information.
+    Save results to .claude/docs/libraries/{library}.md
+    Return concise summary.
 ```
 
 ### Fallback: WebSearch/WebFetch
