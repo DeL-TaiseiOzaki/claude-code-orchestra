@@ -86,6 +86,7 @@ gemini login
 ├── README.md
 ├── pyproject.toml               # Python プロジェクト設定
 ├── uv.lock                      # 依存関係ロックファイル
+├── VERSION                     # テンプレートバージョン
 │
 ├── .claude/
 │   ├── agents/
@@ -93,7 +94,7 @@ gemini login
 │   │   ├── codex-debugger.md    # エラー分析エージェント (Opus)
 │   │   └── gemini-explore.md    # マルチモーダル処理エージェント (Opus)
 │   │
-│   ├── skills/                  # 再利用可能なワークフロー (14個)
+│   ├── skills/                  # 再利用可能なワークフロー (15個)
 │   │   ├── startproject/        # マルチエージェント協調でプロジェクト開始
 │   │   ├── team-implement/      # Agent Teams で並列実装
 │   │   ├── team-review/         # Agent Teams で並列レビュー
@@ -107,7 +108,8 @@ gemini login
 │   │   ├── research-lib/        # ライブラリ調査
 │   │   ├── update-lib-docs/     # ライブラリドキュメント更新
 │   │   ├── checkpointing/       # セッション永続化 + パターン発見
-│   │   └── init/                # プロジェクト初期化
+│   │   ├── init/                # プロジェクト初期化
+│   │   └── troubleshoot/       # エラー診断・修正計画
 │   │
 │   ├── hooks/                   # 自動化フック (9個)
 │   │   ├── agent-router.py      # エージェントルーティング
@@ -132,9 +134,12 @@ gemini login
 │   ├── AGENTS.md
 │   └── config.toml
 │
-└── .gemini/                     # Gemini CLI設定
-    ├── GEMINI.md
-    └── settings.json
+├── .gemini/                     # Gemini CLI設定
+│   ├── GEMINI.md
+│   └── settings.json
+│
+└── scripts/
+    └── update.sh               # テンプレート更新スクリプト
 ```
 
 ### Codex連携を安定化するための運用
@@ -238,6 +243,19 @@ Red-Green-Refactorサイクルで実装します。
 
 コードを簡潔化・可読性向上させます。
 
+#### `/troubleshoot` — エラー診断・修正計画
+
+Codexを中心としたマルチエージェント協調でエラーを診断し、修正計画を立案します。
+
+```
+/troubleshoot TypeError: cannot unpack non-iterable NoneType object
+```
+
+**ワークフロー:**
+1. **Opus サブエージェント + Codex** → エラー再現・コンテキスト収集
+2. **Agent Teams** → Root Cause Analyst（Codex駆動）↔ Impact Investigator（Opus + Codex）で並列診断
+3. **Claude + Codex** → 修正計画統合・ユーザー承認
+
 ### Agent Delegation
 
 #### `/codex-system` — Codex CLI連携
@@ -295,6 +313,27 @@ Gemini CLI を活用したマルチモーダルファイル処理（PDF/動画/�
 プロジェクト構造を分析し、Tech Stack・コマンド・設定を自動検出して AGENTS.md を更新します。
 
 ## Development
+
+### Template Update
+
+テンプレートの更新をローカルプロジェクトに安全に反映できます。
+
+```bash
+# 最新版に更新
+./scripts/update.sh
+
+# 特定バージョンに更新
+./scripts/update.sh v0.2.0
+
+# 確認プロンプトをスキップ
+./scripts/update.sh --yes
+```
+
+**仕組み:**
+- `CLAUDE.md` の `@orchestra:local-boundary` セパレータより上（テンプレート部分）のみ更新
+- skills/hooks/rules/agents は完全同期
+- `.claude/docs/research/` 等のローカルデータは保護
+- `.claude/settings.json` は差分表示のみ（手動マージ）
 
 ### Tech Stack
 
