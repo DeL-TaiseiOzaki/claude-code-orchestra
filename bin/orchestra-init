@@ -1,18 +1,45 @@
 #!/bin/bash
-# Claude Code Orchestra 初期化スクリプト
-# 現在のプロジェクトにorchestra環境を適用します
+# Claude Code Orchestra - Setup & Update
+# Fetches template from remote and applies to current project.
+#
+# Usage:
+#   orchestra-init                          # Setup/update with defaults
+#   orchestra-init --ref v1.0               # Pin to specific version
+#   ORCHESTRA_REPO=<url> orchestra-init     # Use custom repository
 
 set -e
 
-TEMPLATE_DIR="$HOME/.claude-orchestra-template"
+REPO_URL="${ORCHESTRA_REPO:-https://github.com/hira22/claude-code-orchestra}"
+TARGET_REF=""
 
-# テンプレートの存在確認
-if [ ! -d "$TEMPLATE_DIR" ]; then
-    echo "エラー: テンプレートディレクトリが見つかりません: $TEMPLATE_DIR"
-    exit 1
-fi
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --repo)
+            REPO_URL="$2"
+            shift 2
+            ;;
+        --ref)
+            TARGET_REF="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: orchestra-init [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --repo URL   Repository URL (default: \$ORCHESTRA_REPO or hira22/claude-code-orchestra)"
+            echo "  --ref REF    Git ref to checkout (tag, branch, commit)"
+            echo "  -h, --help   Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
-# jqの存在確認（settings.jsonマージに必要）
+# jq availability check
 if ! command -v jq &>/dev/null; then
     echo "⚠️  jq がインストールされていません。"
     echo "   既存の .claude/settings.json がある場合、マージではなくテンプレートで上書きされます。"
@@ -23,24 +50,34 @@ else
 fi
 
 echo "🎼 Claude Code Orchestra 環境を適用します..."
+echo "→ リポジトリ: $REPO_URL"
+[ -n "$TARGET_REF" ] && echo "→ バージョン: $TARGET_REF"
 
-# settings.jsonマージ関数
+# Fetch template from remote
+TMP_DIR=$(mktemp -d)
+trap "rm -rf $TMP_DIR" EXIT
+
+echo "→ テンプレートをダウンロード中..."
+clone_args=(--depth 1)
+[ -n "$TARGET_REF" ] && clone_args+=(--branch "$TARGET_REF")
+git clone "${clone_args[@]}" "$REPO_URL" "$TMP_DIR" 2>/dev/null || {
+    echo "エラー: リポジトリのクローンに失敗しました: $REPO_URL"
+    exit 1
+}
+
+# settings.json merge function
 merge_settings_json() {
     local existing="$1"
     local template="$2"
     local output="$3"
 
-    # jqで既存設定を保持しつつorchestraの設定を追加
-    # hooksは全イベントタイプを動的にマージ、トップレベルキーも保持
     jq -s '
         .[0] as $existing |
         .[1] as $template |
 
-        # hooks配列をマージする関数（commandで重複判定）
         def merge_hooks($a; $b):
             ($a // []) + ($b // []) | unique_by((.matcher // "") + (.hooks[0].command // ""));
 
-        # トップレベルキー: テンプレートをベースに既存の値で上書き（hooks/permissions/envは専用処理）
         (($template // {}) | del(.hooks, .permissions, .env))
         * (($existing // {}) | del(.hooks, .permissions, .env))
         + {
@@ -61,93 +98,113 @@ merge_settings_json() {
     ' "$existing" "$template" > "$output"
 }
 
-# .claudeディレクトリのコピー
+# Detect mode: initial setup vs update
 if [ -d ".claude" ]; then
-    echo "⚠️  .claude/ が既に存在します。マージしますか？ (y/n)"
+    # ─── Update mode ───
+    echo ""
+    echo "⚠️  既存の Orchestra 環境が検出されました。テンプレートで更新しますか？ (y/n)"
     read -r response
-    if [ "$response" = "y" ]; then
-        # settings.json以外を既存保持でコピー
-        find "$TEMPLATE_DIR/.claude" -mindepth 1 -maxdepth 1 -not -name "settings.json" -exec cp -rn {} .claude/ \; 2>/dev/null || true
+    if [ "$response" != "y" ]; then
+        echo "→ キャンセルしました"
+        exit 0
+    fi
 
-        # settings.jsonは別途マージ
-        if [ -f ".claude/settings.json" ]; then
-            if [ "$JQ_AVAILABLE" = true ]; then
-                echo "  → settings.json をマージ中..."
-                merge_settings_json ".claude/settings.json" "$TEMPLATE_DIR/.claude/settings.json" ".claude/settings.json.tmp"
-                mv ".claude/settings.json.tmp" ".claude/settings.json"
-                echo "  ✓ settings.json をマージしました（hooks追加、permissions統合）"
-            else
-                echo "  ⚠️  jq が無いためマージできません。テンプレートで上書きします。"
-                cp "$TEMPLATE_DIR/.claude/settings.json" .claude/
-                echo "  ✓ settings.json を上書きしました"
-            fi
-        else
-            cp "$TEMPLATE_DIR/.claude/settings.json" .claude/
-            echo "  ✓ settings.json を作成しました"
+    # Update template-managed directories under .claude/
+    for dir in skills hooks rules agents docs; do
+        if [ -d "$TMP_DIR/.claude/$dir" ]; then
+            cp -r "$TMP_DIR/.claude/$dir" .claude/
+            echo "✓ .claude/$dir/ を更新しました"
         fi
+    done
 
-        echo "✓ .claude/ をマージしました"
-    else
-        echo "→ .claude/ をスキップしました"
+    # Merge settings.json
+    if [ -f ".claude/settings.json" ] && [ -f "$TMP_DIR/.claude/settings.json" ]; then
+        if [ "$JQ_AVAILABLE" = true ]; then
+            echo "→ settings.json をマージ中..."
+            merge_settings_json ".claude/settings.json" "$TMP_DIR/.claude/settings.json" ".claude/settings.json.tmp"
+            mv ".claude/settings.json.tmp" ".claude/settings.json"
+            echo "✓ settings.json をマージしました"
+        else
+            echo "⚠️  jq が無いためマージできません。テンプレートで上書きします。"
+            cp "$TMP_DIR/.claude/settings.json" .claude/
+            echo "✓ settings.json を上書きしました"
+        fi
+    elif [ -f "$TMP_DIR/.claude/settings.json" ] && [ ! -f ".claude/settings.json" ]; then
+        cp "$TMP_DIR/.claude/settings.json" .claude/
+        echo "✓ settings.json を作成しました"
     fi
+
+    # Skip CLAUDE.md (user-managed)
+    echo "→ CLAUDE.md はスキップしました（ユーザー管理）"
+
+    # .codex/
+    if [ -d ".codex" ]; then
+        echo "⚠️  .codex/ を更新しますか？ (y/n)"
+        read -r response
+        if [ "$response" = "y" ]; then
+            cp -r "$TMP_DIR/.codex" .
+            echo "✓ .codex/ を更新しました"
+        else
+            echo "→ .codex/ をスキップしました"
+        fi
+    else
+        cp -r "$TMP_DIR/.codex" .
+        echo "✓ .codex/ を作成しました"
+    fi
+
+    # .gemini/
+    if [ -d ".gemini" ]; then
+        echo "⚠️  .gemini/ を更新しますか？ (y/n)"
+        read -r response
+        if [ "$response" = "y" ]; then
+            cp -r "$TMP_DIR/.gemini" .
+            echo "✓ .gemini/ を更新しました"
+        else
+            echo "→ .gemini/ をスキップしました"
+        fi
+    else
+        cp -r "$TMP_DIR/.gemini" .
+        echo "✓ .gemini/ を作成しました"
+    fi
+
 else
-    cp -r "$TEMPLATE_DIR/.claude" .
+    # ─── Initial setup mode ───
+    cp -r "$TMP_DIR/.claude" .
     echo "✓ .claude/ を作成しました"
-fi
 
-# .codexディレクトリのコピー
-if [ -d ".codex" ]; then
-    echo "⚠️  .codex/ が既に存在します。上書きしますか？ (y/n)"
-    read -r response
-    if [ "$response" = "y" ]; then
-        cp -r "$TEMPLATE_DIR/.codex" .
-        echo "✓ .codex/ を上書きしました"
-    else
-        echo "→ .codex/ をスキップしました"
-    fi
-else
-    cp -r "$TEMPLATE_DIR/.codex" .
+    cp -r "$TMP_DIR/.codex" .
     echo "✓ .codex/ を作成しました"
-fi
 
-# .geminiディレクトリのコピー
-if [ -d ".gemini" ]; then
-    echo "⚠️  .gemini/ が既に存在します。上書きしますか？ (y/n)"
-    read -r response
-    if [ "$response" = "y" ]; then
-        cp -r "$TEMPLATE_DIR/.gemini" .
-        echo "✓ .gemini/ を上書きしました"
-    else
-        echo "→ .gemini/ をスキップしました"
-    fi
-else
-    cp -r "$TEMPLATE_DIR/.gemini" .
+    cp -r "$TMP_DIR/.gemini" .
     echo "✓ .gemini/ を作成しました"
+
+    if [ -f "$TMP_DIR/CLAUDE.md" ] && [ ! -f "CLAUDE.md" ]; then
+        cp "$TMP_DIR/CLAUDE.md" .
+        echo "✓ CLAUDE.md を作成しました"
+    fi
 fi
 
 echo ""
 echo "🎉 Orchestra環境の適用が完了しました！"
 echo ""
+
+# Dynamic skill listing
 echo "利用可能なスキル:"
 echo ""
-echo "  主要ワークフロー:"
-echo "    /startproject    - マルチエージェント協調でプロジェクト開始"
-echo "    /team-implement  - Agent Teamsで並列実装"
-echo "    /team-review     - Agent Teamsで並列レビュー"
-echo ""
-echo "  開発スキル:"
-echo "    /plan            - 実装計画作成"
-echo "    /tdd             - テスト駆動開発"
-echo "    /codex-system    - Codex CLI連携（設計・デバッグ）"
-echo "    /gemini-system   - Gemini CLI連携（調査・マルチモーダル）"
-echo ""
-echo "  ユーティリティ:"
-echo "    /checkpointing   - セッション保存"
-echo "    /design-tracker  - 設計決定の追跡"
-echo "    /init            - プロジェクト分析"
-echo "    /research-lib    - ライブラリ調査"
-echo "    /simplify        - コード簡素化"
-echo "    /update-design   - 設計ドキュメント更新"
-echo "    /update-lib-docs - ライブラリドキュメント更新"
+for skill_dir in .claude/skills/*/; do
+    [ -d "$skill_dir" ] || continue
+    skill_name=$(basename "$skill_dir")
+    skill_file="$skill_dir/SKILL.md"
+    [ -f "$skill_file" ] || continue
+    description=$(awk '
+        /^description:/ {
+            sub(/^description:[[:space:]]*/, "")
+            if ($0 == "|" || $0 == ">") { getline; sub(/^[[:space:]]+/, "") }
+            print; exit
+        }
+    ' "$skill_file")
+    printf "    /%-20s %s\n" "$skill_name" "$description"
+done
+
 echo ""
 echo "claudeを起動して開始してください。"
