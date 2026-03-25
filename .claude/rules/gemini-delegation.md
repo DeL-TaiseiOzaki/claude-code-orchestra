@@ -46,16 +46,16 @@
 
 ```bash
 # PDF -- Extract structure and content
-gemini -p "Extract: {what information to extract}" < /path/to/file.pdf 2>/dev/null
+gemini -p "Extract: {what information to extract} @/path/to/file.pdf" 2>/dev/null
 
 # Video -- Summarize, key points, timestamps
-gemini -p "Summarize: key concepts, decisions, timestamps" < /path/to/video.mp4 2>/dev/null
+gemini -p "Summarize: key concepts, decisions, timestamps @/path/to/video.mp4" 2>/dev/null
 
 # Audio -- Transcription and summarization
-gemini -p "Transcribe and summarize: decisions, action items" < /path/to/audio.mp3 2>/dev/null
+gemini -p "Transcribe and summarize: decisions, action items @/path/to/audio.mp3" 2>/dev/null
 
 # Image -- Detailed analysis of charts and diagrams
-gemini -p "Analyze this diagram: components, relationships, data flow" < /path/to/diagram.png 2>/dev/null
+gemini -p "Analyze this diagram: components, relationships, data flow @/path/to/diagram.png" 2>/dev/null
 ```
 
 ## Context Management
@@ -74,7 +74,7 @@ Task tool parameters:
 - prompt: |
     {task description}
 
-    gemini -p "{prompt}" < /path/to/file 2>/dev/null
+    gemini -p "{prompt} @/path/to/file" 2>/dev/null
 
     Return CONCISE summary (key findings + extracted content).
 ```
@@ -82,7 +82,7 @@ Task tool parameters:
 ### Direct Call (Short extractions)
 
 ```bash
-gemini -p "Extract: {specific content}" < /path/to/file 2>/dev/null
+gemini -p "Extract: {specific content} @/path/to/file" 2>/dev/null
 ```
 
 ## Auto-Trigger (Activates automatically without user instruction)

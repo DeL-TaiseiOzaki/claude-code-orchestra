@@ -13,16 +13,16 @@ Use Gemini CLI to extract and analyze content from files that Claude cannot proc
 
 ```bash
 # PDF
-gemini -p "Extract: {what to extract}" < /path/to/file.pdf 2>/dev/null
+gemini -p "Extract: {what to extract} @/path/to/file.pdf" 2>/dev/null
 
 # Video
-gemini -p "Summarize: key concepts, decisions, timestamps" < /path/to/video.mp4 2>/dev/null
+gemini -p "Summarize: key concepts, decisions, timestamps @/path/to/video.mp4" 2>/dev/null
 
 # Audio
-gemini -p "Transcribe and summarize: decisions, action items" < /path/to/audio.mp3 2>/dev/null
+gemini -p "Transcribe and summarize: decisions, action items @/path/to/audio.mp3" 2>/dev/null
 
 # Image (diagrams, charts)
-gemini -p "Analyze: components, relationships, data flow" < /path/to/diagram.png 2>/dev/null
+gemini -p "Analyze: components, relationships, data flow @/path/to/diagram.png" 2>/dev/null
 ```
 
 ## Supported File Types (Multimodal)
@@ -50,8 +50,8 @@ gemini -p "Analyze: components, relationships, data flow" < /path/to/diagram.png
 ## Working Principles
 
 ### 1. Be Specific in Prompts
-Bad: `gemini -p "Read this" < file.pdf`
-Good: `gemini -p "Extract: API endpoints, request/response schemas, authentication methods" < api-docs.pdf`
+Bad: `gemini -p "Read this @file.pdf"`
+Good: `gemini -p "Extract: API endpoints, request/response schemas, authentication methods @api-docs.pdf"`
 
 ### 2. Combine with Local Context
 After Gemini extracts content, use Read/Grep/Glob to connect findings with the local codebase if needed.

@@ -23,16 +23,16 @@ Extract content from PDF, video, audio, and image files.
 
 ```bash
 # PDF
-gemini -p "Extract: {what to extract}" < /path/to/file.pdf 2>/dev/null
+gemini -p "Extract: {what to extract} @/path/to/file.pdf" 2>/dev/null
 
 # Video
-gemini -p "Summarize: key concepts, timestamps" < /path/to/video.mp4 2>/dev/null
+gemini -p "Summarize: key concepts, timestamps @/path/to/video.mp4" 2>/dev/null
 
 # Audio
-gemini -p "Transcribe and summarize: decisions, action items" < /path/to/audio.mp3 2>/dev/null
+gemini -p "Transcribe and summarize: decisions, action items @/path/to/audio.mp3" 2>/dev/null
 
 # Image (diagrams, charts)
-gemini -p "Analyze: components, relationships, data flow" < /path/to/diagram.png 2>/dev/null
+gemini -p "Analyze: components, relationships, data flow @/path/to/diagram.png" 2>/dev/null
 ```
 
 | Target | Extensions |
@@ -68,7 +68,7 @@ Task tool parameters:
 - prompt: |
     {task description}
 
-    gemini -p "{prompt}" < /path/to/file 2>/dev/null
+    gemini -p "{prompt} @/path/to/file" 2>/dev/null
 
     Return CONCISE summary (5-7 bullet points).
 ```
@@ -76,7 +76,7 @@ Task tool parameters:
 ### Direct Call (for short extractions)
 
 ```bash
-gemini -p "{what to extract}" < /path/to/file 2>/dev/null
+gemini -p "{what to extract} @/path/to/file" 2>/dev/null
 ```
 
 ## Language Protocol
