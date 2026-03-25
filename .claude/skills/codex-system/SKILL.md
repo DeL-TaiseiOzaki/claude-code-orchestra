@@ -4,7 +4,7 @@ description: |
   Codex CLI handles planning, design, and complex code implementation.
   Use for: architecture design, implementation planning, complex algorithms,
   debugging (root cause analysis), trade-off evaluation, code review.
-  External research is NOT Codex's job — use Gemini CLI (Google Search grounding) instead.
+  External research is NOT Codex's job — use general-purpose subagent (Opus) instead.
   Explicit triggers: "plan", "design", "architecture", "think deeper",
   "analyze", "debug", "complex", "optimize".
 metadata:
@@ -50,8 +50,8 @@ metadata:
 - Simple file edits, typo fixes
 - Tasks that simply follow explicit user instructions
 - git commit, test execution, lint
-- **Codebase analysis** → Gemini CLI (1M context for large-scale analysis)
-- **External information retrieval** → Gemini CLI (Google Search grounding)
+- **Codebase analysis** → general-purpose subagent (Opus 1M context)
+- **External information retrieval** → general-purpose subagent (Opus, WebSearch/WebFetch)
 - **Multimodal processing** → Gemini CLI (PDF/video/audio/images)
 
 ## How to Consult
@@ -65,7 +65,7 @@ Task tool parameters:
 - prompt: |
     Consult Codex about: {topic}
 
-    codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
+    codex exec --model gpt-5.4 --sandbox read-only --full-auto "
     {question for Codex}
     " 2>/dev/null
 
@@ -75,13 +75,13 @@ Task tool parameters:
 ### Direct Call (responses up to ~50 lines)
 
 ```bash
-codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "Brief question" 2>/dev/null
+codex exec --model gpt-5.4 --sandbox read-only --full-auto "Brief question" 2>/dev/null
 ```
 
 ### Having Codex Implement Code
 
 ```bash
-codex exec --model gpt-5.3-codex --sandbox workspace-write --full-auto "
+codex exec --model gpt-5.4 --sandbox workspace-write --full-auto "
 Implement: {task description}
 Requirements: {requirements}
 Files: {file paths}
@@ -100,7 +100,7 @@ Files: {file paths}
 ### Implementation Planning
 
 ```bash
-codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
+codex exec --model gpt-5.4 --sandbox read-only --full-auto "
 Create an implementation plan for: {feature}
 
 Context: {relevant architecture/code}
@@ -116,7 +116,7 @@ Provide:
 ### Design Review
 
 ```bash
-codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
+codex exec --model gpt-5.4 --sandbox read-only --full-auto "
 Review this design approach for: {feature}
 
 Context: {relevant code or architecture}
@@ -132,7 +132,7 @@ Evaluate:
 ### Debug Analysis
 
 ```bash
-codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "
+codex exec --model gpt-5.4 --sandbox read-only --full-auto "
 Debug this issue:
 
 Error: {error message}

@@ -5,9 +5,9 @@
 Multi-Agent AI Development Environment
 
 ```
-Claude Code (Orchestrator, 200K) ─┬─ Codex CLI (Planning & Complex Code)
-                                   ├─ Gemini CLI (1M context: Analysis, Research, Multimodal)
-                                   └─ Subagents/Opus (Implementation, Codex Delegation)
+Claude Code (Orchestrator) ─┬─ Codex CLI (Planning & Complex Code)
+                             ├─ Opus Subagents (Research, Analysis, Implementation)
+                             └─ Gemini CLI (Multimodal: PDF/Video/Audio/Image)
 ```
 
 ## Quick Start
@@ -59,10 +59,10 @@ gemini login
 │                      ↓                                      │
 │  ┌──────────────────────┐  ┌──────────────────────────┐    │
 │  │  Subagent (Opus)      │  │  gemini-explore (Opus)    │    │
-│  │  general-purpose      │  │  → Gemini CLI 1M context  │    │
-│  │  → コード実装         │  │  → コードベース分析       │    │
-│  │  → Codex委譲          │  │  → 外部リサーチ           │    │
-│  │                       │  │  → マルチモーダル読取     │    │
+│  │  general-purpose      │  │  → Gemini CLI             │    │
+│  │  → コード実装         │  │  → マルチモーダル処理     │    │
+│  │  → 調査・分析         │  │  → PDF/動画/音声/画像     │    │
+│  │  → Codex委譲          │  │                            │    │
 │  │  ┌──────────────┐    │  │                            │    │
 │  │  │  Codex CLI   │    │  │  ┌──────────────┐          │    │
 │  │  │  設計・推論  │    │  │  │  Gemini CLI  │          │    │
@@ -78,9 +78,9 @@ gemini login
 
 | 状況 | 推奨方法 |
 |------|----------|
-| コードベース全体分析 | **Gemini 経由**（1M context） |
-| 外部リサーチ・サーベイ | **Gemini 経由**（Google Search grounding） |
-| マルチモーダルファイル | **Gemini 経由** |
+| コードベース全体分析 | **Opus サブエージェント**（1M context） |
+| 外部リサーチ・サーベイ | **Opus サブエージェント**（WebSearch/WebFetch） |
+| マルチモーダルファイル | **Gemini 経由**（PDF/動画/音声/画像） |
 | コード実装 | サブエージェント（Opus）経由 |
 | 設計・計画相談 | サブエージェント → Codex |
 | 短い質問・短い回答 | 直接呼び出しOK |
@@ -92,13 +92,19 @@ gemini login
 
 ```
 .
+├── CLAUDE.md                    # メインシステムドキュメント
+├── README.md
+├── pyproject.toml               # Python プロジェクト設定
+├── uv.lock                      # 依存関係ロックファイル
+├── VERSION                     # テンプレートバージョン
+│
 ├── .claude/
 │   ├── agents/
-│   │   ├── general-purpose.md   # 実装・Codex委譲エージェント (Opus)
+│   │   ├── general-purpose.md   # 実装・調査・Codex委譲エージェント (Opus)
 │   │   ├── codex-debugger.md    # エラー分析エージェント (Opus)
-│   │   └── gemini-explore.md    # 大規模分析・調査エージェント (Opus)
+│   │   └── gemini-explore.md    # マルチモーダル処理エージェント (Opus)
 │   │
-│   ├── skills/                  # 再利用可能なワークフロー (14個)
+│   ├── skills/                  # 再利用可能なワークフロー (15個)
 │   │   ├── startproject/        # マルチエージェント協調でプロジェクト開始
 │   │   ├── team-implement/      # Agent Teams で並列実装
 │   │   ├── team-review/         # Agent Teams で並列レビュー
@@ -112,7 +118,8 @@ gemini login
 │   │   ├── research-lib/        # ライブラリ調査
 │   │   ├── update-lib-docs/     # ライブラリドキュメント更新
 │   │   ├── checkpointing/       # セッション永続化 + パターン発見
-│   │   └── init/                # プロジェクト初期化
+│   │   ├── init/                # プロジェクト初期化
+│   │   └── troubleshoot/       # エラー診断・修正計画
 │   │
 │   ├── hooks/                   # 自動化フック (9個)
 │   │   ├── agent-router.py      # エージェントルーティング
@@ -127,7 +134,7 @@ gemini login
 │   │
 │   ├── docs/
 │   │   ├── DESIGN.md            # 設計決定記録
-│   │   ├── research/            # 調査結果（Gemini/サブエージェント）
+│   │   ├── research/            # 調査結果（Opusサブエージェント）
 │   │   └── libraries/           # ライブラリ制約
 │   │
 │   └── logs/
@@ -137,10 +144,19 @@ gemini login
 │   ├── AGENTS.md
 │   └── config.toml
 │
-└── .gemini/                     # Gemini CLI設定
-    ├── GEMINI.md
-    └── settings.json
+├── .gemini/                     # Gemini CLI設定
+│   ├── GEMINI.md
+│   └── settings.json
+│
+└── scripts/
+    └── update.sh               # テンプレート更新スクリプト
 ```
+
+### Codex連携を安定化するための運用
+
+- `@.claude/docs/CODEX_HANDOFF_PLAYBOOK.md` のテンプレートで Codex への依頼を統一
+- `.claude/rules/codex-delegation.md` で「Codex優先で渡す」方針と例外条件を明確化
+- `.codex/config.toml` は `approval_policy = "never"` を採用し、非対話フローでも止まりにくくする
 
 ## Workflow
 
@@ -154,8 +170,8 @@ gemini login
 /team-review               Phase 5: Agent Teams で並列レビュー
 ```
 
-1. **Gemini** でコードベースを分析（1M context）+ **Claude** がユーザーと要件ヒアリング
-2. **Agent Teams** で Researcher（Gemini）↔ Architect（Codex）が並列に調査・設計
+1. **Opus サブエージェント** でコードベースを分析（1M context）+ **Claude** がユーザーと要件ヒアリング
+2. **Agent Teams** で Researcher（Opus）↔ Architect（Codex）が並列に調査・設計
 3. **Claude** が調査と設計を統合し、計画をユーザーに提示
 4. 承認後、`/team-implement` でモジュール単位の並列実装
 5. `/team-review` でセキュリティ・品質・テストの並列レビュー
@@ -173,9 +189,9 @@ gemini login
 ```
 
 **ワークフロー:**
-1. **Gemini** → コードベース分析・事前調査（1M context）
+1. **Opus サブエージェント** → コードベース分析・事前調査（1M context）
 2. **Claude** → ユーザーと要件ヒアリング
-3. **Agent Teams** → Researcher（Gemini）↔ Architect（Codex）で並列調査・設計
+3. **Agent Teams** → Researcher（Opus）↔ Architect（Codex）で並列調査・設計
 4. **Claude** → 計画統合・ユーザー承認
 
 #### `/team-implement` — 並列実装
@@ -237,6 +253,19 @@ Red-Green-Refactorサイクルで実装します。
 
 コードを簡潔化・可読性向上させます。
 
+#### `/troubleshoot` — エラー診断・修正計画
+
+Codexを中心としたマルチエージェント協調でエラーを診断し、修正計画を立案します。
+
+```
+/troubleshoot TypeError: cannot unpack non-iterable NoneType object
+```
+
+**ワークフロー:**
+1. **Opus サブエージェント + Codex** → エラー再現・コンテキスト収集
+2. **Agent Teams** → Root Cause Analyst（Codex駆動）↔ Impact Investigator（Opus + Codex）で並列診断
+3. **Claude + Codex** → 修正計画統合・ユーザー承認
+
 ### Agent Delegation
 
 #### `/codex-system` — Codex CLI連携
@@ -250,12 +279,11 @@ Red-Green-Refactorサイクルで実装します。
 
 #### `/gemini-system` — Gemini CLI連携
 
-Gemini の 1M context を活用した大規模分析・リサーチ・マルチモーダル処理。
+Gemini CLI を活用したマルチモーダルファイル処理（PDF/動画/音声/画像）。
 
 **トリガー例:**
-- 「コードベースを理解して」「全体構造を分析して」
-- 「調べて」「リサーチして」「サーベイして」
-- 「このPDF/動画を見て」
+- 「このPDFを読んで」「この動画を要約して」
+- 「この音声を文字起こしして」「この図を分析して」
 
 ### Documentation
 
@@ -295,6 +323,27 @@ Gemini の 1M context を活用した大規模分析・リサーチ・マルチ�
 プロジェクト構造を分析し、Tech Stack・コマンド・設定を自動検出して AGENTS.md を更新します。
 
 ## Development
+
+### Template Update
+
+テンプレートの更新をローカルプロジェクトに安全に反映できます。
+
+```bash
+# 最新版に更新
+./scripts/update.sh
+
+# 特定バージョンに更新
+./scripts/update.sh v0.2.0
+
+# 確認プロンプトをスキップ
+./scripts/update.sh --yes
+```
+
+**仕組み:**
+- `CLAUDE.md` の `@orchestra:local-boundary` セパレータより上（テンプレート部分）のみ更新
+- skills/hooks/rules/agents は完全同期
+- `.claude/docs/research/` 等のローカルデータは保護
+- `.claude/settings.json` は差分表示のみ（手動マージ）
 
 ### Tech Stack
 
@@ -338,7 +387,7 @@ uv run ruff check .
 | `error-to-codex.py` | Bashエラー検出 | codex-debuggerサブエージェント提案 |
 | `post-test-analysis.py` | テスト/ビルド失敗 | Codexによるデバッグ分析提案 |
 | `post-implementation-review.py` | 大規模実装後 | Codexによるコードレビュー提案 |
-| `suggest-gemini-research.py` | WebSearch/Fetch前 | 深い調査はGemini委譲を提案 |
+| `suggest-gemini-research.py` | WebSearch/Fetch前 | 深い調査はOpusサブエージェント委譲を提案 |
 | `log-cli-tools.py` | Codex/Gemini実行 | 入出力ログ記録 |
 
 ## Language Rules

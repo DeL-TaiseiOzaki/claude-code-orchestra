@@ -2,15 +2,15 @@
 # This file enables project-specific Codex settings
 
 # Default model configuration
-model = "gpt-5.3-codex"
-model_reasoning_effort = "xhigh"
+model = "gpt-5.4"
+model_reasoning_effort = "high"
 model_reasoning_summary = "detailed"
 
 # Web search
 web_search = "live"
 
 # Approval policy
-approval_policy = "on-request"
+approval_policy = "never"
 
 # Feature toggles
 [features]
@@ -20,3 +20,6 @@ skills = true
 [[skills.config]]
 enabled = true
 path = ".codex/skills/context-loader"
+
+# Response style
+verbosity = "medium"

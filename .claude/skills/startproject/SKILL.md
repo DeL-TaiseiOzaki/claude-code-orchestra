@@ -2,7 +2,7 @@
 name: startproject
 description: |
   Start a new project/feature with multi-agent collaboration (Opus 4.6 + Agent Teams).
-  Phase 1: Codebase understanding (Gemini 1M context + Claude user interaction).
+  Phase 1: Codebase understanding (Opus subagent 1M context + Claude user interaction).
   Phase 2: Parallel research & design (Agent Teams: Researcher + Architect).
   Phase 3: Plan synthesis & user approval.
   Implementation is handled separately by /team-implement.
@@ -12,7 +12,7 @@ metadata:
 
 # Start Project
 
-**Project kickoff skill leveraging Gemini's 1M context and Agent Teams.**
+**Project kickoff skill leveraging Opus 1M context and Agent Teams.**
 
 ## Overview
 
@@ -29,11 +29,11 @@ This skill handles the planning phases (Phase 1-3). Implementation is done via `
 ## Workflow
 
 ```
-Phase 1: UNDERSTAND (Gemini 1M context + Claude Lead)
-  Gemini analyzes the codebase (1M context), Claude interacts with the user
+Phase 1: UNDERSTAND (Opus 1M context + Claude Lead)
+  Opus subagent analyzes the codebase (1M context), Claude interacts with the user
     ↓
 Phase 2: RESEARCH & DESIGN (Agent Teams — Parallel)
-  Researcher (Gemini) ←→ Architect (Codex) communicate bidirectionally for research and design
+  Researcher (Opus) ←→ Architect (Codex) communicate bidirectionally for research and design
     ↓
 Phase 3: PLAN & APPROVE (Claude Lead + User)
   Integrate research and design, create plan and get user approval
@@ -41,20 +41,20 @@ Phase 3: PLAN & APPROVE (Claude Lead + User)
 
 ---
 
-## Phase 1: UNDERSTAND (Gemini + Claude Lead)
+## Phase 1: UNDERSTAND (Opus Subagent + Claude Lead)
 
-**Analyze the codebase with Gemini's 1M context while Claude interacts with the user.**
+**Analyze the codebase with Opus subagent's 1M context while Claude interacts with the user.**
 
-> Claude Code's context is 200K. Large-scale codebase analysis is delegated to Gemini (1M context).
+> Main orchestrator context is precious. Large-scale codebase analysis is delegated to Opus subagent (1M context).
 
-### Step 1: Analyze Codebase with Gemini
+### Step 1: Analyze Codebase with Opus Subagent
 
-Use Gemini CLI to analyze the entire codebase:
+Use a general-purpose subagent (Opus) to analyze the entire codebase:
 
-```bash
-# Via gemini-explore subagent (recommended)
+```
+# Via general-purpose subagent (recommended)
 Task tool:
-  subagent_type: "gemini-explore"
+  subagent_type: "general-purpose"
   prompt: |
     Analyze this codebase comprehensively:
     - Directory structure and organization
@@ -63,13 +63,13 @@ Task tool:
     - Dependencies and tech stack
     - Test structure
 
-    gemini -p "Analyze this codebase: directory structure, key modules, architecture patterns, dependencies, conventions, and test structure" 2>/dev/null
+    Use Glob, Grep, and Read tools to explore the codebase thoroughly.
 
     Save analysis to .claude/docs/research/{feature}-codebase.md
     Return concise summary (5-7 key findings).
 ```
 
-To supplement Gemini's analysis, Claude can use Glob/Grep/Read to inspect specific files.
+To supplement the subagent's analysis, Claude can use Glob/Grep/Read to inspect specific files.
 
 ### Step 2: Requirements Gathering
 
@@ -126,7 +126,7 @@ Create an agent team for project planning: {feature}
 
 Spawn two teammates:
 
-1. **Researcher** — Uses Gemini CLI (1M context + Google Search grounding) for external research
+1. **Researcher** — Uses WebSearch/WebFetch for external research (Opus 1M context)
    Prompt: "You are the Researcher for project: {feature}.
 
    Your job: Research external information needed for this project.
@@ -141,9 +141,9 @@ Spawn two teammates:
    4. Look for similar implementations and reference architectures
 
    How to research:
-   - Use Gemini CLI for comprehensive research (1M context + Google Search grounding):
-     gemini -p 'Research: {topic}. Find latest best practices, constraints, and recommendations' 2>/dev/null
-   - Use WebSearch/WebFetch for targeted lookups when needed
+   - Use WebSearch for comprehensive research:
+     WebSearch: '{topic} best practices constraints recommendations'
+   - Use WebFetch for targeted documentation lookup
 
    Save all findings to .claude/docs/research/{feature}.md
    Save library docs to .claude/docs/libraries/{library}.md
@@ -190,7 +190,7 @@ Spawn two teammates:
    4. Identify risks and mitigation strategies
 
    How to consult Codex:
-   codex exec --model gpt-5.3-codex --sandbox read-only --full-auto "{question}" 2>/dev/null
+   codex exec --model gpt-5.4 --sandbox read-only --full-auto "{question}" 2>/dev/null
 
    Update .claude/docs/DESIGN.md with architecture decisions.
 
@@ -345,8 +345,8 @@ Shall we proceed with this plan?
 
 ## Tips
 
-- **Phase 1**: Gemini (1M context) analyzes the codebase while Claude interacts with the user
-- **Phase 2**: Agent Teams bidirectional communication allows Researcher (Gemini) and Architect (Codex) to influence each other
+- **Phase 1**: Opus subagent (1M context) analyzes the codebase while Claude interacts with the user
+- **Phase 2**: Agent Teams bidirectional communication allows Researcher (Opus) and Architect (Codex) to influence each other
 - **Phase 3**: After plan approval, proceed to parallel implementation with `/team-implement`
 - **Ctrl+T**: Toggle task list display
 - **Shift+Up/Down**: Navigate between teammates (when using Agent Teams)
