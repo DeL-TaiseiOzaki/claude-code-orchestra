@@ -132,7 +132,7 @@ def main():
                         f"[Multimodal File Detected] Found '{trigger}' in prompt. "
                         "**MUST** use Gemini CLI to process this file. "
                         "Pass the file to Gemini with specific extraction instructions: "
-                        f'`gemini -p "Extract: {{what to extract}}" < {trigger} 2>/dev/null` '
+                        f'`gemini -p "Extract: {{what to extract}} @{trigger}" 2>/dev/null` '
                         "Do NOT attempt to read this file directly — use Gemini for content extraction."
                     )
                 }

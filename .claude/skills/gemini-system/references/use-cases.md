@@ -11,10 +11,11 @@ gemini -p "Analyze this tutorial video:
 - Summarize the main concepts taught
 - List step-by-step instructions
 - Note any important warnings or tips
-- Identify timestamps for key sections" < tutorial.mp4 2>/dev/null
+- Identify timestamps for key sections
+@tutorial.mp4" 2>/dev/null
 
 # Code review video
-gemini -p "Extract code patterns and best practices demonstrated in this video" < code-review.mp4 2>/dev/null
+gemini -p "Extract code patterns and best practices demonstrated in this video @code-review.mp4" 2>/dev/null
 ```
 
 ## Audio Analysis
@@ -25,10 +26,11 @@ gemini -p "Transcribe and summarize this technical discussion:
 - Key decisions made
 - Action items
 - Open questions
-- Technical terms mentioned" < meeting.mp3 2>/dev/null
+- Technical terms mentioned
+@meeting.mp3" 2>/dev/null
 
 # Podcast/talk analysis
-gemini -p "Extract technical insights from this talk about {topic}" < conference-talk.mp3 2>/dev/null
+gemini -p "Extract technical insights from this talk about {topic} @conference-talk.mp3" 2>/dev/null
 ```
 
 ## PDF Analysis
@@ -39,21 +41,24 @@ gemini -p "Extract from this API documentation:
 - All available endpoints
 - Request/response schemas
 - Authentication requirements
-- Rate limiting rules" < api-spec.pdf 2>/dev/null
+- Rate limiting rules
+@api-spec.pdf" 2>/dev/null
 
 # Technical specification
 gemini -p "Summarize this technical specification:
 - Core requirements
 - Constraints
 - Interface definitions
-- Edge cases to handle" < spec.pdf 2>/dev/null
+- Edge cases to handle
+@spec.pdf" 2>/dev/null
 
 # Research paper
 gemini -p "Analyze this paper and explain:
 - Problem being solved
 - Proposed approach
 - Key algorithms
-- How to apply this in practice" < paper.pdf 2>/dev/null
+- How to apply this in practice
+@paper.pdf" 2>/dev/null
 ```
 
 ## Image / Diagram Analysis
@@ -63,13 +68,15 @@ gemini -p "Analyze this paper and explain:
 gemini -p "Analyze this architecture diagram:
 - Components and their responsibilities
 - Data flow between components
-- External dependencies" < architecture.png 2>/dev/null
+- External dependencies
+@architecture.png" 2>/dev/null
 
 # Chart analysis
 gemini -p "Extract data and trends from this chart:
 - Key metrics
 - Trends over time
-- Notable anomalies" < dashboard.png 2>/dev/null
+- Notable anomalies
+@dashboard.png" 2>/dev/null
 ```
 
 ## When NOT to Use Gemini
@@ -89,7 +96,7 @@ gemini -p "Extract data and trends from this chart:
 ### Piping to Files
 
 ```bash
-gemini -p "Extract all API schemas" < api-spec.pdf > docs/api-schemas.md 2>/dev/null
+gemini -p "Extract all API schemas @api-spec.pdf" > docs/api-schemas.md 2>/dev/null
 ```
 
 ## Rate Limits
