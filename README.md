@@ -84,9 +84,10 @@ gemini login
 .
 ├── CLAUDE.md                    # メインシステムドキュメント
 ├── README.md
+├── LICENSE
 ├── pyproject.toml               # Python プロジェクト設定
 ├── uv.lock                      # 依存関係ロックファイル
-├── VERSION                     # テンプレートバージョン
+├── VERSION                      # テンプレートバージョン
 │
 ├── .claude/
 │   ├── agents/
@@ -124,21 +125,29 @@ gemini login
 │   │   ├── testing.md
 │   │   └── ...
 │   │
+│   ├── settings.json             # Claude Code設定（hooks/permissions/env）
+│   │
 │   ├── docs/
 │   │   ├── DESIGN.md            # 設計決定記録
+│   │   ├── CODEX_HANDOFF_PLAYBOOK.md  # Codex委譲テンプレート
 │   │   ├── research/            # 調査結果（Opusサブエージェント）
 │   │   └── libraries/           # ライブラリ制約
 │   │
-│   └── logs/
+│   └── logs/                    # ランタイム生成（.gitignore対象）
 │       └── cli-tools.jsonl      # Codex/Gemini入出力ログ
 │
 ├── .codex/                      # Codex CLI設定
 │   ├── AGENTS.md
-│   └── config.toml
+│   ├── config.toml
+│   └── skills/
+│       ├── context-loader/      # コンテキスト読み込みスキル
+│       └── design-tracker/      # 設計追跡スキル
 │
 ├── .gemini/                     # Gemini CLI設定
 │   ├── GEMINI.md
-│   └── settings.json
+│   ├── settings.json
+│   └── skills/
+│       └── context-loader/      # コンテキスト読み込みスキル
 │
 └── scripts/
     └── update.sh               # テンプレート更新スクリプト
