@@ -45,7 +45,7 @@ gemini login
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│           Claude Code (Orchestrator — 200K context)          │
+│           Claude Code (Orchestrator — Opus 4.6, 1M context)    │
 │           → コンテキスト節約が最優先                         │
 │           → ユーザー対話・調整・簡潔な編集を担当             │
 │                      ↓                                      │
@@ -66,7 +66,7 @@ gemini login
 
 ### コンテキスト管理（重要）
 
-メインオーケストレーター（200K context）を節約するため、大規模タスクは適切なエージェントに委譲します。
+メインオーケストレーター（Opus 4.6, 1M context）のコンテキストを節約するため、大規模タスクは適切なエージェントに委譲します。
 
 | 状況 | 推奨方法 |
 |------|----------|
@@ -84,9 +84,10 @@ gemini login
 .
 ├── CLAUDE.md                    # メインシステムドキュメント
 ├── README.md
+├── LICENSE
 ├── pyproject.toml               # Python プロジェクト設定
 ├── uv.lock                      # 依存関係ロックファイル
-├── VERSION                     # テンプレートバージョン
+├── VERSION                      # テンプレートバージョン
 │
 ├── .claude/
 │   ├── agents/
@@ -94,10 +95,12 @@ gemini login
 │   │   ├── codex-debugger.md    # エラー分析エージェント (Opus)
 │   │   └── gemini-explore.md    # マルチモーダル処理エージェント (Opus)
 │   │
-│   ├── skills/                  # 再利用可能なワークフロー (15個)
+│   ├── skills/                  # 再利用可能なワークフロー (17個)
 │   │   ├── startproject/        # マルチエージェント協調でプロジェクト開始
 │   │   ├── team-implement/      # Agent Teams で並列実装
 │   │   ├── team-review/         # Agent Teams で並列レビュー
+│   │   ├── add-feature/         # Codex-first 機能追加（複雑度別ルーティング）
+│   │   ├── spike/               # 技術調査・フィージビリティスタディ（意思決定文書）
 │   │   ├── plan/                # 実装計画作成
 │   │   ├── tdd/                 # テスト駆動開発
 │   │   ├── simplify/            # コードリファクタリング
@@ -109,7 +112,7 @@ gemini login
 │   │   ├── update-lib-docs/     # ライブラリドキュメント更新
 │   │   ├── checkpointing/       # セッション永続化 + パターン発見
 │   │   ├── init/                # プロジェクト初期化
-│   │   └── troubleshoot/       # エラー診断・修正計画
+│   │   └── troubleshoot/        # エラー診断・修正計画
 │   │
 │   ├── hooks/                   # 自動化フック (9個)
 │   │   ├── agent-router.py      # エージェントルーティング
@@ -122,21 +125,29 @@ gemini login
 │   │   ├── testing.md
 │   │   └── ...
 │   │
+│   ├── settings.json             # Claude Code設定（hooks/permissions/env）
+│   │
 │   ├── docs/
 │   │   ├── DESIGN.md            # 設計決定記録
+│   │   ├── CODEX_HANDOFF_PLAYBOOK.md  # Codex委譲テンプレート
 │   │   ├── research/            # 調査結果（Opusサブエージェント）
 │   │   └── libraries/           # ライブラリ制約
 │   │
-│   └── logs/
+│   └── logs/                    # ランタイム生成（.gitignore対象）
 │       └── cli-tools.jsonl      # Codex/Gemini入出力ログ
 │
 ├── .codex/                      # Codex CLI設定
 │   ├── AGENTS.md
-│   └── config.toml
+│   ├── config.toml
+│   └── skills/
+│       ├── context-loader/      # コンテキスト読み込みスキル
+│       └── design-tracker/      # 設計追跡スキル
 │
 ├── .gemini/                     # Gemini CLI設定
 │   ├── GEMINI.md
-│   └── settings.json
+│   ├── settings.json
+│   └── skills/
+│       └── context-loader/      # コンテキスト読み込みスキル
 │
 └── scripts/
     └── update.sh               # テンプレート更新スクリプト
@@ -209,6 +220,37 @@ Agent Teams による並列コードレビュー。実装完了後に実行し�
 - **Security Reviewer** — セキュリティ脆弱性の検出
 - **Quality Reviewer** — コード品質・パターン準拠の確認（Codex 活用）
 - **Test Reviewer** — テストカバレッジ・品質の検証
+
+#### `/add-feature` — 機能追加
+
+既存コードベースにCodex-firstで機能を追加します。`/startproject`（新規プロジェクト向け）より軽量で、複雑度に応じた実装ルーティングを行います。
+
+```
+/add-feature ユーザープロフィール編集機能
+```
+
+**ワークフロー:**
+1. **Opus サブエージェント + Codex** → スコープ＆影響分析
+2. **Codex** → アーキテクチャ設計・実装計画・バリデーション
+3. **複雑度別ルーティング:**
+   - SIMPLE（1-3ファイル, <50 LOC）→ Codex 直接実装
+   - MODERATE（3-5ファイル）→ Codex 実装 + `/team-review`
+   - COMPLEX（5+ファイル）→ `/team-implement` + `/team-review`
+
+#### `/spike` — 技術調査・フィージビリティスタディ
+
+Codex-firstのタイムボックス型技術調査。**意思決定文書**（go/no-go推奨）を作成します。実装計画ではなく、判断材料を提供します。
+
+```
+/spike WebSocketとSSEのどちらを採用すべきか
+```
+
+**ワークフロー:**
+1. **Claude + Codex** → 調査質問のフレーミング・制約定義
+2. **Agent Teams** → Researcher（Opus外部調査）↔ Feasibility Analyst（Codex深層分析）で並列調査
+3. **Codex** → go/no-go推奨に統合・リサーチレポート作成
+
+> GO決定後は `/add-feature` または `/startproject` で実装に進む
 
 ### Development
 
