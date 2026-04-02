@@ -150,6 +150,64 @@ Analyze root cause and suggest fixes.
 3. Execute based on advice
 4. Report to user in **the user's language**
 
+## Codex Plugin Commands (codex-plugin-cc)
+
+When the `openai/codex-plugin-cc` plugin is installed, these slash commands are available:
+
+### Code Review
+
+```bash
+/codex:review                    # Review current uncommitted changes
+/codex:review --base main        # Review branch diff against main
+/codex:review --background       # Run review in background
+```
+
+### Adversarial Review
+
+```bash
+/codex:adversarial-review                           # Challenge design decisions
+/codex:adversarial-review --base main               # Branch-level adversarial review
+/codex:adversarial-review --background look for race conditions
+```
+
+### Task Delegation (Rescue)
+
+```bash
+/codex:rescue investigate why the tests started failing
+/codex:rescue fix the failing test with the smallest safe patch
+/codex:rescue --resume apply the top fix from the last run
+/codex:rescue --model gpt-5.4-mini --effort medium investigate flaky test
+/codex:rescue --background investigate the regression
+```
+
+### Job Management
+
+```bash
+/codex:status                    # Check progress of background jobs
+/codex:result                    # Show finished job output
+/codex:cancel                    # Cancel active background job
+```
+
+### Setup
+
+```bash
+/codex:setup                     # Check if Codex is installed and authenticated
+/codex:setup --enable-review-gate   # Enable auto-review gate (use with caution)
+/codex:setup --disable-review-gate  # Disable review gate
+```
+
+### When to Use Plugin vs Direct CLI
+
+| Scenario | Use |
+|----------|-----|
+| Pre-ship code review | `/codex:review` |
+| Challenge design | `/codex:adversarial-review` |
+| Delegate investigation/fix | `/codex:rescue` |
+| Background work + tracking | Plugin `--background` |
+| Ad-hoc design question | `codex exec` (direct) |
+| Implementation in sandbox | `codex exec --sandbox workspace-write` |
+| Subagent delegation | `codex exec` via general-purpose |
+
 ## Why Codex?
 
 - **Deep reasoning**: Complex analysis and problem-solving

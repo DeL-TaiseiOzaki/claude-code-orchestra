@@ -34,6 +34,24 @@ npm install -g @openai/codex
 codex login
 ```
 
+### Codex Plugin for Claude Code (Optional)
+
+Codex を Claude Code から直接使うためのプラグインです。コードレビューやタスク委譲が簡単になります。
+
+```bash
+# Claude Code 内で実行
+/plugin marketplace add openai/codex-plugin-cc
+/plugin install codex@openai-codex
+/reload-plugins
+/codex:setup
+```
+
+**提供されるコマンド:**
+- `/codex:review` — コードレビュー
+- `/codex:adversarial-review` — 設計チャレンジレビュー
+- `/codex:rescue` — タスク委譲
+- `/codex:status` / `/codex:result` / `/codex:cancel` — ジョブ管理
+
 ### Gemini CLI
 
 ```bash

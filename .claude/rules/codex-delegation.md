@@ -105,6 +105,57 @@ Output format:
 | Analysis | `read-only` | Design review, debugging, trade-off analysis |
 | Implementation | `workspace-write` | Implementation, fixes, refactoring |
 
+
+## Codex Plugin for Claude Code (codex-plugin-cc)
+
+The `openai/codex-plugin-cc` plugin provides structured Codex workflows directly as Claude Code slash commands.
+
+### Plugin vs Direct CLI
+
+| Use Case | Recommended Method | Why |
+|----------|-------------------|-----|
+| Code review | `/codex:review` | Structured review with background support |
+| Adversarial/design review | `/codex:adversarial-review` | Steerable challenge review |
+| Task delegation | `/codex:rescue` | Background jobs with status tracking |
+| Job management | `/codex:status`, `/codex:result`, `/codex:cancel` | Built-in job lifecycle |
+| Planning & design | `codex exec --sandbox read-only` | Ad-hoc queries with prompt control |
+| Complex implementation | `codex exec --sandbox workspace-write` | Full sandbox control |
+
+### Plugin Commands
+
+```bash
+# Code review (current changes or branch diff)
+/codex:review
+/codex:review --base main
+/codex:review --background
+
+# Adversarial review (challenge design decisions)
+/codex:adversarial-review
+/codex:adversarial-review --background look for race conditions
+
+# Delegate a task to Codex
+/codex:rescue investigate why the tests started failing
+/codex:rescue --model gpt-5.4-mini --effort medium investigate the flaky test
+/codex:rescue --background investigate the regression
+
+# Job management
+/codex:status
+/codex:result
+/codex:cancel
+```
+
+### When to Prefer Plugin
+
+- **Code review before shipping** → `/codex:review` or `/codex:adversarial-review`
+- **Delegating investigation/fix** → `/codex:rescue`
+- **Background work with status tracking** → Plugin commands with `--background`
+
+### When to Prefer Direct CLI
+
+- **Ad-hoc design questions** → `codex exec` with custom prompt
+- **Implementation with sandbox control** → `codex exec --sandbox workspace-write`
+- **Subagent pattern** → `codex exec` via general-purpose subagent
+
 ## Language Protocol
 
 1. Ask Codex in **English**
