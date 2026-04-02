@@ -95,3 +95,60 @@ If Codex output is not actionable:
 1. Re-run with explicit file list and acceptance checks.
 2. Split into two calls: `read-only` plan → `workspace-write` implementation.
 3. Ask Codex to compare exactly two options and choose one.
+
+## 6) Codex Plugin Workflows (codex-plugin-cc)
+
+When the `openai/codex-plugin-cc` plugin is installed, use these structured workflows:
+
+### A. Review Before Shipping
+
+```bash
+# Quick review of current changes
+/codex:review
+
+# Review branch diff against main
+/codex:review --base main
+
+# Background review (non-blocking)
+/codex:review --background
+/codex:status          # Check progress
+/codex:result          # Get results
+```
+
+### B. Adversarial Review (Challenge Design)
+
+```bash
+# Challenge implementation and design decisions
+/codex:adversarial-review
+
+# Focus on specific risk areas
+/codex:adversarial-review --background look for race conditions and question the chosen approach
+```
+
+### C. Task Delegation (Rescue)
+
+```bash
+# Investigate a bug
+/codex:rescue investigate why the tests started failing
+
+# Fix with minimal patch
+/codex:rescue fix the failing test with the smallest safe patch
+
+# Continue previous task
+/codex:rescue --resume apply the top fix from the last run
+
+# Use specific model/effort
+/codex:rescue --model gpt-5.4-mini --effort medium investigate the flaky test
+```
+
+### D. Plugin vs Direct CLI Decision
+
+Use **Plugin** when:
+- You need structured review (code review, adversarial review)
+- You want background execution with job tracking
+- You want to delegate and monitor a task
+
+Use **Direct CLI** (`codex exec`) when:
+- You need custom prompt format with specific output structure
+- You need sandbox mode control (read-only vs workspace-write)
+- You are calling from a subagent pattern

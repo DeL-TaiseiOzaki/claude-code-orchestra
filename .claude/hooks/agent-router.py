@@ -77,6 +77,22 @@ OPUS_RESEARCH_TRIGGERS = {
     ],
 }
 
+# Triggers for Codex Plugin commands (review, rescue, delegation)
+CODEX_PLUGIN_TRIGGERS = {
+    "ja": [
+        "レビューして", "コードレビュー", "レビューお願い",
+        "チェックして", "出荷前",
+        "codexに任せ", "codexに渡", "codexに委",
+        "バグ調査", "調査して",
+    ],
+    "en": [
+        "review this", "code review", "review my",
+        "before shipping", "pre-ship",
+        "delegate to codex", "hand to codex", "ask codex to",
+        "codex rescue", "codex review",
+    ],
+}
+
 
 def detect_multimodal_files(prompt: str) -> str | None:
     """Detect multimodal file references in the prompt. Returns matched file path or None."""
@@ -103,6 +119,12 @@ def detect_agent(prompt: str) -> tuple[str | None, str, bool]:
         for trigger in triggers:
             if trigger in prompt_lower:
                 return "codex", trigger, False
+
+    # Codex Plugin triggers (review, rescue, delegation)
+    for triggers in CODEX_PLUGIN_TRIGGERS.values():
+        for trigger in triggers:
+            if trigger in prompt_lower:
+                return "codex-plugin", trigger, False
 
     # Opus research triggers (codebase analysis + external research)
     for triggers in OPUS_RESEARCH_TRIGGERS.values():
@@ -149,6 +171,21 @@ def main():
                         "`codex exec --model gpt-5.4 --sandbox read-only --full-auto "
                         '"{task description}"` for design decisions, planning, debugging, '
                         "or complex analysis."
+                    )
+                }
+            }
+            print(json.dumps(output))
+
+        elif agent == "codex-plugin":
+            output = {
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": (
+                        f"[Codex Plugin] Detected '{trigger}' — consider using Codex Plugin commands. "
+                        "Available: `/codex:review` (code review), "
+                        "`/codex:adversarial-review` (design challenge), "
+                        "`/codex:rescue` (task delegation). "
+                        "Add `--background` for async execution, check with `/codex:status`."
                     )
                 }
             }
