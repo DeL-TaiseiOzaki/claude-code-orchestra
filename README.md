@@ -12,7 +12,7 @@ Claude Code (Orchestrator) ─┬─ Codex CLI (Planning & Complex Code)
 
 ## Quick Start
 
-既存プロジェクトのルートで実行（事前に Codex/Gemini の起動・ログイン確認）:
+Run in the root of your existing project (ensure Codex/Gemini are installed and logged in first):
 
 ```bash
 codex --version && codex login && gemini --version && gemini login && git clone --depth 1 https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git .starter && cp -r .starter/.claude .starter/.codex .starter/.gemini .starter/CLAUDE.md . && rm -rf .starter && claude
@@ -36,21 +36,21 @@ codex login
 
 ### Codex Plugin for Claude Code (Optional)
 
-Codex を Claude Code から直接使うためのプラグインです。コードレビューやタスク委譲が簡単になります。
+A plugin that lets you use Codex directly from Claude Code. Simplifies code review and task delegation.
 
 ```bash
-# Claude Code 内で実行
+# Run inside Claude Code
 /plugin marketplace add openai/codex-plugin-cc
 /plugin install codex@openai-codex
 /reload-plugins
 /codex:setup
 ```
 
-**提供されるコマンド:**
-- `/codex:review` — コードレビュー
-- `/codex:adversarial-review` — 設計チャレンジレビュー
-- `/codex:rescue` — タスク委譲
-- `/codex:status` / `/codex:result` / `/codex:cancel` — ジョブ管理
+**Available commands:**
+- `/codex:review` — Code review
+- `/codex:adversarial-review` — Design challenge review
+- `/codex:rescue` — Task delegation
+- `/codex:status` / `/codex:result` / `/codex:cancel` — Job management
 
 ### Gemini CLI
 
@@ -64,385 +64,386 @@ gemini login
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │           Claude Code (Orchestrator — Opus 4.6, 1M context)    │
-│           → コンテキスト節約が最優先                         │
-│           → ユーザー対話・調整・簡潔な編集を担当             │
+│           → Context conservation is top priority             │
+│           → Handles user interaction, coordination, concise edits │
 │                      ↓                                      │
 │  ┌──────────────────────┐  ┌──────────────────────────┐    │
 │  │  Subagent (Opus)      │  │  gemini-explore (Opus)    │    │
 │  │  general-purpose      │  │  → Gemini CLI             │    │
-│  │  → コード実装         │  │  → マルチモーダル処理     │    │
-│  │  → 調査・分析         │  │  → PDF/動画/音声/画像     │    │
-│  │  → Codex委譲          │  │                            │    │
+│  │  → Code implementation│  │  → Multimodal processing  │    │
+│  │  → Research & analysis│  │  → PDF/Video/Audio/Image  │    │
+│  │  → Codex delegation   │  │                            │    │
 │  │  ┌──────────────┐    │  │                            │    │
 │  │  │  Codex CLI   │    │  │  ┌──────────────┐          │    │
-│  │  │  設計・推論  │    │  │  │  Gemini CLI  │          │    │
-│  │  │  デバッグ    │    │  │  │  1M context  │          │    │
-│  │  └──────────────┘    │  │  └──────────────┘          │    │
+│  │  │  Design &    │    │  │  │  Gemini CLI  │          │    │
+│  │  │  Reasoning   │    │  │  │  1M context  │          │    │
+│  │  │  Debugging   │    │  │  └──────────────┘          │    │
+│  │  └──────────────┘    │  │                            │    │
 │  └──────────────────────┘  └──────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### コンテキスト管理（重要）
+### Context Management (Important)
 
-メインオーケストレーター（Opus 4.6, 1M context）のコンテキストを節約するため、大規模タスクは適切なエージェントに委譲します。
+To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale tasks are delegated to the appropriate agents.
 
-| 状況 | 推奨方法 |
-|------|----------|
-| コードベース全体分析 | **Opus サブエージェント**（1M context） |
-| 外部リサーチ・サーベイ | **Opus サブエージェント**（WebSearch/WebFetch） |
-| マルチモーダルファイル | **Gemini 経由**（PDF/動画/音声/画像） |
-| コード実装 | サブエージェント（Opus）経由 |
-| 設計・計画相談 | サブエージェント → Codex |
-| 短い質問・短い回答 | 直接呼び出しOK |
-| 詳細な分析が必要 | サブエージェント経由 → ファイル保存 |
+| Situation | Recommended Method |
+|-----------|-------------------|
+| Full codebase analysis | **Opus subagent** (1M context) |
+| External research & surveys | **Opus subagent** (WebSearch/WebFetch) |
+| Multimodal files | **Via Gemini** (PDF/Video/Audio/Image) |
+| Code implementation | Via subagent (Opus) |
+| Design & planning consultation | Subagent → Codex |
+| Short questions & answers | Direct call OK |
+| Detailed analysis needed | Via subagent → save to file |
 
 ## Directory Structure
 
 ```
 .
-├── CLAUDE.md                    # メインシステムドキュメント
+├── CLAUDE.md                    # Main system document
 ├── README.md
 ├── LICENSE
-├── pyproject.toml               # Python プロジェクト設定
-├── uv.lock                      # 依存関係ロックファイル
-├── VERSION                      # テンプレートバージョン
+├── pyproject.toml               # Python project configuration
+├── uv.lock                      # Dependency lock file
+├── VERSION                      # Template version
 │
 ├── .claude/
 │   ├── agents/
-│   │   ├── general-purpose.md   # 実装・調査・Codex委譲エージェント (Opus)
-│   │   ├── codex-debugger.md    # エラー分析エージェント (Opus)
-│   │   └── gemini-explore.md    # マルチモーダル処理エージェント (Opus)
+│   │   ├── general-purpose.md   # Implementation, research & Codex delegation agent (Opus)
+│   │   ├── codex-debugger.md    # Error analysis agent (Opus)
+│   │   └── gemini-explore.md    # Multimodal processing agent (Opus)
 │   │
-│   ├── skills/                  # 再利用可能なワークフロー (17個)
-│   │   ├── startproject/        # マルチエージェント協調でプロジェクト開始
-│   │   ├── team-implement/      # Agent Teams で並列実装
-│   │   ├── team-review/         # Agent Teams で並列レビュー
-│   │   ├── add-feature/         # Codex-first 機能追加（複雑度別ルーティング）
-│   │   ├── spike/               # 技術調査・フィージビリティスタディ（意思決定文書）
-│   │   ├── plan/                # 実装計画作成
-│   │   ├── tdd/                 # テスト駆動開発
-│   │   ├── simplify/            # コードリファクタリング
-│   │   ├── codex-system/        # Codex CLI連携
-│   │   ├── gemini-system/       # Gemini CLI連携
-│   │   ├── design-tracker/      # 設計決定の自動追跡
-│   │   ├── update-design/       # 設計ドキュメント明示更新
-│   │   ├── research-lib/        # ライブラリ調査
-│   │   ├── update-lib-docs/     # ライブラリドキュメント更新
-│   │   ├── checkpointing/       # セッション永続化 + パターン発見
-│   │   ├── init/                # プロジェクト初期化
-│   │   └── troubleshoot/        # エラー診断・修正計画
+│   ├── skills/                  # Reusable workflows (17 total)
+│   │   ├── startproject/        # Start project with multi-agent coordination
+│   │   ├── team-implement/      # Parallel implementation with Agent Teams
+│   │   ├── team-review/         # Parallel review with Agent Teams
+│   │   ├── add-feature/         # Codex-first feature addition (complexity-based routing)
+│   │   ├── spike/               # Technical investigation & feasibility study (decision document)
+│   │   ├── plan/                # Implementation plan creation
+│   │   ├── tdd/                 # Test-driven development
+│   │   ├── simplify/            # Code refactoring
+│   │   ├── codex-system/        # Codex CLI integration
+│   │   ├── gemini-system/       # Gemini CLI integration
+│   │   ├── design-tracker/      # Automatic design decision tracking
+│   │   ├── update-design/       # Explicit design document updates
+│   │   ├── research-lib/        # Library research
+│   │   ├── update-lib-docs/     # Library documentation updates
+│   │   ├── checkpointing/       # Session persistence + pattern discovery
+│   │   ├── init/                # Project initialization
+│   │   └── troubleshoot/        # Error diagnosis & fix planning
 │   │
-│   ├── hooks/                   # 自動化フック (9個)
-│   │   ├── agent-router.py      # エージェントルーティング
-│   │   ├── lint-on-save.py      # 保存時自動lint
-│   │   ├── error-to-codex.py    # エラー検出→debugger提案
+│   ├── hooks/                   # Automation hooks (9 total)
+│   │   ├── agent-router.py      # Agent routing
+│   │   ├── lint-on-save.py      # Auto-lint on save
+│   │   ├── error-to-codex.py    # Error detection → debugger suggestion
 │   │   └── ...
 │   │
-│   ├── rules/                   # 開発ガイドライン
+│   ├── rules/                   # Development guidelines
 │   │   ├── coding-principles.md
 │   │   ├── testing.md
 │   │   └── ...
 │   │
-│   ├── settings.json             # Claude Code設定（hooks/permissions/env）
+│   ├── settings.json             # Claude Code settings (hooks/permissions/env)
 │   │
 │   ├── docs/
-│   │   ├── DESIGN.md            # 設計決定記録
-│   │   ├── CODEX_HANDOFF_PLAYBOOK.md  # Codex委譲テンプレート
-│   │   ├── research/            # 調査結果（Opusサブエージェント）
-│   │   └── libraries/           # ライブラリ制約
+│   │   ├── DESIGN.md            # Design decision records
+│   │   ├── CODEX_HANDOFF_PLAYBOOK.md  # Codex delegation templates
+│   │   ├── research/            # Research results (Opus subagents)
+│   │   └── libraries/           # Library constraints
 │   │
-│   └── logs/                    # ランタイム生成（.gitignore対象）
-│       └── cli-tools.jsonl      # Codex/Gemini入出力ログ
+│   └── logs/                    # Runtime generated (.gitignore target)
+│       └── cli-tools.jsonl      # Codex/Gemini I/O logs
 │
-├── .codex/                      # Codex CLI設定
+├── .codex/                      # Codex CLI configuration
 │   ├── AGENTS.md
 │   ├── config.toml
 │   └── skills/
-│       ├── context-loader/      # コンテキスト読み込みスキル
-│       └── design-tracker/      # 設計追跡スキル
+│       ├── context-loader/      # Context loading skill
+│       └── design-tracker/      # Design tracking skill
 │
-├── .gemini/                     # Gemini CLI設定
+├── .gemini/                     # Gemini CLI configuration
 │   ├── GEMINI.md
 │   ├── settings.json
 │   └── skills/
-│       └── context-loader/      # コンテキスト読み込みスキル
+│       └── context-loader/      # Context loading skill
 │
 └── scripts/
-    └── update.sh               # テンプレート更新スクリプト
+    └── update.sh               # Template update script
 ```
 
-### Codex連携を安定化するための運用
+### Stabilizing Codex Integration
 
-- `@.claude/docs/CODEX_HANDOFF_PLAYBOOK.md` のテンプレートで Codex への依頼を統一
-- `.claude/rules/codex-delegation.md` で「Codex優先で渡す」方針と例外条件を明確化
-- `.codex/config.toml` は `approval_policy = "never"` を採用し、非対話フローでも止まりにくくする
+- Use templates from `@.claude/docs/CODEX_HANDOFF_PLAYBOOK.md` to standardize requests to Codex
+- `.claude/rules/codex-delegation.md` defines the "Codex-first delegation" policy and exception conditions
+- `.codex/config.toml` uses `approval_policy = "never"` to prevent blocking in non-interactive flows
 
 ## Workflow
 
-メインのワークフローは3つのスキルを順に実行します。
+The main workflow executes three skills in sequence.
 
 ```
-/startproject <機能名>     Phase 1-3: コードベース理解 → 調査&設計 → 計画
-    ↓ ユーザー承認後
-/team-implement            Phase 4: Agent Teams で並列実装
-    ↓ 実装完了後
-/team-review               Phase 5: Agent Teams で並列レビュー
+/startproject <feature>    Phase 1-3: Codebase understanding → Research & design → Planning
+    ↓ After user approval
+/team-implement            Phase 4: Parallel implementation with Agent Teams
+    ↓ After implementation
+/team-review               Phase 5: Parallel review with Agent Teams
 ```
 
-1. **Opus サブエージェント** でコードベースを分析（1M context）+ **Claude** がユーザーと要件ヒアリング
-2. **Agent Teams** で Researcher（Opus）↔ Architect（Codex）が並列に調査・設計
-3. **Claude** が調査と設計を統合し、計画をユーザーに提示
-4. 承認後、`/team-implement` でモジュール単位の並列実装
-5. `/team-review` でセキュリティ・品質・テストの並列レビュー
+1. **Opus subagent** analyzes the codebase (1M context) + **Claude** conducts requirements gathering with the user
+2. **Agent Teams**: Researcher (Opus) and Architect (Codex) perform research and design in parallel
+3. **Claude** integrates research and design, then presents the plan to the user
+4. After approval, `/team-implement` runs parallel implementation by module
+5. `/team-review` runs parallel review for security, quality, and testing
 
 ## Skills
 
 ### Core Workflow
 
-#### `/startproject` — プロジェクト開始
+#### `/startproject` — Start Project
 
-マルチエージェント協調でプロジェクトを開始します。
+Starts a project with multi-agent coordination.
 
 ```
-/startproject ユーザー認証機能
+/startproject user authentication feature
 ```
 
-**ワークフロー:**
-1. **Opus サブエージェント** → コードベース分析・事前調査（1M context）
-2. **Claude** → ユーザーと要件ヒアリング
-3. **Agent Teams** → Researcher（Opus）↔ Architect（Codex）で並列調査・設計
-4. **Claude** → 計画統合・ユーザー承認
+**Workflow:**
+1. **Opus subagent** → Codebase analysis & preliminary research (1M context)
+2. **Claude** → Requirements gathering with the user
+3. **Agent Teams** → Researcher (Opus) and Architect (Codex) perform parallel research & design
+4. **Claude** → Plan integration & user approval
 
-#### `/team-implement` — 並列実装
+#### `/team-implement` — Parallel Implementation
 
-Agent Teams による並列実装。`/startproject` で承認された計画に基づいて実行します。
+Parallel implementation with Agent Teams. Executes based on the plan approved in `/startproject`.
 
 ```
 /team-implement
 ```
 
-**特徴:**
-- モジュール/レイヤー単位で Teammate を起動し、ファイル所有権を分離
-- 共有タスクリストで依存関係を管理し自律的に協調
-- 各 Teammate は完了時にワークログを `.claude/logs/agent-teams/` に記録
+**Features:**
+- Launches Teammates per module/layer with separated file ownership
+- Manages dependencies via shared task list for autonomous coordination
+- Each Teammate records a work log to `.claude/logs/agent-teams/` upon completion
 
-#### `/team-review` — 並列レビュー
+#### `/team-review` — Parallel Review
 
-Agent Teams による並列コードレビュー。実装完了後に実行します。
+Parallel code review with Agent Teams. Run after implementation is complete.
 
 ```
 /team-review
 ```
 
-**レビュアー構成:**
-- **Security Reviewer** — セキュリティ脆弱性の検出
-- **Quality Reviewer** — コード品質・パターン準拠の確認（Codex 活用）
-- **Test Reviewer** — テストカバレッジ・品質の検証
+**Reviewer composition:**
+- **Security Reviewer** — Detects security vulnerabilities
+- **Quality Reviewer** — Checks code quality & pattern compliance (leveraging Codex)
+- **Test Reviewer** — Validates test coverage & quality
 
-#### `/add-feature` — 機能追加
+#### `/add-feature` — Add Feature
 
-既存コードベースにCodex-firstで機能を追加します。`/startproject`（新規プロジェクト向け）より軽量で、複雑度に応じた実装ルーティングを行います。
-
-```
-/add-feature ユーザープロフィール編集機能
-```
-
-**ワークフロー:**
-1. **Opus サブエージェント + Codex** → スコープ＆影響分析
-2. **Codex** → アーキテクチャ設計・実装計画・バリデーション
-3. **複雑度別ルーティング:**
-   - SIMPLE（1-3ファイル, <50 LOC）→ Codex 直接実装
-   - MODERATE（3-5ファイル）→ Codex 実装 + `/team-review`
-   - COMPLEX（5+ファイル）→ `/team-implement` + `/team-review`
-
-#### `/spike` — 技術調査・フィージビリティスタディ
-
-Codex-firstのタイムボックス型技術調査。**意思決定文書**（go/no-go推奨）を作成します。実装計画ではなく、判断材料を提供します。
+Adds a feature to an existing codebase using a Codex-first approach. Lighter-weight than `/startproject` (which targets new projects), with complexity-based implementation routing.
 
 ```
-/spike WebSocketとSSEのどちらを採用すべきか
+/add-feature user profile editing feature
 ```
 
-**ワークフロー:**
-1. **Claude + Codex** → 調査質問のフレーミング・制約定義
-2. **Agent Teams** → Researcher（Opus外部調査）↔ Feasibility Analyst（Codex深層分析）で並列調査
-3. **Codex** → go/no-go推奨に統合・リサーチレポート作成
+**Workflow:**
+1. **Opus subagent + Codex** → Scope & impact analysis
+2. **Codex** → Architecture design, implementation plan, validation
+3. **Complexity-based routing:**
+   - SIMPLE (1-3 files, <50 LOC) → Direct Codex implementation
+   - MODERATE (3-5 files) → Codex implementation + `/team-review`
+   - COMPLEX (5+ files) → `/team-implement` + `/team-review`
 
-> GO決定後は `/add-feature` または `/startproject` で実装に進む
+#### `/spike` — Technical Investigation & Feasibility Study
+
+A Codex-first, time-boxed technical investigation. Produces a **decision document** (with go/no-go recommendation). Provides decision-making material, not an implementation plan.
+
+```
+/spike Should we adopt WebSocket or SSE?
+```
+
+**Workflow:**
+1. **Claude + Codex** → Frame investigation questions & define constraints
+2. **Agent Teams** → Researcher (Opus external research) and Feasibility Analyst (Codex deep analysis) investigate in parallel
+3. **Codex** → Synthesize into go/no-go recommendation & produce research report
+
+> After a GO decision, proceed to implementation with `/add-feature` or `/startproject`
 
 ### Development
 
-#### `/plan` — 実装計画
+#### `/plan` — Implementation Plan
 
-要件を具体的なステップに分解します。
-
-```
-/plan APIエンドポイントの追加
-```
-
-**出力:**
-- 実装ステップ（ファイル・変更内容・検証方法）
-- 依存関係・リスク
-- 検証基準
-
-#### `/tdd` — テスト駆動開発
-
-Red-Green-Refactorサイクルで実装します。
+Breaks down requirements into concrete steps.
 
 ```
-/tdd ユーザー登録機能
+/plan Add API endpoint
 ```
 
-**ワークフロー:**
-1. テストケース設計
-2. 失敗するテスト作成（Red）
-3. 最小限の実装（Green）
-4. リファクタリング（Refactor）
+**Output:**
+- Implementation steps (files, changes, verification methods)
+- Dependencies & risks
+- Validation criteria
 
-#### `/simplify` — コードリファクタリング
+#### `/tdd` — Test-Driven Development
 
-コードを簡潔化・可読性向上させます。
+Implements using the Red-Green-Refactor cycle.
 
-#### `/troubleshoot` — エラー診断・修正計画
+```
+/tdd user registration feature
+```
 
-Codexを中心としたマルチエージェント協調でエラーを診断し、修正計画を立案します。
+**Workflow:**
+1. Design test cases
+2. Write failing tests (Red)
+3. Minimal implementation (Green)
+4. Refactoring (Refactor)
+
+#### `/simplify` — Code Refactoring
+
+Simplifies code and improves readability.
+
+#### `/troubleshoot` — Error Diagnosis & Fix Planning
+
+Diagnoses errors and creates fix plans through multi-agent coordination centered on Codex.
 
 ```
 /troubleshoot TypeError: cannot unpack non-iterable NoneType object
 ```
 
-**ワークフロー:**
-1. **Opus サブエージェント + Codex** → エラー再現・コンテキスト収集
-2. **Agent Teams** → Root Cause Analyst（Codex駆動）↔ Impact Investigator（Opus + Codex）で並列診断
-3. **Claude + Codex** → 修正計画統合・ユーザー承認
+**Workflow:**
+1. **Opus subagent + Codex** → Error reproduction & context collection
+2. **Agent Teams** → Root Cause Analyst (Codex-driven) and Impact Investigator (Opus + Codex) diagnose in parallel
+3. **Claude + Codex** → Fix plan integration & user approval
 
 ### Agent Delegation
 
-#### `/codex-system` — Codex CLI連携
+#### `/codex-system` — Codex CLI Integration
 
-設計判断・デバッグ・トレードオフ分析に使用します。
+Used for design decisions, debugging, and trade-off analysis.
 
-**トリガー例:**
-- 「どう設計すべき？」「どう実装する？」
-- 「なぜ動かない？」「エラーが出る」
-- 「どちらがいい？」「比較して」
+**Trigger examples:**
+- "How should this be designed?" "How should I implement this?"
+- "Why isn't this working?" "I'm getting an error"
+- "Which is better?" "Compare these options"
 
-#### `/gemini-system` — Gemini CLI連携
+#### `/gemini-system` — Gemini CLI Integration
 
-Gemini CLI を活用したマルチモーダルファイル処理（PDF/動画/音声/画像）。
+Multimodal file processing (PDF/video/audio/image) powered by Gemini CLI.
 
-**トリガー例:**
-- 「このPDFを読んで」「この動画を要約して」
-- 「この音声を文字起こしして」「この図を分析して」
+**Trigger examples:**
+- "Read this PDF" "Summarize this video"
+- "Transcribe this audio" "Analyze this diagram"
 
 ### Documentation
 
-#### `/design-tracker` — 設計決定追跡
+#### `/design-tracker` — Design Decision Tracking
 
-アーキテクチャ・実装決定を自動記録します。会話中の設計判断を検出して `.claude/docs/DESIGN.md` に自動追記します。
+Automatically records architecture and implementation decisions. Detects design decisions during conversation and appends them to `.claude/docs/DESIGN.md`.
 
-#### `/update-design` — 設計ドキュメント更新
+#### `/update-design` — Update Design Document
 
-会話内容から設計決定を抽出し、`.claude/docs/DESIGN.md` を明示的に更新します。
+Extracts design decisions from conversation content and explicitly updates `.claude/docs/DESIGN.md`.
 
-#### `/research-lib` — ライブラリ調査
+#### `/research-lib` — Library Research
 
-ライブラリを調査し、`.claude/docs/libraries/` に包括的なドキュメントを生成します。
+Investigates a library and generates comprehensive documentation in `.claude/docs/libraries/`.
 
 ```
 /research-lib httpx
 ```
 
-#### `/update-lib-docs` — ライブラリドキュメント更新
+#### `/update-lib-docs` — Update Library Documentation
 
-`.claude/docs/libraries/` の既存ドキュメントを最新情報で更新します。
+Updates existing documentation in `.claude/docs/libraries/` with the latest information.
 
 ### Session Management
 
-#### `/checkpointing` — セッション永続化
+#### `/checkpointing` — Session Persistence
 
-セッションの全活動（git履歴・CLI相談・Agent Teams活動・設計決定）を記録し、再利用可能なスキルパターンを発見します。
+Records all session activity (git history, CLI consultations, Agent Teams activity, design decisions) and discovers reusable skill patterns.
 
 ```bash
-/checkpointing                    # 全記録 + パターン発見
-/checkpointing --since "2026-02-08"  # 特定日以降のみ
+/checkpointing                    # Full recording + pattern discovery
+/checkpointing --since "2026-02-08"  # Only since a specific date
 ```
 
-#### `/init` — プロジェクト初期化
+#### `/init` — Project Initialization
 
-プロジェクト構造を分析し、Tech Stack・コマンド・設定を自動検出して AGENTS.md を更新します。
+Analyzes the project structure, auto-detects tech stack, commands, and configuration, and updates AGENTS.md.
 
 ## Development
 
 ### Template Update
 
-テンプレートの更新をローカルプロジェクトに安全に反映できます。
+Safely applies template updates to your local project.
 
 ```bash
-# 最新版に更新
+# Update to the latest version
 ./scripts/update.sh
 
-# 特定バージョンに更新
+# Update to a specific version
 ./scripts/update.sh v0.2.0
 
-# 確認プロンプトをスキップ
+# Skip confirmation prompt
 ./scripts/update.sh --yes
 ```
 
-**仕組み:**
-- `CLAUDE.md` の `@orchestra:local-boundary` セパレータより上（テンプレート部分）のみ更新
-- skills/hooks/rules/agents は完全同期
-- `.claude/docs/research/` 等のローカルデータは保護
-- `.claude/settings.json` は差分表示のみ（手動マージ）
+**How it works:**
+- Only updates the portion above the `@orchestra:local-boundary` separator in `CLAUDE.md` (the template section)
+- skills/hooks/rules/agents are fully synced
+- Local data such as `.claude/docs/research/` is preserved
+- `.claude/settings.json` only shows a diff (manual merge required)
 
 ### Tech Stack
 
-| ツール | 用途 |
+| Tool | Purpose |
 |--------|------|
-| **uv** | パッケージ管理（pip禁止） |
-| **ruff** | リント・フォーマット |
-| **ty** | 型チェック |
-| **pytest** | テスト |
-| **poethepoet** | タスクランナー |
+| **uv** | Package management (pip is prohibited) |
+| **ruff** | Linting & formatting |
+| **ty** | Type checking |
+| **pytest** | Testing |
+| **poethepoet** | Task runner |
 
 ### Commands
 
 ```bash
-# 依存関係
-uv add <package>           # パッケージ追加
-uv add --dev <package>     # 開発依存追加
-uv sync                    # 依存関係同期
+# Dependencies
+uv add <package>           # Add package
+uv add --dev <package>     # Add dev dependency
+uv sync                    # Sync dependencies
 
-# 品質チェック
+# Quality checks
 poe lint                   # ruff check + format
 poe typecheck              # ty
 poe test                   # pytest
-poe all                    # 全チェック実行
+poe all                    # Run all checks
 
-# 直接実行
+# Direct execution
 uv run pytest -v
 uv run ruff check .
 ```
 
 ## Hooks
 
-自動化フックにより、適切なタイミングでエージェント連携・品質チェックを実行します。
+Automation hooks execute agent coordination and quality checks at the appropriate timing.
 
-| フック | トリガー | 動作 |
+| Hook | Trigger | Action |
 |--------|----------|------|
-| `agent-router.py` | ユーザー入力 | Codex/Geminiへのルーティング提案 |
-| `lint-on-save.py` | ファイル保存 | 自動lint実行 |
-| `check-codex-before-write.py` | ファイル書き込み前 | Codex相談提案 |
-| `check-codex-after-plan.py` | Task実行後 | 計画・設計タスク後にCodexレビュー提案 |
-| `error-to-codex.py` | Bashエラー検出 | codex-debuggerサブエージェント提案 |
-| `post-test-analysis.py` | テスト/ビルド失敗 | Codexによるデバッグ分析提案 |
-| `post-implementation-review.py` | 大規模実装後 | Codexによるコードレビュー提案 |
-| `suggest-gemini-research.py` | WebSearch/Fetch前 | 深い調査はOpusサブエージェント委譲を提案 |
-| `log-cli-tools.py` | Codex/Gemini実行 | 入出力ログ記録 |
+| `agent-router.py` | User input | Suggests routing to Codex/Gemini |
+| `lint-on-save.py` | File save | Auto-runs lint |
+| `check-codex-before-write.py` | Before file write | Suggests consulting Codex |
+| `check-codex-after-plan.py` | After Task execution | Suggests Codex review after planning/design tasks |
+| `error-to-codex.py` | Bash error detected | Suggests codex-debugger subagent |
+| `post-test-analysis.py` | Test/build failure | Suggests debug analysis via Codex |
+| `post-implementation-review.py` | After large implementation | Suggests code review via Codex |
+| `suggest-gemini-research.py` | Before WebSearch/Fetch | Suggests delegating deep research to Opus subagent |
+| `log-cli-tools.py` | Codex/Gemini execution | Records I/O logs |
 
 ## Language Rules
 
-- **コード・思考・推論**: 英語
-- **ユーザーへの応答**: 日本語
-- **技術ドキュメント**: 英語
-- **README等**: 日本語可
+- **Code, thinking, and reasoning**: English
+- **Responses to users**: Japanese
+- **Technical documentation**: English
+- **README, etc.**: Japanese permitted

@@ -1,68 +1,68 @@
 # AGENTS.md — Codex Agent Contract
 
-Codex はこのテンプレートで **設計・計画・複雑実装の担当**。
-Claude Code からの委譲先として、再利用可能な出力を返すことを目的とする。
+Codex is **responsible for design, planning, and complex implementation** under this template.
+Its purpose is to return reusable output as a delegation target from Claude Code.
 
 ## 1) Primary Responsibilities
 
-1. 実装計画の分解（依存関係・順序・リスク）
-2. 設計比較（選択肢、採用理由、非採用理由）
-3. 複雑なコード変更・根本原因分析
-4. テスト戦略と検証手順の提案
+1. Decomposing implementation plans (dependencies, ordering, risks)
+2. Design comparisons (options, reasons for adoption, reasons for rejection)
+3. Complex code changes and root cause analysis
+4. Proposing test strategies and validation procedures
 
 ## 2) Explicit Non-Responsibilities
 
-- 外部 Web リサーチの一次実行（Opus サブエージェントが担当）
-- 画像/PDF/動画/音声の解析（Gemini が担当）
-- ユーザーとの最終コミュニケーション（Claude が担当）
+- Primary execution of external web research (handled by Opus subagent)
+- Analysis of images/PDFs/video/audio (handled by Gemini)
+- Final communication with the user (handled by Claude)
 
 ## 3) Required Response Structure
 
-必ず次の順で返す。
+Always respond in the following order.
 
 ```markdown
 ## TL;DR
-- 3行以内の結論
+- Conclusion in 3 lines or fewer
 
 ## Analysis
-- 問題の分解、前提、制約
+- Problem decomposition, assumptions, constraints
 
 ## Plan
-1. 実施ステップ
-2. 実施ステップ
+1. Implementation step
+2. Implementation step
 
 ## Patch Strategy
-- どのファイルに何を変更するか
+- Which files to change and what to change in each
 
 ## Validation
-- 実行すべきテスト/確認コマンド
+- Tests/verification commands to run
 
 ## Risks
-- 失敗時の影響と回避策
+- Impact of failure and mitigation strategies
 ```
 
 ## 4) Decision Rules
 
-- 要件が曖昧なら、実装前に「仮定」を明示
-- 大きい変更は最小差分の段階導入を提案
-- 互換性破壊の可能性がある場合、必ず移行案を添える
+- If requirements are ambiguous, state assumptions explicitly before implementing
+- For large changes, propose incremental introduction with minimal diffs
+- If there is a possibility of breaking compatibility, always include a migration plan
 
 ## 5) Code Quality Rules
 
-- 既存スタイルと命名規則を優先
-- 不要な抽象化を増やさない
-- 例外処理は握り潰さず、観測可能性を確保
-- テスト可能性を下げる変更を避ける
+- Follow existing style and naming conventions
+- Do not introduce unnecessary abstractions
+- Do not swallow exceptions; ensure observability
+- Avoid changes that reduce testability
 
 ## 6) Handoff Rules to Claude
 
-- 「そのまま実行可能」な手順にして返す
-- 長文の生データではなく、判断に必要な要点を圧縮
-- 未確認事項は TODO として分離
+- Return procedures that are directly executable as-is
+- Compress key points needed for decision-making, not lengthy raw data
+- Separate unverified items as TODOs
 
 ## 7) Internal Context References
 
-必要に応じて以下を参照:
+Refer to the following as needed:
 
 - `.claude/docs/DESIGN.md`
 - `.claude/docs/research/`
