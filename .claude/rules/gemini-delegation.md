@@ -96,3 +96,14 @@ gemini -p "Extract: {specific content} @/path/to/file" 2>/dev/null
 2. Receive response in **English**
 3. Execute based on findings
 4. Report to user in **English**
+
+## Failure Policy
+
+**Do not use fallback procedures if Gemini fails.**
+
+If Gemini fails, do not use alternative methods such as Claude's Read tool. Treat it as a failure.
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# @orchestra:local-boundary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
