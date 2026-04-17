@@ -44,7 +44,7 @@ claude-code-orchestra/
 
 ## 4. スキル一覧（`.claude/skills/`）
 
-> 全 17 個。システムリマインダーで列挙された `update-config / keybindings-help / less-permission-prompts / loop / claude-api / session-start-hook / security-review / review` は本テンプレートには **存在しない**（注意点 §9 参照）。
+> 全 18 個。システムリマインダーで列挙された `update-config / keybindings-help / less-permission-prompts / loop / claude-api / session-start-hook / security-review / review` は本テンプレートには **存在しない**（注意点 §9 参照）。
 
 ### コアワークフロー（プロジェクト開始〜レビュー）
 - `start-feature` — 明示 `/start-feature` — Phase1-3 の新機能キックオフ（Opus codebase 解析 → Agent Teams 並列リサーチ＆設計 → 統合承認）。
@@ -71,6 +71,7 @@ claude-code-orchestra/
 
 ### セッション・設定
 - `checkpointing` — 明示 `/checkpointing` — git 履歴・CLI consult・Agent Teams 活動を全記録し再利用可能スキルパターンを発見。
+- `catchup` — 明示 `/catchup` — リポジトリ全体（git・CLAUDE/AGENTS・rules・skills・DESIGN/research/libraries・checkpoints・agent-teams ログ）を Opus subagent で包括スキャンし、ルート直下に `GUIDE.md` を生成（新規/復帰コントリビューター向け）。
 - `init` — 明示 `/init` 専用 — プロジェクト構造解析、技術スタック自動検出、AGENTS.md のプロジェクト固有セクションを更新。
 
 ## 5. サブエージェント一覧（`.claude/agents/`）
@@ -81,7 +82,7 @@ claude-code-orchestra/
 
 ## 6. スラッシュコマンド一覧
 
-`.claude/commands/` ディレクトリは **存在しない**。スラッシュコマンドはすべて `.claude/skills/*/SKILL.md` の frontmatter を介して提供される（`/start-feature`, `/team-implement`, `/team-review`, `/add-feature`, `/spike`, `/plan`, `/tdd`, `/simplify`, `/troubleshoot`, `/codex-system`, `/gemini-system`, `/research-lib`, `/update-lib-docs`, `/design-tracker`, `/update-design`, `/checkpointing`, `/init` の 17 個）。
+`.claude/commands/` ディレクトリは **存在しない**。スラッシュコマンドはすべて `.claude/skills/*/SKILL.md` の frontmatter を介して提供される（`/start-feature`, `/team-implement`, `/team-review`, `/add-feature`, `/spike`, `/plan`, `/tdd`, `/simplify`, `/troubleshoot`, `/codex-system`, `/gemini-system`, `/research-lib`, `/update-lib-docs`, `/design-tracker`, `/update-design`, `/checkpointing`, `/catchup`, `/init` の 18 個）。
 外部の Codex プラグイン `/codex:review`, `/codex:adversarial-review`, `/codex:rescue`, `/codex:status|result|cancel` は別途 `/plugin install codex@openai-codex` で導入。
 
 ## 7. 開発環境（`pyproject.toml`）

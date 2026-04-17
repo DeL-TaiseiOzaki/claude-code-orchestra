@@ -114,7 +114,7 @@ To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale 
 │   │   ├── codex-debugger.md    # Error analysis agent (Opus)
 │   │   └── gemini-explore.md    # Multimodal processing agent (Opus)
 │   │
-│   ├── skills/                  # Reusable workflows (17 total)
+│   ├── skills/                  # Reusable workflows (18 total)
 │   │   ├── start-feature/       # Start feature with multi-agent coordination
 │   │   ├── team-implement/      # Parallel implementation with Agent Teams
 │   │   ├── team-review/         # Parallel review with Agent Teams
@@ -130,6 +130,7 @@ To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale 
 │   │   ├── research-lib/        # Library research
 │   │   ├── update-lib-docs/     # Library documentation updates
 │   │   ├── checkpointing/       # Session persistence + pattern discovery
+│   │   ├── catchup/             # Generate GUIDE.md for onboarding/re-onboarding
 │   │   ├── init/                # Project initialization
 │   │   └── troubleshoot/        # Error diagnosis & fix planning
 │   │
@@ -372,6 +373,14 @@ Records all session activity (git history, CLI consultations, Agent Teams activi
 #### `/init` — Project Initialization
 
 Analyzes the project structure, auto-detects tech stack, commands, and configuration, and updates AGENTS.md.
+
+#### `/catchup` — Onboarding Guide
+
+Scans the repository (git history, CLAUDE.md/AGENTS.md, project rules, skill catalog, DESIGN.md, research & library notes, checkpoints, agent-team logs) and writes a `GUIDE.md` at the repository root so new or returning contributors can understand past work and resume quickly.
+
+```bash
+/catchup
+```
 
 ## Development
 
