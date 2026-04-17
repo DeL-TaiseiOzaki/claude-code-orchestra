@@ -12,7 +12,7 @@
 
 ```
 claude-code-orchestra/
-├── CLAUDE.md                    # Orchestrator Contract（local-boundary 以下はローカル拡張）
+├── CLAUDE.md                    # Orchestrator Contract（3ゾーン: Zone A=template / Zone B=init / Zone C=working）
 ├── README.md / LICENSE / VERSION / summary.png
 ├── pyproject.toml / uv.lock     # uv + ruff + ty + pytest + poe
 ├── scripts/
@@ -138,7 +138,7 @@ claude-code-orchestra/
 - **`/.claude/commands/` ディレクトリは未作成**。slash command はすべて `skills/` 配下で定義されている。
 - **`docs/research/` と `docs/libraries/` は `.gitkeep` のみ**（テンプレート配布時は空）。ユーザーはここに Opus subagent の調査結果を蓄積する前提。
 - **システムリマインダー記載の以下スキルは本テンプレートに存在しない**: `update-config`, `keybindings-help`, `less-permission-prompts`, `loop`, `claude-api`, `session-start-hook`, `review`, `security-review`。これらは Anthropic 標準スキル（Claude Code 本体同梱）であり、本プロジェクトはそれらを上書きせず、プロジェクト固有の 17 個を追加する構成。
-- `CLAUDE.md` 末尾の `@orchestra:local-boundary` 区切り以下は **ローカル拡張ゾーン**。`scripts/update.sh` で template を更新してもこの区切り以下は温存される。
+- `CLAUDE.md` は **3 ゾーン構造**: Zone A（`@orchestra:template-boundary` の上、テンプレ所有、update.sh で差し替え）/ Zone B（2 マーカー間、`/init` が書く Repository Identity、保持）/ Zone C（`@orchestra:repo-boundary` の下、`/start-feature` 等が追記、保持）。旧 `@orchestra:local-boundary` 方式は `update.sh` が自動移行する（legacy 以下 → Zone C、Zone B はプレースホルダにリセットして `/init` 再実行を促す）。
 - `.claude/settings.json` は update 時に diff 表示のみで **自動マージされない**（手動マージ必須）。
 - Codex プラグイン（`/codex:review` 等）は別途 `/plugin install` が必要。
 - `.codex/config.toml` は `approval_policy = "never"` で非対話フローのブロッキング回避を図る（実行時は承認が出ない点に注意）。

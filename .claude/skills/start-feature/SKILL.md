@@ -273,7 +273,9 @@ Task breakdown should follow `references/task-patterns.md`.
 
 ### Step 3: Update CLAUDE.md
 
-Add project context to CLAUDE.md for cross-session persistence:
+Append the project context to `CLAUDE.md` **Zone C** (the area below the `@orchestra:repo-boundary` marker box) for cross-session persistence. Never touch Zone A or Zone B.
+
+If `@orchestra:repo-boundary` is missing, ask the user to run `./scripts/update.sh` first — the updater migrates legacy layouts automatically.
 
 ```markdown
 ---

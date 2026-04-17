@@ -17,7 +17,10 @@ set -euo pipefail
 # Constants
 # =============================================================================
 TEMPLATE_REPO="https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git"
-BOUNDARY_MARKER="@orchestra:local-boundary"
+TEMPLATE_BOUNDARY="@orchestra:template-boundary"
+REPO_BOUNDARY="@orchestra:repo-boundary"
+LEGACY_BOUNDARY="@orchestra:local-boundary"
+BOUNDARY_LINE="# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
@@ -249,8 +252,93 @@ sync_safe_files() {
 }
 
 # =============================================================================
-# Phase 4: Hybrid files (smart merge using separator)
+# Phase 4: Hybrid files (3-zone merge: template | repo-identity | working-state)
 # =============================================================================
+#
+# CLAUDE.md layout:
+#   Zone A — Orchestra concept & template base (replaced from new template)
+#   @orchestra:template-boundary
+#   Zone B — Repository identity (managed by /init, preserved across updates)
+#   @orchestra:repo-boundary
+#   Zone C — Working state (appended by skills, preserved across updates)
+#
+# Migration: files using the legacy @orchestra:local-boundary marker are
+# auto-migrated — their content below the legacy marker becomes Zone C,
+# and Zone B is reset to the template placeholder so /init can populate it.
+# Re-running on an already-migrated file is a no-op (idempotent).
+
+# Strip leading blank or ━ separator lines from stdin
+_strip_leading_frame() {
+    awk '
+    started == 0 {
+        if ($0 ~ /^[[:space:]]*$/ || $0 ~ /^# ━/) next
+        started = 1
+    }
+    started { print }'
+}
+
+# Strip trailing blank or ━ separator lines from stdin
+_strip_trailing_frame() {
+    awk '
+    { buf[NR] = $0 }
+    END {
+        last = NR
+        while (last > 0 && (buf[last] ~ /^[[:space:]]*$/ || buf[last] ~ /^# ━/)) last--
+        for (i = 1; i <= last; i++) print buf[i]
+    }'
+}
+
+# Print content above the first line matching the given marker, with trailing frame stripped
+_extract_zone_above() {
+    local file="$1"
+    local marker="$2"
+    awk -v m="${marker}" 'index($0, m) { exit } { print }' "${file}" | _strip_trailing_frame
+}
+
+# Print content between marker1 and marker2, with surrounding frames stripped
+_extract_zone_between() {
+    local file="$1"
+    local m1="$2"
+    local m2="$3"
+    awk -v m1="${m1}" -v m2="${m2}" '
+        index($0, m1) { inside = 1; next }
+        index($0, m2) { exit }
+        inside { print }
+    ' "${file}" | _strip_leading_frame | _strip_trailing_frame
+}
+
+# Print content after the marker's box, with leading frame stripped
+_extract_zone_below() {
+    local file="$1"
+    local marker="$2"
+    awk -v m="${marker}" 'found { print } index($0, m) { found = 1 }' "${file}" | _strip_leading_frame
+}
+
+# Detect local CLAUDE.md format: "new" | "legacy" | "none"
+_detect_format() {
+    local file="$1"
+    local has_template=false has_repo=false has_legacy=false
+    grep -q "${TEMPLATE_BOUNDARY}" "${file}" 2>/dev/null && has_template=true
+    grep -q "${REPO_BOUNDARY}" "${file}" 2>/dev/null && has_repo=true
+    grep -q "${LEGACY_BOUNDARY}" "${file}" 2>/dev/null && has_legacy=true
+
+    if [[ "${has_template}" == true && "${has_repo}" == true ]]; then
+        echo "new"
+    elif [[ "${has_legacy}" == true ]]; then
+        echo "legacy"
+    else
+        echo "none"
+    fi
+}
+
+# Emit a boundary block (3 lines: ━, marker, ━) to stdout
+_emit_boundary_block() {
+    local marker="$1"
+    echo "${BOUNDARY_LINE}"
+    echo "# ${marker}"
+    echo "${BOUNDARY_LINE}"
+}
+
 merge_hybrid_files() {
     header "Merging Hybrid Files"
 
@@ -270,131 +358,74 @@ merge_hybrid_files() {
             continue
         fi
 
-        local template_has_boundary=false
-        local local_has_boundary=false
+        local zone_a zone_b zone_c fmt
+        zone_a="$(_extract_zone_above "${src}" "${TEMPLATE_BOUNDARY}")"
+        fmt="$(_detect_format "${dst}")"
 
-        if grep -q "${BOUNDARY_MARKER}" "${src}" 2>/dev/null; then
-            template_has_boundary=true
-        fi
-        if grep -q "${BOUNDARY_MARKER}" "${dst}" 2>/dev/null; then
-            local_has_boundary=true
-        fi
+        case "${fmt}" in
+            new)
+                zone_b="$(_extract_zone_between "${dst}" "${TEMPLATE_BOUNDARY}" "${REPO_BOUNDARY}")"
+                zone_c="$(_extract_zone_below "${dst}" "${REPO_BOUNDARY}")"
+                ;;
+            legacy)
+                # Legacy 2-zone layout: below the old marker becomes Zone C.
+                # Zone B is reset to the template placeholder so /init can fill it.
+                zone_b="$(_extract_zone_between "${src}" "${TEMPLATE_BOUNDARY}" "${REPO_BOUNDARY}")"
+                zone_c="$(_extract_zone_below "${dst}" "${LEGACY_BOUNDARY}")"
+                warn "Migrated ${file} from legacy @orchestra:local-boundary layout to 3-zone layout."
+                warn "  → Re-run /init to populate the new 'Repository Identity' section."
+                ;;
+            none)
+                # No recognizable markers — treat the whole local file as Zone C
+                # and add the template's Zone A and Zone B placeholder around it.
+                zone_b="$(_extract_zone_between "${src}" "${TEMPLATE_BOUNDARY}" "${REPO_BOUNDARY}")"
+                zone_c="$(cat "${dst}")"
+                warn "${file} has no recognized boundary markers; wrapping existing content as Zone C."
+                warn "  → Re-run /init to populate the new 'Repository Identity' section."
+                ;;
+        esac
 
-        # Extract template part (above boundary) from new template
-        local new_template_part
-        if [[ "${template_has_boundary}" == true ]]; then
-            # Get everything up to (but not including) the first boundary marker line
-            new_template_part="$(awk "/${BOUNDARY_MARKER}/{found=1} !found{print}" "${src}")"
-        else
-            # No boundary in template; use the entire file
-            new_template_part="$(cat "${src}")"
-        fi
-
-        # Extract local part (boundary line and everything below) from local file
-        local local_below_boundary
-        if [[ "${local_has_boundary}" == true ]]; then
-            # Get the boundary block and everything below it
-            # Find the line number of the first separator line before the boundary marker
-            local boundary_line_num
-            boundary_line_num="$(grep -n "${BOUNDARY_MARKER}" "${dst}" | head -1 | cut -d: -f1)"
-            # Look backwards from the boundary marker to find the separator block start
-            # The block is: separator line, marker line, separator line
-            local block_start=$((boundary_line_num - 1))
-            # Check if the line before is a separator line
-            local line_before
-            line_before="$(sed -n "${block_start}p" "${dst}")"
-            if echo "${line_before}" | grep -q "^# ━"; then
-                block_start=$((block_start))
-            else
-                block_start=$((boundary_line_num))
-            fi
-            # Also check for blank line before the block
-            local blank_check=$((block_start - 1))
-            if [[ ${blank_check} -ge 1 ]]; then
-                local check_line
-                check_line="$(sed -n "${blank_check}p" "${dst}")"
-                if [[ -z "${check_line}" ]]; then
-                    block_start=${blank_check}
-                fi
-            fi
-            local_below_boundary="$(tail -n +"${block_start}" "${dst}")"
-        else
-            # No boundary in local file; treat entire local file as local content
-            # We will prepend the template part + boundary
-            local_below_boundary=""
-        fi
-
-        # Save old template portion for diff
-        local old_template_part=""
-        if [[ "${local_has_boundary}" == true ]]; then
-            local boundary_line_num
-            boundary_line_num="$(grep -n "${BOUNDARY_MARKER}" "${dst}" | head -1 | cut -d: -f1)"
-            local block_start=$((boundary_line_num - 1))
-            local line_before
-            line_before="$(sed -n "${block_start}p" "${dst}")"
-            if echo "${line_before}" | grep -q "^# ━"; then
-                block_start=$((block_start))
-            else
-                block_start=$((boundary_line_num))
-            fi
-            local blank_check=$((block_start - 1))
-            if [[ ${blank_check} -ge 1 ]]; then
-                local check_line
-                check_line="$(sed -n "${blank_check}p" "${dst}")"
-                if [[ -z "${check_line}" ]]; then
-                    block_start=${blank_check}
-                fi
-            fi
-            # Everything before the block start is the old template part
-            local lines_before=$((block_start - 1))
-            if [[ ${lines_before} -gt 0 ]]; then
-                old_template_part="$(head -n "${lines_before}" "${dst}")"
-            fi
-        else
-            old_template_part="$(cat "${dst}")"
-        fi
+        # Capture the old Zone A for diff reporting (best-effort)
+        local old_zone_a=""
+        case "${fmt}" in
+            new)     old_zone_a="$(_extract_zone_above "${dst}" "${TEMPLATE_BOUNDARY}")" ;;
+            legacy)  old_zone_a="$(_extract_zone_above "${dst}" "${LEGACY_BOUNDARY}")" ;;
+            none)    old_zone_a="" ;;
+        esac
 
         # Build the merged file
         local merged_file="${TMPDIR_UPDATE}/merged_${file//\//_}"
+        {
+            printf '%s\n' "${zone_a}"
+            echo ""
+            _emit_boundary_block "${TEMPLATE_BOUNDARY}"
+            echo ""
+            printf '%s\n' "${zone_b}"
+            echo ""
+            _emit_boundary_block "${REPO_BOUNDARY}"
+            echo ""
+            printf '%s\n' "${zone_c}"
+        } > "${merged_file}"
 
-        if [[ "${local_has_boundary}" == true ]]; then
-            # Template part + local boundary and below
-            {
-                echo "${new_template_part}"
-                echo "${local_below_boundary}"
-            } > "${merged_file}"
+        # Diff the template portion (Zone A) only
+        local old_file="${TMPDIR_UPDATE}/old_zone_a"
+        local new_file="${TMPDIR_UPDATE}/new_zone_a"
+        printf '%s\n' "${old_zone_a}" > "${old_file}"
+        printf '%s\n' "${zone_a}" > "${new_file}"
+
+        local zone_a_diff
+        zone_a_diff="$(diff -u "${old_file}" "${new_file}" --label "local (Zone A)" --label "new template (Zone A)" 2>/dev/null || true)"
+
+        if [[ -n "${zone_a_diff}" ]]; then
+            info "Zone A of ${file} has changed:"
+            echo "${zone_a_diff}"
         else
-            # No boundary in local file: prepend template + boundary + original content
-            {
-                echo "${new_template_part}"
-                echo ""
-                echo "# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "# ${BOUNDARY_MARKER}"
-                echo "# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo ""
-                cat "${dst}"
-            } > "${merged_file}"
-        fi
-
-        # Show diff of the template portion
-        local old_part_file="${TMPDIR_UPDATE}/old_template_part"
-        local new_part_file="${TMPDIR_UPDATE}/new_template_part"
-        echo "${old_template_part}" > "${old_part_file}"
-        echo "${new_template_part}" > "${new_part_file}"
-
-        local template_diff
-        template_diff="$(diff -u "${old_part_file}" "${new_part_file}" --label "local (template section)" --label "new template" 2>/dev/null || true)"
-
-        if [[ -n "${template_diff}" ]]; then
-            info "Template portion of ${file} has changed:"
-            echo "${template_diff}"
-        else
-            info "Template portion of ${file} is unchanged."
+            info "Zone A of ${file} is unchanged."
         fi
 
         cp -f "${merged_file}" "${dst}"
         UPDATED_FILES+=("${file}")
-        info "Merged ${file}"
+        info "Merged ${file} (format: ${fmt})"
     done
 }
 

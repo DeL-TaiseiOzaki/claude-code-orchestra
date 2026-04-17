@@ -1,17 +1,28 @@
 ---
 name: init
-description: Analyze project structure and update AGENTS.md with detected tech stack, commands, and configurations.
+description: Analyze project structure and populate the "Repository Identity" section of CLAUDE.md (Zone B) plus AGENTS.md.
 disable-model-invocation: true
 ---
 
 # Initialize Project Configuration
 
-Analyze this project and update **only the project-specific sections** of AGENTS.md.
+Analyze this project and populate the **Repository Identity (Zone B)** section of `CLAUDE.md`, and mirror the same information into the project-specific sections of `AGENTS.md`.
+
+## CLAUDE.md 3-zone layout (recap)
+
+```
+Zone A — Orchestra concept & template base (template-owned)
+# @orchestra:template-boundary
+Zone B — Repository Identity  ← this skill writes here
+# @orchestra:repo-boundary
+Zone C — Working state (sessions, features, design pointers)
+```
 
 ## Important
 
-- Do **NOT** modify the "Extensions" section and below in existing AGENTS.md
-- Only update the top project-specific sections
+- Touch ONLY Zone B of `CLAUDE.md`. Never modify Zone A (above `@orchestra:template-boundary`) or Zone C (below `@orchestra:repo-boundary`).
+- For `AGENTS.md`, do NOT modify the "Extensions" section and below — only update the top project-specific sections.
+- If `CLAUDE.md` lacks the 3-zone markers (legacy layout), ask the user to run `./scripts/update.sh` first. Do not hand-insert markers.
 
 ## Steps
 
@@ -39,9 +50,50 @@ Use AskUserQuestion tool to ask:
 2. **Code language**: English or Japanese for comments/variable names?
 3. **Additional rules**: Any other coding conventions to follow?
 
-### 3. Partial Update of AGENTS.md
+### 3. Update CLAUDE.md Zone B
 
-Use Edit tool to update only the top section (up to first `---`) with this format:
+First verify the 3-zone markers exist:
+
+```bash
+grep -q "@orchestra:template-boundary" CLAUDE.md && grep -q "@orchestra:repo-boundary" CLAUDE.md
+```
+
+If either marker is missing, stop and ask the user to run `./scripts/update.sh` to migrate the file; the updater auto-migrates legacy single-boundary layouts.
+
+Replace the content **between** the two markers with the following template (keep the marker lines and their ━ separators intact). Use the Edit tool by anchoring on the full block between the two boundary box lines.
+
+```markdown
+## Repository Identity
+
+<!-- Managed by /init. Re-run /init to refresh. -->
+
+### Project Overview
+
+{User's answer to "what does this project do"}
+
+### Language Settings
+
+- **Thinking/Reasoning**: English
+- **Code**: {Based on analysis — English or Japanese}
+- **User Communication**: Japanese
+
+### Tech Stack
+
+- **Language**: {Detected language}
+- **Package Manager**: {Detected tools}
+- **Dev Tools**: {Detected tools}
+- **Main Libraries**: {Detected libraries}
+
+### Common Commands
+
+```bash
+{npm run dev / poe test / make build etc.}
+```
+```
+
+### 4. Partial Update of AGENTS.md
+
+Mirror the same information into `AGENTS.md` so Codex and Gemini see it. Update only the top section (up to the first `---`) with this format:
 
 ```markdown
 # Project Overview
@@ -60,18 +112,11 @@ Use Edit tool to update only the top section (up to first `---`) with this forma
 - **Package Manager**: {Detected tools}
 - **Dev Tools**: {Detected tools}
 - **Main Libraries**: {Detected libraries}
-```
 
-### 4. Update Common Commands
-
-Update the `## Common Commands` section with detected commands:
-
-```markdown
 ## Common Commands
 
 ```bash
-# Detected commands (example)
-{npm run dev / poe test / make build etc.}
+{Detected commands}
 ```
 ```
 
@@ -87,5 +132,5 @@ Check rules in `.claude/rules/` and suggest removing unnecessary ones:
 Report to user (in Japanese):
 
 - Detected tech stack
-- Updated sections
+- Files updated (`CLAUDE.md` Zone B, `AGENTS.md`)
 - Recommended rules to remove (if any)
