@@ -6,7 +6,7 @@ description: |
   Phase 1: Frame the investigation question & constraints (Claude user interaction + Codex question decomposition).
   Phase 2: Parallel investigation (Agent Teams: Researcher [Opus external research] + Feasibility Analyst [Codex deep analysis] + optional prototype).
   Phase 3: Codex synthesis into go/no-go recommendation & research report.
-  Produces a DECISION DOCUMENT, NOT an implementation plan. Use /add-feature or /startproject after a GO decision.
+  Produces a DECISION DOCUMENT, NOT an implementation plan. Use /add-feature or /start-feature after a GO decision.
 metadata:
   short-description: Codex-first time-boxed technical investigation with Agent Teams (Decision phase)
 ---
@@ -17,12 +17,12 @@ metadata:
 
 ## Overview
 
-This skill handles time-boxed feasibility studies and technical investigations. It produces a **decision document** (go/no-go recommendation), NOT an implementation plan. After a GO decision, the user proceeds to `/add-feature` or `/startproject` for actual implementation.
+This skill handles time-boxed feasibility studies and technical investigations. It produces a **decision document** (go/no-go recommendation), NOT an implementation plan. After a GO decision, the user proceeds to `/add-feature` or `/start-feature` for actual implementation.
 
 ```
 /spike <question or hypothesis>    <- This skill (investigation & decision)
     | After GO decision
-/add-feature or /startproject      <- Implementation planning
+/add-feature or /start-feature      <- Implementation planning
     | After approval
 /team-implement                    <- Parallel implementation
 ```
@@ -43,7 +43,7 @@ This skill handles time-boxed feasibility studies and technical investigations. 
 | Situation | Use Instead |
 |-----------|-------------|
 | Bug diagnosis | `/troubleshoot` |
-| Known feature to implement | `/add-feature` or `/startproject` |
+| Known feature to implement | `/add-feature` or `/start-feature` |
 | Simple library lookup | Direct research (Opus subagent) |
 | Code review | `/team-review` |
 
@@ -430,7 +430,7 @@ Output format:
 ## Confidence Level: HIGH / MEDIUM / LOW
 ## Decisive Factor
 ## If GO: Constraints and Risks to Carry Forward
-## If GO: Recommended Next Skill (/add-feature or /startproject)
+## If GO: Recommended Next Skill (/add-feature or /start-feature)
 ## If NO-GO: Decisive Blocker and Alternatives
 ## If INCONCLUSIVE: What Additional Investigation Is Needed
 " 2>/dev/null
@@ -495,7 +495,7 @@ Save the complete spike report to `.claude/docs/research/spike-{topic}.md`:
 {GO / NO-GO / INCONCLUSIVE with detailed reasoning}
 
 ### If GO
-- Next step: {/add-feature or /startproject}
+- Next step: {/add-feature or /start-feature}
 - Key constraints to carry forward: {list}
 - Risks to monitor: {list}
 
@@ -544,7 +544,7 @@ Present the spike result to the user:
 
 ### Next Steps
 **If GO:**
-1. Proceed with `/add-feature` or `/startproject` for implementation
+1. Proceed with `/add-feature` or `/start-feature` for implementation
 2. Key constraints to carry forward: {list}
 3. Risks to monitor during implementation: {list}
 
@@ -581,7 +581,7 @@ Shall we proceed with the recommended next step?
 - **Time budget discipline**: Respect the time budget. If investigation is taking too long, Codex can evaluate with partial evidence and mark the verdict as INCONCLUSIVE
 - **Phase 1 is critical**: A well-decomposed question makes Phase 2 much more efficient. Invest time in framing the right sub-questions with Codex
 - **Phase 2**: Agent Teams bidirectional communication allows Researcher (Opus) and Feasibility Analyst (Codex-driven) to converge on evidence-based assessment
-- **Phase 3**: Codex synthesizes all findings into a decision. After a GO decision, proceed to `/add-feature` or `/startproject` -- do NOT start implementation within the spike
+- **Phase 3**: Codex synthesizes all findings into a decision. After a GO decision, proceed to `/add-feature` or `/start-feature` -- do NOT start implementation within the spike
 - **PROTOTYPE mode**: Prototype code is throwaway. It lives in `.claude/spikes/` and is NOT production code. Its only purpose is to generate evidence for the decision
 - **Short-circuit**: If Phase 2 discovers a hard blocker early, short-circuit to Phase 3 immediately. No need to complete all sub-questions if the answer is already clear
 - **Inconclusive is OK**: Not every spike produces a clear answer. An INCONCLUSIVE result with documented unknowns is more valuable than a false GO

@@ -114,8 +114,8 @@ To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale 
 │   │   ├── codex-debugger.md    # Error analysis agent (Opus)
 │   │   └── gemini-explore.md    # Multimodal processing agent (Opus)
 │   │
-│   ├── skills/                  # Reusable workflows (17 total)
-│   │   ├── startproject/        # Start project with multi-agent coordination
+│   ├── skills/                  # Reusable workflows (18 total)
+│   │   ├── start-feature/       # Start feature with multi-agent coordination
 │   │   ├── team-implement/      # Parallel implementation with Agent Teams
 │   │   ├── team-review/         # Parallel review with Agent Teams
 │   │   ├── add-feature/         # Codex-first feature addition (complexity-based routing)
@@ -130,6 +130,7 @@ To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale 
 │   │   ├── research-lib/        # Library research
 │   │   ├── update-lib-docs/     # Library documentation updates
 │   │   ├── checkpointing/       # Session persistence + pattern discovery
+│   │   ├── catchup/             # Generate GUIDE.md for onboarding/re-onboarding
 │   │   ├── init/                # Project initialization
 │   │   └── troubleshoot/        # Error diagnosis & fix planning
 │   │
@@ -183,7 +184,7 @@ To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale 
 The main workflow executes three skills in sequence.
 
 ```
-/startproject <feature>    Phase 1-3: Codebase understanding → Research & design → Planning
+/start-feature <feature>   Phase 1-3: Codebase understanding → Research & design → Planning
     ↓ After user approval
 /team-implement            Phase 4: Parallel implementation with Agent Teams
     ↓ After implementation
@@ -200,12 +201,12 @@ The main workflow executes three skills in sequence.
 
 ### Core Workflow
 
-#### `/startproject` — Start Project
+#### `/start-feature` — Start Feature
 
-Starts a project with multi-agent coordination.
+Starts a feature with multi-agent coordination.
 
 ```
-/startproject user authentication feature
+/start-feature user authentication feature
 ```
 
 **Workflow:**
@@ -216,7 +217,7 @@ Starts a project with multi-agent coordination.
 
 #### `/team-implement` — Parallel Implementation
 
-Parallel implementation with Agent Teams. Executes based on the plan approved in `/startproject`.
+Parallel implementation with Agent Teams. Executes based on the plan approved in `/start-feature`.
 
 ```
 /team-implement
@@ -242,7 +243,7 @@ Parallel code review with Agent Teams. Run after implementation is complete.
 
 #### `/add-feature` — Add Feature
 
-Adds a feature to an existing codebase using a Codex-first approach. Lighter-weight than `/startproject` (which targets new projects), with complexity-based implementation routing.
+Adds a feature to an existing codebase using a Codex-first approach. Lighter-weight than `/start-feature` (which targets large new features requiring research), with complexity-based implementation routing.
 
 ```
 /add-feature user profile editing feature
@@ -269,7 +270,7 @@ A Codex-first, time-boxed technical investigation. Produces a **decision documen
 2. **Agent Teams** → Researcher (Opus external research) and Feasibility Analyst (Codex deep analysis) investigate in parallel
 3. **Codex** → Synthesize into go/no-go recommendation & produce research report
 
-> After a GO decision, proceed to implementation with `/add-feature` or `/startproject`
+> After a GO decision, proceed to implementation with `/add-feature` or `/start-feature`
 
 ### Development
 
@@ -373,6 +374,14 @@ Records all session activity (git history, CLI consultations, Agent Teams activi
 
 Analyzes the project structure, auto-detects tech stack, commands, and configuration, and updates AGENTS.md.
 
+#### `/catchup` — Onboarding Guide
+
+Scans the repository (git history, CLAUDE.md/AGENTS.md, project rules, skill catalog, DESIGN.md, research & library notes, checkpoints, agent-team logs) and writes a `GUIDE.md` at the repository root so new or returning contributors can understand past work and resume quickly.
+
+```bash
+/catchup
+```
+
 ## Development
 
 ### Template Update
@@ -391,7 +400,11 @@ Safely applies template updates to your local project.
 ```
 
 **How it works:**
-- Only updates the portion above the `@orchestra:local-boundary` separator in `CLAUDE.md` (the template section)
+- `CLAUDE.md` uses a 3-zone layout separated by two markers:
+  - **Zone A** (above `@orchestra:template-boundary`) — orchestra concept & template base; fully replaced by the update
+  - **Zone B** (between the two markers) — repository identity, managed by `/init`; preserved across updates
+  - **Zone C** (below `@orchestra:repo-boundary`) — working state (features, session notes); preserved across updates
+- Projects still using the legacy `@orchestra:local-boundary` layout are auto-migrated on first run: their content below the legacy marker becomes Zone C, and Zone B is reset to the placeholder so `/init` can repopulate it
 - skills/hooks/rules/agents are fully synced
 - Local data such as `.claude/docs/research/` is preserved
 - `.claude/settings.json` only shows a diff (manual merge required)

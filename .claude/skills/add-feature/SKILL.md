@@ -16,7 +16,7 @@ metadata:
 
 ## Overview
 
-This skill adds a feature to an **existing** codebase. It is lighter-weight than `/startproject` (which is for new projects) but still Codex-centric: Codex CLI is consulted proactively in every phase for scope analysis, architecture design, implementation planning, and validation. Implementation is routed based on complexity.
+This skill adds a feature to an **existing** codebase. It is lighter-weight than `/start-feature` (which targets large features requiring research) but still Codex-centric: Codex CLI is consulted proactively in every phase for scope analysis, architecture design, implementation planning, and validation. Implementation is routed based on complexity.
 
 ```
 /add-feature <feature description>   <- This skill (scope, design, implement)
@@ -33,7 +33,7 @@ This skill adds a feature to an **existing** codebase. It is lighter-weight than
 | Skill | Use When |
 |-------|----------|
 | **`/add-feature`** | Adding a feature to an existing codebase with established patterns |
-| `/startproject` | Starting a new project from scratch, or a large feature requiring research |
+| `/start-feature` | Starting a large new feature requiring external research and parallel design |
 | `/troubleshoot` | Diagnosing and fixing bugs where root cause is unclear |
 | `/team-implement` | Executing an already-approved implementation plan in parallel |
 
@@ -178,7 +178,7 @@ This brief is passed to Phase 2 for design.
 
 **Codex designs the architecture, creates an implementation plan, and validates completeness. All three consultations are MANDATORY.**
 
-> Unlike /startproject which uses Agent Teams (Researcher + Architect) for greenfield design,
+> Unlike /start-feature which uses Agent Teams (Researcher + Architect) for greenfield design,
 > /add-feature uses Codex directly because the patterns and conventions are already established.
 
 ### Step 1: Codex Architecture Design (MANDATORY)
@@ -447,7 +447,7 @@ After implementation is complete, add feature context to CLAUDE.md for cross-ses
 - **Codex-first**: Every phase consults Codex. This is intentional -- Codex excels at understanding how new code fits into existing patterns and identifying integration risks
 - **Codex for scope**: Phase 1 Codex consultation classifies complexity early, so the right implementation route is chosen from the start
 - **Codex for validation**: Phase 2 validation catches missing edge cases and convention violations before implementation begins
-- **Lighter than /startproject**: This skill skips the Agent Teams research phase because the codebase conventions are already established -- Codex reasons about them directly
+- **Lighter than /start-feature**: This skill skips the Agent Teams research phase because the codebase conventions are already established -- Codex reasons about them directly
 - **Complexity routing**: Do not over-engineer simple features. 1-3 file changes should use Codex direct implementation, not Agent Teams
 - **Existing patterns**: The most important input to Codex is the existing codebase patterns from the Opus subagent scan. Always include them in every Codex prompt
 - **Phase 1**: Opus subagent (1M context) scans affected areas, then Codex classifies scope and complexity, while Claude collects requirements from the user

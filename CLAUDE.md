@@ -71,5 +71,17 @@ Save results exceeding 20 lines to `.claude/docs/` and return only a summary to 
 - Research notes are stored in `.claude/docs/research/` (keep empty when distributing templates)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# @orchestra:local-boundary
+# @orchestra:template-boundary
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## Repository Identity
+
+<!-- Managed by /init. Re-run /init to refresh. -->
+
+_Not initialized yet. Run `/init` to populate this section._
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# @orchestra:repo-boundary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+<!-- Working state below: appended by /start-feature, /design-tracker, and manual notes. -->

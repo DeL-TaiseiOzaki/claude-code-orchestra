@@ -1,25 +1,25 @@
 ---
-name: startproject
+name: start-feature
 description: |
-  Start a new project/feature with multi-agent collaboration (Opus 4.6 + Agent Teams).
+  Start a new feature with multi-agent collaboration (Opus 4.6 + Agent Teams).
   Phase 1: Codebase understanding (Opus subagent 1M context + Claude user interaction).
   Phase 2: Parallel research & design (Agent Teams: Researcher + Architect).
   Phase 3: Plan synthesis & user approval.
   Implementation is handled separately by /team-implement.
 metadata:
-  short-description: Project kickoff with Agent Teams (Plan phase)
+  short-description: Feature kickoff with Agent Teams (Plan phase)
 ---
 
-# Start Project
+# Start Feature
 
-**Project kickoff skill leveraging Opus 1M context and Agent Teams.**
+**Feature kickoff skill leveraging Opus 1M context and Agent Teams.**
 
 ## Overview
 
 This skill handles the planning phases (Phase 1-3). Implementation is done via `/team-implement`, and review via `/team-review`.
 
 ```
-/startproject <feature>     ← This skill (planning)
+/start-feature <feature>    ← This skill (planning)
     ↓ After approval
 /team-implement             ← Parallel implementation
     ↓ After completion
@@ -273,7 +273,9 @@ Task breakdown should follow `references/task-patterns.md`.
 
 ### Step 3: Update CLAUDE.md
 
-Add project context to CLAUDE.md for cross-session persistence:
+Append the project context to `CLAUDE.md` **Zone C** (the area below the `@orchestra:repo-boundary` marker box) for cross-session persistence. Never touch Zone A or Zone B.
+
+If `@orchestra:repo-boundary` is missing, ask the user to run `./scripts/update.sh` first — the updater migrates legacy layouts automatically.
 
 ```markdown
 ---

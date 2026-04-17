@@ -3,18 +3,18 @@ name: team-implement
 description: |
   Parallel implementation using Agent Teams. Spawns teammates per module/layer,
   each owning separate files to avoid conflicts. Uses shared task list with
-  dependencies for autonomous coordination. Run after /startproject plan approval.
+  dependencies for autonomous coordination. Run after /start-feature plan approval.
 metadata:
   short-description: Parallel implementation with Agent Teams
 ---
 
 # Team Implement
 
-**Parallel implementation using Agent Teams. Executes based on the plan approved in `/startproject`.**
+**Parallel implementation using Agent Teams. Executes based on the plan approved in `/start-feature`.**
 
 ## Prerequisites
 
-- `/startproject` is complete and the plan has been approved by the user
+- `/start-feature` is complete and the plan has been approved by the user
 - Architecture is documented in `.claude/docs/DESIGN.md`
 - Task list has been created
 
