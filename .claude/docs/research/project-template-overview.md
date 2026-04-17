@@ -47,7 +47,7 @@ claude-code-orchestra/
 > 全 17 個。システムリマインダーで列挙された `update-config / keybindings-help / less-permission-prompts / loop / claude-api / session-start-hook / security-review / review` は本テンプレートには **存在しない**（注意点 §9 参照）。
 
 ### コアワークフロー（プロジェクト開始〜レビュー）
-- `startproject` — 明示 `/startproject` — Phase1-3 の新規プロジェクトキックオフ（Opus codebase 解析 → Agent Teams 並列リサーチ＆設計 → 統合承認）。
+- `start-feature` — 明示 `/start-feature` — Phase1-3 の新機能キックオフ（Opus codebase 解析 → Agent Teams 並列リサーチ＆設計 → 統合承認）。
 - `team-implement` — 明示 `/team-implement` — モジュール別 Teammate による並列実装、ファイル所有分離とタスクリスト共有で自律協調。
 - `team-review` — 明示 `/team-review` — Security/Quality/Test の 3 Reviewer 並列レビュー（Codex 活用）。
 - `add-feature` — 明示 `/add-feature` — 既存コードベースへの軽量追加。複雑度で SIMPLE/MODERATE/COMPLEX にルーティング。
@@ -81,7 +81,7 @@ claude-code-orchestra/
 
 ## 6. スラッシュコマンド一覧
 
-`.claude/commands/` ディレクトリは **存在しない**。スラッシュコマンドはすべて `.claude/skills/*/SKILL.md` の frontmatter を介して提供される（`/startproject`, `/team-implement`, `/team-review`, `/add-feature`, `/spike`, `/plan`, `/tdd`, `/simplify`, `/troubleshoot`, `/codex-system`, `/gemini-system`, `/research-lib`, `/update-lib-docs`, `/design-tracker`, `/update-design`, `/checkpointing`, `/init` の 17 個）。
+`.claude/commands/` ディレクトリは **存在しない**。スラッシュコマンドはすべて `.claude/skills/*/SKILL.md` の frontmatter を介して提供される（`/start-feature`, `/team-implement`, `/team-review`, `/add-feature`, `/spike`, `/plan`, `/tdd`, `/simplify`, `/troubleshoot`, `/codex-system`, `/gemini-system`, `/research-lib`, `/update-lib-docs`, `/design-tracker`, `/update-design`, `/checkpointing`, `/init` の 17 個）。
 外部の Codex プラグイン `/codex:review`, `/codex:adversarial-review`, `/codex:rescue`, `/codex:status|result|cancel` は別途 `/plugin install codex@openai-codex` で導入。
 
 ## 7. 開発環境（`pyproject.toml`）
@@ -95,9 +95,9 @@ claude-code-orchestra/
 
 ## 8. 使い方の典型フロー
 
-### 新規プロジェクト
+### 新機能キックオフ（大規模）
 ```
-/startproject <feature>     # Phase 1-3: Opus 解析 → Agent Teams 研究＆設計 → 承認
+/start-feature <feature>    # Phase 1-3: Opus 解析 → Agent Teams 研究＆設計 → 承認
   ↓
 /team-implement             # Phase 4: モジュール並列実装
   ↓
@@ -117,7 +117,7 @@ claude-code-orchestra/
 ```
 /spike <question>           # go/no-go 判断ドキュメント
   ↓ (GO 時)
-/add-feature or /startproject
+/add-feature or /start-feature
 ```
 
 ### エラー対応

@@ -73,7 +73,7 @@ metadata:
 - Each Teammate's work log from `.claude/logs/agent-teams/{team-name}/{teammate}.md`
 - Contains: Summary, Tasks Completed, Files Modified, Key Decisions, Communication with Teammates, Issues Encountered
 - Written by each Teammate upon completing all assigned tasks
-- Only present when Agent Teams were used (`/startproject`, `/team-implement`, `/team-review`)
+- Only present when Agent Teams were used (`/start-feature`, `/team-implement`, `/team-review`)
 
 ### Design Decisions
 
@@ -96,7 +96,7 @@ metadata:
 ## Git History
 
 ### Commits
-- `abc1234` feat: redesign startproject for Opus 4.6
+- `abc1234` feat: redesign start-feature for Opus 4.6
 - `def5678` feat: add team-implement skill
 ...
 
@@ -184,7 +184,7 @@ Designed API client module architecture with HTTP/2 support.
 **Evidence:** Researcher and Architect exchanged findings 5 times, each
 exchange refined the design. This back-and-forth is a repeatable pattern.
 
-**Suggested skill:** Already captured as /startproject Phase 2.
+**Suggested skill:** Already captured as /start-feature Phase 2.
 
 ### Pattern 2: Parallel File-Isolated Implementation (Confidence: 0.75)
 **Evidence:** 3 implementers worked on separate modules with zero conflicts.
