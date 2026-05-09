@@ -23,8 +23,6 @@ def extract_codex_prompt(command: str) -> str | None:
     """Extract prompt from codex exec command."""
     # Pattern: codex exec ... "prompt" or codex exec ... 'prompt'
     patterns = [
-        r'codex\s+exec\s+.*?--full-auto\s+"([^"]+)"',
-        r"codex\s+exec\s+.*?--full-auto\s+'([^']+)'",
         r'codex\s+exec\s+.*?"([^"]+)"\s*2>/dev/null',
         r"codex\s+exec\s+.*?'([^']+)'\s*2>/dev/null",
     ]

@@ -30,7 +30,7 @@ Before calling Codex, gather relevant context:
 ### Step 2: Call Codex CLI
 
 ```bash
-codex exec --model gpt-5.4 --sandbox workspace-write --full-auto "
+codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox workspace-write "
 Analyze this error and provide root cause + fix:
 
 ## Error Output

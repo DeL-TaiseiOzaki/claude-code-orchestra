@@ -33,12 +33,30 @@
 
 ## Supported File Extensions (Multimodal)
 
+Officially supported by the Gemini Files API / inline upload (per https://ai.google.dev/gemini-api/docs/files):
+
 | Category | Extensions |
 |----------|--------|
 | PDF | `.pdf` |
-| Video | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm` |
-| Audio | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg` |
-| Image (detailed analysis) | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` |
+| Video | `.mp4`, `.mov` |
+| Audio | `.mp3`, `.wav`, `.m4a` |
+| Image | `.png`, `.jpg`, `.jpeg` |
+
+Best-effort (depends on the selected model's mime support; may fail or degrade silently):
+
+| Category | Extensions |
+|----------|--------|
+| Video | `.avi`, `.mkv`, `.webm` |
+| Audio | `.flac`, `.ogg` |
+| Image | `.gif`, `.webp`, `.svg` |
+
+## Model Selection
+
+Override the default model via the `--model` flag (e.g. `--model gemini-3-pro`) or the `GEMINI_MODEL` environment variable. The CLI default is the Gemini 2.5 Pro family. See https://geminicli.com/docs/cli/model/ for the full list.
+
+```bash
+gemini --model "${GEMINI_MODEL:-gemini-3-pro}" -p "..." 2>/dev/null
+```
 
 ## How to Use
 
