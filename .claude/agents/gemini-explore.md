@@ -27,12 +27,22 @@ gemini -p "Analyze: components, relationships, data flow @/path/to/diagram.png" 
 
 ## Supported File Types (Multimodal)
 
+Officially supported by the Gemini Files API:
+
 | Category | Extensions |
 |----------|-----------|
 | PDF | `.pdf` |
-| Video | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm` |
-| Audio | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg` |
-| Image (detailed analysis) | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` |
+| Video | `.mp4`, `.mov` |
+| Audio | `.mp3`, `.wav`, `.m4a` |
+| Image (detailed analysis) | `.png`, `.jpg`, `.jpeg` |
+
+Best-effort (depends on the model's mime support):
+
+| Category | Extensions |
+|----------|-----------|
+| Video | `.avi`, `.mkv`, `.webm` |
+| Audio | `.flac`, `.ogg` |
+| Image | `.gif`, `.webp`, `.svg` |
 
 > Screenshots can be read by Claude's Read tool directly.
 > Use Gemini only for diagrams, charts, or complex image analysis.

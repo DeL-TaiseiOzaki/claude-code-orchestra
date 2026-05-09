@@ -39,7 +39,7 @@ Every Codex prompt should include:
 ### A. Planning / Design (read-only)
 
 ```bash
-codex exec --model gpt-5.4 --sandbox read-only --full-auto "
+codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
 Objective: Create an implementation plan for {feature}.
 Constraints:
 - Keep existing architecture unless explicitly justified.
@@ -61,7 +61,7 @@ Output format:
 ### B. Complex Implementation (workspace-write)
 
 ```bash
-codex exec --model gpt-5.4 --sandbox workspace-write --full-auto "
+codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox workspace-write "
 Objective: Implement {feature/fix}.
 Constraints:
 - Follow project lint/type/test rules.

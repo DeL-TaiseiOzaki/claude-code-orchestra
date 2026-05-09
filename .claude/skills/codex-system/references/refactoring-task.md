@@ -62,7 +62,7 @@ Provide:
 ## Example Invocation
 
 ```bash
-codex exec --model gpt-5.4 --sandbox workspace-write --full-auto "
+codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox workspace-write "
 Refactor this code for simplicity:
 
 ## Target Code

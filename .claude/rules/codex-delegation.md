@@ -54,7 +54,7 @@ Task tool parameters:
 - prompt: |
     Consult Codex about: {topic}
 
-    codex exec --model gpt-5.4 --sandbox read-only --full-auto "
+    codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
     Objective: {single-sentence objective}
     Constraints:
     - {constraint 1}
@@ -76,13 +76,13 @@ Task tool parameters:
 ### Direct Call (Short questions only)
 
 ```bash
-codex exec --model gpt-5.4 --sandbox read-only --full-auto "Objective: {brief question}" 2>/dev/null
+codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "Objective: {brief question}" 2>/dev/null
 ```
 
 ### Having Codex Implement Code
 
 ```bash
-codex exec --model gpt-5.4 --sandbox workspace-write --full-auto "
+codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox workspace-write "
 Objective: Implement {detailed implementation task}
 Constraints:
 - Follow existing project conventions
@@ -114,12 +114,16 @@ The `openai/codex-plugin-cc` plugin provides structured Codex workflows directly
 
 | Use Case | Recommended Method | Why |
 |----------|-------------------|-----|
+| Plugin setup | `/codex:setup` | Toggle features (`--enable-review-gate` / `--disable-review-gate`) |
 | Code review | `/codex:review` | Structured review with background support |
+| Synchronous review | `/codex:review --wait` | Block until review finishes |
 | Adversarial/design review | `/codex:adversarial-review` | Steerable challenge review |
 | Task delegation | `/codex:rescue` | Background jobs with status tracking |
 | Job management | `/codex:status`, `/codex:result`, `/codex:cancel` | Built-in job lifecycle |
 | Planning & design | `codex exec --sandbox read-only` | Ad-hoc queries with prompt control |
 | Complex implementation | `codex exec --sandbox workspace-write` | Full sandbox control |
+
+> Plugin source: https://github.com/openai/codex-plugin-cc
 
 ### Plugin Commands
 

@@ -15,14 +15,22 @@ import sys
 
 # Multimodal file extensions that MUST be processed by Gemini
 MULTIMODAL_EXTENSIONS = [
+    # Officially supported (Gemini Files API)
     # PDF
     ".pdf",
     # Video
-    ".mp4", ".mov", ".avi", ".mkv", ".webm",
+    ".mp4", ".mov",
     # Audio
-    ".mp3", ".wav", ".m4a", ".flac", ".ogg",
+    ".mp3", ".wav", ".m4a",
     # Image (for detailed analysis — screenshots can be read by Claude directly)
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+    ".png", ".jpg", ".jpeg",
+    # Best-effort, depends on model mime support
+    # Video
+    ".avi", ".mkv", ".webm",
+    # Audio
+    ".flac", ".ogg",
+    # Image
+    ".gif", ".webp", ".svg",
 ]
 
 # Pattern to detect file paths with multimodal extensions
@@ -168,7 +176,7 @@ def main():
                     "additionalContext": (
                         f"[Agent Routing] Detected '{trigger}' — this task may benefit from "
                         "Codex CLI for planning, design, or complex implementation. Consider: "
-                        "`codex exec --model gpt-5.4 --sandbox read-only --full-auto "
+                        "`codex exec --model \"${CODEX_MODEL:-gpt-5.4}\" --sandbox read-only "
                         '"{task description}"` for design decisions, planning, debugging, '
                         "or complex analysis."
                     )

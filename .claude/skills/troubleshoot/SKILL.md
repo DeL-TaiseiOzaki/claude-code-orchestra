@@ -98,7 +98,7 @@ Task tool:
 Consult Codex for initial hypothesis generation before creating the Bug Report:
 
 ```bash
-codex exec --model gpt-5.4 --sandbox read-only --full-auto "
+codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
 Objective: Analyze this error and generate initial hypotheses for root cause.
 Context:
 - Error: {error message / stack trace}
@@ -202,7 +202,7 @@ Spawn two teammates:
 
    ### 1. Execution Flow Tracing
    For complex control flow, consult Codex:
-   codex exec --model gpt-5.4 --sandbox read-only --full-auto '
+   codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only '
    Objective: Trace the execution flow from {entry point} to {error location}.
    Context:
    - Entry point: {file:function}
@@ -220,7 +220,7 @@ Spawn two teammates:
 
    ### 2. Hypothesis Evaluation
    For each hypothesis, consult Codex to evaluate evidence:
-   codex exec --model gpt-5.4 --sandbox read-only --full-auto '
+   codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only '
    Objective: Evaluate hypothesis \"{hypothesis}\" against collected evidence.
    Context:
    - Hypothesis: {description}
@@ -238,7 +238,7 @@ Spawn two teammates:
 
    ### 3. Fix Approach Design
    Consult Codex for trade-off analysis of fix alternatives:
-   codex exec --model gpt-5.4 --sandbox read-only --full-auto '
+   codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only '
    Objective: Design and compare fix approaches for root cause: {root cause description}.
    Context:
    - Root cause: {description}
@@ -258,7 +258,7 @@ Spawn two teammates:
 
    ### 4. Fix Correctness Verification
    Before finalizing, consult Codex to verify the proposed fix:
-   codex exec --model gpt-5.4 --sandbox read-only --full-auto '
+   codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only '
    Objective: Verify that the proposed fix correctly resolves the root cause.
    Context:
    - Root cause: {description}
@@ -348,7 +348,7 @@ Spawn two teammates:
 
    ### Regression Risk Reasoning
    Consult Codex to evaluate what could break if the proposed change is applied:
-   codex exec --model gpt-5.4 --sandbox read-only --full-auto '
+   codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only '
    Objective: Evaluate regression risk if {proposed change} is applied to {file:line}.
    Context:
    - Current behavior: {description}
@@ -368,7 +368,7 @@ Spawn two teammates:
 
    ### Fix Safety Analysis
    Consult Codex to verify the proposed fix does not introduce new issues:
-   codex exec --model gpt-5.4 --sandbox read-only --full-auto '
+   codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only '
    Objective: Analyze whether the proposed fix introduces new issues or side effects.
    Context:
    - Root cause: {from Root Cause Analyst}
@@ -459,7 +459,7 @@ Read outputs from Phase 2:
 Before presenting to the user, validate the fix plan with Codex:
 
 ```bash
-codex exec --model gpt-5.4 --sandbox read-only --full-auto "
+codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
 Objective: Validate this fix plan for completeness and correctness.
 Context:
 - Root cause: {from Root Cause Analyst}
