@@ -14,6 +14,8 @@ metadata:
 
 **Feature kickoff skill leveraging Opus 1M context and Agent Teams.**
 
+> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest @google/gemini-cli@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+
 ## Overview
 
 This skill handles the planning phases (Phase 1-3). Implementation is done via `/team-implement`, and review via `/team-review`.

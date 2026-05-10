@@ -59,6 +59,29 @@ npm install -g @google/gemini-cli
 gemini login
 ```
 
+### Keeping AI CLIs Up to Date
+
+Claude Code, Codex CLI, and Gemini CLI all release frequently — model names, flags, and sandbox semantics drift between minor versions. **Update all three before each working session.**
+
+```bash
+# Claude Code (built-in self-update)
+claude update
+
+# Codex CLI
+npm install -g @openai/codex@latest
+
+# Gemini CLI
+npm install -g @google/gemini-cli@latest
+```
+
+Confirm versions afterward:
+
+```bash
+claude --version && codex --version && gemini --version
+```
+
+If a model name in `${CODEX_MODEL:-...}` / `${GEMINI_MODEL:-...}` no longer exists after an update, override it via `.claude/settings.json` `env` block or your shell environment without editing every skill file.
+
 ## Architecture
 
 ```

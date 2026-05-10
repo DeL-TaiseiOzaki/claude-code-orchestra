@@ -2,6 +2,8 @@
 
 **Codex CLI handles planning, design, and complex code implementation.**
 
+> **Update Codex CLI before each session.** Releases are frequent and flags/models drift: `npm install -g @openai/codex@latest`.
+
 ## Two Roles of Codex
 
 ### 1. Planning & Design

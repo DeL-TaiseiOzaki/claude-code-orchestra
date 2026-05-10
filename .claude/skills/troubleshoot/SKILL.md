@@ -15,6 +15,8 @@ metadata:
 
 **Codex-first error/bug diagnosis skill leveraging Codex deep reasoning, Opus 1M context, and Agent Teams.**
 
+> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest @google/gemini-cli@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+
 ## Overview
 
 This skill handles the diagnosis phases (Phase 1-3) with a **Codex-first approach**: Codex CLI is consulted proactively in every phase for pattern recognition, hypothesis evaluation, root cause reasoning, and fix validation. Fix implementation is done via `/team-implement`, and review via `/team-review`.

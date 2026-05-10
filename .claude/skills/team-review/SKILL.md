@@ -12,6 +12,8 @@ metadata:
 
 **Parallel review using Agent Teams. Review from multiple perspectives simultaneously after implementation is complete.**
 
+> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest @google/gemini-cli@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+
 ## Prerequisites
 
 - Implementation is complete (after `/team-implement` or manual implementation)
