@@ -4,6 +4,8 @@
 
 > Opus/Sonnet now support 1M context. Research and codebase analysis are handled by Opus subagents (general-purpose).
 > Gemini is used exclusively for multimodal content extraction that Claude cannot process directly.
+>
+> **Update Gemini CLI before each session.** Releases are frequent and the supported model list / flags shift: `npm install -g @google/gemini-cli@latest`.
 
 ## Role: Multimodal File Processing
 

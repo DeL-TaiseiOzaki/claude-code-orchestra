@@ -15,6 +15,8 @@ metadata:
 
 **Codex-first time-boxed technical investigation skill leveraging Codex deep reasoning, Opus 1M context, and Agent Teams.**
 
+> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest @google/gemini-cli@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+
 ## Overview
 
 This skill handles time-boxed feasibility studies and technical investigations. It produces a **decision document** (go/no-go recommendation), NOT an implementation plan. After a GO decision, the user proceeds to `/add-feature` or `/start-feature` for actual implementation.

@@ -14,6 +14,8 @@ metadata:
 
 **Codex-first feature addition skill for existing codebases, with complexity-based implementation routing.**
 
+> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest @google/gemini-cli@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+
 ## Overview
 
 This skill adds a feature to an **existing** codebase. It is lighter-weight than `/start-feature` (which targets large features requiring research) but still Codex-centric: Codex CLI is consulted proactively in every phase for scope analysis, architecture design, implementation planning, and validation. Implementation is routed based on complexity.

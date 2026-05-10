@@ -15,6 +15,7 @@ metadata:
 
 **Codex CLI handles planning, design, and complex code implementation.**
 
+> **Preflight:** Update Codex CLI before each session — `npm install -g @openai/codex@latest`. Releases drift frequently (model names, flags, sandbox semantics).
 > **Detailed rules**: `.claude/rules/codex-delegation.md`
 
 ## Two Roles of Codex

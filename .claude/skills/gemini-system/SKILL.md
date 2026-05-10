@@ -14,6 +14,7 @@ metadata:
 
 **Gemini CLI is specialized for multimodal file processing (PDF, video, audio, image).**
 
+> **Preflight:** Update Gemini CLI before each session — `npm install -g @google/gemini-cli@latest`. Releases drift frequently (supported models, flags).
 > **Detailed rules**: `.claude/rules/gemini-delegation.md`
 > **Research/codebase analysis**: Use general-purpose subagent (Opus) instead — Opus now supports 1M context.
 
