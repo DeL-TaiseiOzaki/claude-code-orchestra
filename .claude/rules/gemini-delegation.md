@@ -78,6 +78,32 @@ gemini -p "Transcribe and summarize: decisions, action items @/path/to/audio.mp3
 gemini -p "Analyze this diagram: components, relationships, data flow @/path/to/diagram.png" 2>/dev/null
 ```
 
+### Image Generation / Editing (nano-banana extension, optional)
+
+When a task requires **generating or editing images** (not extraction), use the
+official `nanobanana` Gemini CLI extension. This is content *generation*, which
+is distinct from Gemini's primary multimodal *extraction* role above.
+
+```bash
+# One-time install (Node.js 20+ required), then restart Gemini CLI
+gemini extensions install https://github.com/gemini-cli-extensions/nanobanana
+
+# Generate
+/generate "a watercolor painting of a fox in a snowy forest"
+/generate "sunset over mountains" --count=3 --preview
+
+# Edit an existing image
+/edit my_photo.png "add sunglasses to the person"
+
+# Natural language
+/nanobanana create a logo for my tech startup
+```
+
+- API key: set `NANOBANANA_API_KEY` (Google AI Studio key) — never hardcode it.
+- Model override (optional): `export NANOBANANA_MODEL=gemini-3-pro-image-preview`
+  (default: `gemini-3.1-flash-image-preview`; v1: `gemini-2.5-flash-image`).
+- Output is written to `./nanobanana-output/`.
+
 ## Context Management
 
 | Situation | Recommended Method |
