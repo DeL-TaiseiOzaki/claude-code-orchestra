@@ -38,6 +38,18 @@ SAFE_FILES=(
     "scripts/update.sh"
 )
 
+# Paths that previous template versions installed but no longer ship.
+# The updater removes these from the local project so that orphans from
+# deprecated features (e.g. removed CLI integrations) don't linger.
+#
+# When you remove an entry from SAFE_DIRS or SAFE_FILES, add the old path
+# here so existing projects get cleaned up on their next update.
+# Each entry MUST start with "." (a dotfile/dot-dir) to keep the blast
+# radius scoped to template-owned locations.
+DEPRECATED_PATHS=(
+    ".gemini"
+)
+
 # Hybrid files that use boundary-based merging
 HYBRID_FILES=(
     "CLAUDE.md"
@@ -202,6 +214,77 @@ fetch_template() {
     fi
 
     info "Version: ${BOLD}${OLD_VERSION}${RESET} -> ${BOLD}${NEW_VERSION}${RESET}"
+}
+
+# =============================================================================
+# Phase 2.5: Remove deprecated paths (orphans from older template versions)
+# =============================================================================
+# Runs BEFORE sync_safe_dirs so future deprecations that overlap with new
+# SAFE_DIRS don't fight rsync. Each entry is validated against several
+# defense-in-depth checks before `rm -rf` to prevent foot-guns.
+cleanup_deprecated_paths() {
+    header "Cleaning Up Deprecated Paths"
+
+    if [[ ${#DEPRECATED_PATHS[@]} -eq 0 ]]; then
+        info "No deprecated paths configured."
+        return 0
+    fi
+
+    local project_root_abs
+    project_root_abs="$(cd "${PROJECT_ROOT}" && pwd -P)"
+
+    for path in "${DEPRECATED_PATHS[@]}"; do
+        local trimmed="${path//[[:space:]]/}"
+        if [[ -z "${trimmed}" ]]; then
+            warn "Skipping empty DEPRECATED_PATHS entry."
+            continue
+        fi
+        if [[ "${path}" == "." || "${path}" == "./" ]]; then
+            error "Refusing to remove '.' (would target project root). Skipping."
+            continue
+        fi
+        if [[ "${path:0:1}" != "." ]]; then
+            error "DEPRECATED_PATHS entry must start with '.': '${path}'. Skipping."
+            continue
+        fi
+        if [[ "${path}" == /* ]]; then
+            error "DEPRECATED_PATHS entry must be relative: '${path}'. Skipping."
+            continue
+        fi
+        # Substring catches '.foo/../../etc' as well as leading '..'
+        if [[ "${path}" == *".."* ]]; then
+            error "DEPRECATED_PATHS entry contains '..': '${path}'. Skipping."
+            continue
+        fi
+
+        local target="${PROJECT_ROOT}/${path}"
+
+        if [[ ! -e "${target}" && ! -L "${target}" ]]; then
+            continue
+        fi
+
+        # Escape check: resolve symlinks in parent components and ensure
+        # the final target is still strictly inside PROJECT_ROOT.
+        local resolved
+        resolved="$(realpath -m -- "${target}")"
+        if [[ "${resolved}" != "${project_root_abs}/"* ]]; then
+            error "Refusing to remove '${path}': resolves outside PROJECT_ROOT (${resolved})."
+            continue
+        fi
+        if [[ "${resolved}" == "${project_root_abs}" ]]; then
+            error "Refusing to remove '${path}': resolves to PROJECT_ROOT itself."
+            continue
+        fi
+
+        warn "Removing deprecated path: ${path}"
+        if git -C "${PROJECT_ROOT}" ls-files --error-unmatch -- "${path}" &>/dev/null; then
+            git -C "${PROJECT_ROOT}" rm -rf --quiet --ignore-unmatch -- "${path}" \
+                || rm -rf -- "${target}"
+        else
+            rm -rf -- "${target}"
+        fi
+        UPDATED_FILES+=("REMOVED: ${path}")
+    done
 }
 
 # =============================================================================
@@ -491,7 +574,11 @@ print_summary() {
     if [[ ${#UPDATED_FILES[@]} -gt 0 ]]; then
         info "Updated files/directories:"
         for item in "${UPDATED_FILES[@]}"; do
-            echo "  ${GREEN}+${RESET} ${item}"
+            if [[ "${item}" == REMOVED:* ]]; then
+                echo "  ${RED}-${RESET} ${item#REMOVED: }"
+            else
+                echo "  ${GREEN}+${RESET} ${item}"
+            fi
         done
     else
         info "No files were updated."
@@ -527,6 +614,7 @@ main() {
     parse_args "$@"
     preflight_checks
     fetch_template
+    cleanup_deprecated_paths
     sync_safe_dirs
     sync_safe_files
     merge_hybrid_files
