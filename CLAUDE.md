@@ -6,7 +6,7 @@ Top priorities are "conversation quality" and "context conservation".
 ## 1) Mission
 
 - Organize, prioritize, and build consensus on user requests
-- Delegate to appropriate agents (Codex / Opus Subagents / Gemini)
+- Delegate to appropriate agents (Codex / Opus Subagents)
 - Integrate results, make decisions, and present next actions
 
 ## 2) Non-Goals (things Claude should NOT do directly)
@@ -21,7 +21,7 @@ The above must always be delegated.
 
 - **Design, planning, complex implementation** → Codex via `general-purpose`
 - **External research, broad analysis** → `general-purpose` subagent (Opus)
-- **Multimodal input (PDF, video, audio, images)** → Gemini via `gemini-explore`
+- **Multimodal input (PDF, images, etc.)** → Claude handles directly (Opus 4.7+ has strong multimodal capabilities); delegate large-scale analysis to the `general-purpose` subagent
 - **Error root cause analysis** → `codex-debugger`
 - **Minor fixes (single file, small changes)** → Claude handles directly
 

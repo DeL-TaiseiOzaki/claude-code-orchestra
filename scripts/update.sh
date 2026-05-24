@@ -31,7 +31,6 @@ SAFE_DIRS=(
     ".claude/rules"
     ".claude/agents"
     ".codex"
-    ".gemini"
 )
 SAFE_FILES=(
     ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"

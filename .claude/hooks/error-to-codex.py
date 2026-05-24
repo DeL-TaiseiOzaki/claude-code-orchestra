@@ -54,10 +54,9 @@ IGNORE_OUTPUTS = [
     "Everything up-to-date",
 ]
 
-# Skip if the command itself is a Codex/Gemini call (avoid recursive suggestions)
+# Skip if the command itself is a Codex call (avoid recursive suggestions)
 SKIP_COMMANDS = [
     "codex ",
-    "gemini ",
 ]
 
 MIN_OUTPUT_LENGTH = 20

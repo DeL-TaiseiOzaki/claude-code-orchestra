@@ -13,7 +13,6 @@ Its purpose is to return reusable output as a delegation target from Claude Code
 ## 2) Explicit Non-Responsibilities
 
 - Primary execution of external web research (handled by Opus subagent)
-- Analysis of images/PDFs/video/audio (handled by Gemini)
 - Final communication with the user (handled by Claude)
 
 ## 3) Required Response Structure

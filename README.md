@@ -6,16 +6,15 @@ Multi-Agent AI Development Environment
 
 ```
 Claude Code (Orchestrator) ─┬─ Codex CLI (Planning & Complex Code)
-                             ├─ Opus Subagents (Research, Analysis, Implementation)
-                             └─ Gemini CLI (Multimodal: PDF/Video/Audio/Image)
+                             └─ Opus Subagents (Research, Analysis, Implementation)
 ```
 
 ## Quick Start
 
-Run in the root of your existing project (ensure Codex/Gemini are installed and logged in first):
+Run in the root of your existing project (ensure Codex is installed and logged in first):
 
 ```bash
-codex --version && codex login && gemini --version && gemini login && git clone --depth 1 https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git .starter && cp -r .starter/.claude .starter/.codex .starter/.gemini .starter/CLAUDE.md . && rm -rf .starter && claude
+codex --version && codex login && git clone --depth 1 https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git .starter && cp -r .starter/.claude .starter/.codex .starter/CLAUDE.md . && rm -rf .starter && claude
 ```
 
 ## Prerequisites
@@ -52,16 +51,9 @@ A plugin that lets you use Codex directly from Claude Code. Simplifies code revi
 - `/codex:rescue` — Task delegation
 - `/codex:status` / `/codex:result` / `/codex:cancel` — Job management
 
-### Gemini CLI
-
-```bash
-npm install -g @google/gemini-cli
-gemini login
-```
-
 ### Keeping AI CLIs Up to Date
 
-Claude Code, Codex CLI, and Gemini CLI all release frequently — model names, flags, and sandbox semantics drift between minor versions. **Update all three before each working session.**
+Claude Code and Codex CLI both release frequently — model names, flags, and sandbox semantics drift between minor versions. **Update both before each working session.**
 
 ```bash
 # Claude Code (built-in self-update)
@@ -69,52 +61,51 @@ claude update
 
 # Codex CLI
 npm install -g @openai/codex@latest
-
-# Gemini CLI
-npm install -g @google/gemini-cli@latest
 ```
 
 Confirm versions afterward:
 
 ```bash
-claude --version && codex --version && gemini --version
+claude --version && codex --version
 ```
 
-If a model name in `${CODEX_MODEL:-...}` / `${GEMINI_MODEL:-...}` no longer exists after an update, override it via `.claude/settings.json` `env` block or your shell environment without editing every skill file.
+If a model name in `${CODEX_MODEL:-...}` no longer exists after an update, override it via `.claude/settings.json` `env` block or your shell environment without editing every skill file.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│           Claude Code (Orchestrator — Opus 4.6, 1M context)    │
+│           Claude Code (Orchestrator — Opus, 1M context)         │
 │           → Context conservation is top priority             │
 │           → Handles user interaction, coordination, concise edits │
 │                      ↓                                      │
-│  ┌──────────────────────┐  ┌──────────────────────────┐    │
-│  │  Subagent (Opus)      │  │  gemini-explore (Opus)    │    │
-│  │  general-purpose      │  │  → Gemini CLI             │    │
-│  │  → Code implementation│  │  → Multimodal processing  │    │
-│  │  → Research & analysis│  │  → PDF/Video/Audio/Image  │    │
-│  │  → Codex delegation   │  │                            │    │
-│  │  ┌──────────────┐    │  │                            │    │
-│  │  │  Codex CLI   │    │  │  ┌──────────────┐          │    │
-│  │  │  Design &    │    │  │  │  Gemini CLI  │          │    │
-│  │  │  Reasoning   │    │  │  │  1M context  │          │    │
-│  │  │  Debugging   │    │  │  └──────────────┘          │    │
-│  │  └──────────────┘    │  │                            │    │
-│  └──────────────────────┘  └──────────────────────────┘    │
+│  ┌──────────────────────┐                                   │
+│  │  Subagent (Opus)      │                                  │
+│  │  general-purpose      │                                  │
+│  │  → Code implementation│                                  │
+│  │  → Research & analysis│                                  │
+│  │  → Codex delegation   │                                  │
+│  │  → Multimodal (PDF/   │                                  │
+│  │     images) handling  │                                  │
+│  │  ┌──────────────┐    │                                   │
+│  │  │  Codex CLI   │    │                                   │
+│  │  │  Design &    │    │                                   │
+│  │  │  Reasoning   │    │                                   │
+│  │  │  Debugging   │    │                                   │
+│  │  └──────────────┘    │                                   │
+│  └──────────────────────┘                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Context Management (Important)
 
-To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale tasks are delegated to the appropriate agents.
+To conserve the main orchestrator's (Opus, 1M context) context, large-scale tasks are delegated to the appropriate agents.
 
 | Situation | Recommended Method |
 |-----------|-------------------|
 | Full codebase analysis | **Opus subagent** (1M context) |
 | External research & surveys | **Opus subagent** (WebSearch/WebFetch) |
-| Multimodal files | **Via Gemini** (PDF/Video/Audio/Image) |
+| Multimodal files (PDF/images) | Claude directly, or Opus subagent for large-scale analysis |
 | Code implementation | Via subagent (Opus) |
 | Design & planning consultation | Subagent → Codex |
 | Short questions & answers | Direct call OK |
@@ -134,8 +125,7 @@ To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale 
 ├── .claude/
 │   ├── agents/
 │   │   ├── general-purpose.md   # Implementation, research & Codex delegation agent (Opus)
-│   │   ├── codex-debugger.md    # Error analysis agent (Opus)
-│   │   └── gemini-explore.md    # Multimodal processing agent (Opus)
+│   │   └── codex-debugger.md    # Error analysis agent (Opus)
 │   │
 │   ├── skills/                  # Reusable workflows (18 total)
 │   │   ├── start-feature/       # Start feature with multi-agent coordination
@@ -147,7 +137,6 @@ To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale 
 │   │   ├── tdd/                 # Test-driven development
 │   │   ├── simplify/            # Code refactoring
 │   │   ├── codex-system/        # Codex CLI integration
-│   │   ├── gemini-system/       # Gemini CLI integration
 │   │   ├── design-tracker/      # Automatic design decision tracking
 │   │   ├── update-design/       # Explicit design document updates
 │   │   ├── research-lib/        # Library research
@@ -157,7 +146,7 @@ To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale 
 │   │   ├── init/                # Project initialization
 │   │   └── troubleshoot/        # Error diagnosis & fix planning
 │   │
-│   ├── hooks/                   # Automation hooks (9 total)
+│   ├── hooks/                   # Automation hooks (8 total)
 │   │   ├── agent-router.py      # Agent routing
 │   │   ├── lint-on-save.py      # Auto-lint on save
 │   │   ├── error-to-codex.py    # Error detection → debugger suggestion
@@ -177,7 +166,7 @@ To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale 
 │   │   └── libraries/           # Library constraints
 │   │
 │   └── logs/                    # Runtime generated (.gitignore target)
-│       └── cli-tools.jsonl      # Codex/Gemini I/O logs
+│       └── cli-tools.jsonl      # Codex I/O logs
 │
 ├── .codex/                      # Codex CLI configuration
 │   ├── AGENTS.md
@@ -185,12 +174,6 @@ To conserve the main orchestrator's (Opus 4.6, 1M context) context, large-scale 
 │   └── skills/
 │       ├── context-loader/      # Context loading skill
 │       └── design-tracker/      # Design tracking skill
-│
-├── .gemini/                     # Gemini CLI configuration
-│   ├── GEMINI.md
-│   ├── settings.json
-│   └── skills/
-│       └── context-loader/      # Context loading skill
 │
 └── scripts/
     └── update.sh               # Template update script
@@ -352,14 +335,6 @@ Used for design decisions, debugging, and trade-off analysis.
 - "Why isn't this working?" "I'm getting an error"
 - "Which is better?" "Compare these options"
 
-#### `/gemini-system` — Gemini CLI Integration
-
-Multimodal file processing (PDF/video/audio/image) powered by Gemini CLI.
-
-**Trigger examples:**
-- "Read this PDF" "Summarize this video"
-- "Transcribe this audio" "Analyze this diagram"
-
 ### Documentation
 
 #### `/design-tracker` — Design Decision Tracking
@@ -467,15 +442,14 @@ Automation hooks execute agent coordination and quality checks at the appropriat
 
 | Hook | Trigger | Action |
 |--------|----------|------|
-| `agent-router.py` | User input | Suggests routing to Codex/Gemini |
+| `agent-router.py` | User input | Suggests routing to Codex / Opus subagent |
 | `lint-on-save.py` | File save | Auto-runs lint |
 | `check-codex-before-write.py` | Before file write | Suggests consulting Codex |
 | `check-codex-after-plan.py` | After Task execution | Suggests Codex review after planning/design tasks |
 | `error-to-codex.py` | Bash error detected | Suggests codex-debugger subagent |
 | `post-test-analysis.py` | Test/build failure | Suggests debug analysis via Codex |
 | `post-implementation-review.py` | After large implementation | Suggests code review via Codex |
-| `suggest-gemini-research.py` | Before WebSearch/Fetch | Suggests delegating deep research to Opus subagent |
-| `log-cli-tools.py` | Codex/Gemini execution | Records I/O logs |
+| `log-cli-tools.py` | Codex execution | Records I/O logs |
 
 ## Language Rules
 

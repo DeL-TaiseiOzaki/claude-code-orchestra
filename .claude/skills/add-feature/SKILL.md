@@ -14,7 +14,7 @@ metadata:
 
 **Codex-first feature addition skill for existing codebases, with complexity-based implementation routing.**
 
-> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest @google/gemini-cli@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest`. Releases drift frequently (model names, flags, sandbox semantics).
 
 ## Overview
 

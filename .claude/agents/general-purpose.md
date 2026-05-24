@@ -37,8 +37,7 @@ You are the **execution arm** of the main orchestrator. Your responsibilities:
 - Synthesize and structure research findings
 - Create documentation in `.claude/docs/`
 
-> **Multimodal file processing (PDF/video/audio/image) is handled by Gemini**: Use gemini-explore subagent for those.
-> This agent handles everything else: research, analysis, implementation, and Codex delegation.
+> This agent handles research, analysis, implementation, Codex delegation, and multimodal content (PDF/images) using Claude's built-in multimodal capabilities.
 
 ## Calling Codex CLI
 

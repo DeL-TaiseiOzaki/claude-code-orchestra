@@ -20,7 +20,7 @@ metadata:
 ┌─────────────────────────────────────────────────────────────┐
 │  1. Collect Everything                                       │
 │     ├── git log (commits, file changes, line stats)          │
-│     ├── CLI logs (Codex/Gemini consultations)                │
+│     ├── CLI logs (Codex consultations)                       │
 │     ├── Agent Teams activity (tasks, teammates, messages)    │
 │     └── Design decisions (.claude/docs/DESIGN.md changes)    │
 │                                                              │
@@ -58,7 +58,6 @@ metadata:
 ### CLI Consultations
 
 - Codex consultations (prompt, success/failure)
-- Gemini multimodal tasks (prompt, success/failure)
 
 ### Agent Teams Activity
 
@@ -89,7 +88,6 @@ metadata:
 - **Commits**: 12
 - **Files changed**: 15 (10 modified, 4 created, 1 deleted)
 - **Codex consultations**: 3
-- **Gemini multimodal**: 2
 - **Agent Teams sessions**: 1 (3 teammates)
 - **Tasks completed**: 8/10
 
@@ -115,10 +113,6 @@ metadata:
 - ✓ Design: Architecture for Agent Teams integration
 - ✓ Debug: Task dependency resolution
 - ✗ Review: (timeout)
-
-### Gemini (2 multimodal tasks)
-- ✓ Extract: API spec from design document PDF
-- ✓ Analyze: Architecture diagram from whiteboard photo
 
 ## Agent Teams Activity
 
@@ -176,7 +170,6 @@ Designed API client module architecture with HTTP/2 support.
 
 ## Design Decisions (New)
 - Agent Teams for Research ↔ Design (bidirectional)
-- Gemini specialized for multimodal processing only
 
 ## Skill Pattern Suggestions
 
@@ -206,10 +199,9 @@ Each checkpoint also appends a concise summary to CLAUDE.md:
 ### 2026-02-08
 - 12 commits, 15 files changed
 - Codex: 3 consultations (design, debug, review)
-- Gemini: 2 multimodal tasks (PDF extraction, diagram analysis)
 - Agent Teams: 1 session (3 teammates, 8/10 tasks completed)
 - New skills: /team-implement, /team-review
-- Key decisions: Agent Teams for parallel work, Gemini role narrowed
+- Key decisions: Agent Teams for parallel work
 ```
 
 This persists across sessions — new sessions load CLAUDE.md and see what happened before.

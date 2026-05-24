@@ -27,16 +27,6 @@
             "timeout": 10
           }
         ]
-      },
-      {
-        "matcher": "WebSearch|WebFetch",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/suggest-gemini-research.py\"",
-            "timeout": 5
-          }
-        ]
       }
     ],
     "TeammateIdle": [
@@ -186,7 +176,6 @@
       "Bash(source:*)",
       "Bash(docker:*)",
       "Bash(docker-compose:*)",
-      "Bash(gemini:*)",
       "Bash(codex:*)",
       "Bash(pkill:*)",
       "Bash(for:*)",
