@@ -93,7 +93,7 @@ Replace the content **between** the two markers with the following template (kee
 
 ### 4. Partial Update of AGENTS.md
 
-Mirror the same information into `AGENTS.md` so Codex and Gemini see it. Update only the top section (up to the first `---`) with this format:
+Mirror the same information into `AGENTS.md` so Codex sees it. Update only the top section (up to the first `---`) with this format:
 
 ```markdown
 # Project Overview

@@ -294,7 +294,6 @@ def generate_checkpoint(
 
     # Summary
     codex_count = sum(1 for e in cli_entries if e.get("tool") == "codex")
-    gemini_count = sum(1 for e in cli_entries if e.get("tool") == "gemini")
     total_files = sum(len(v) for v in file_changes.values())
     total_tasks = sum(len(t.get("tasks", [])) for t in teams_data)
     completed_tasks = sum(
@@ -315,7 +314,6 @@ def generate_checkpoint(
         f"{len(file_changes['deleted'])} deleted)"
     )
     lines.append(f"- **Codex consultations**: {codex_count}")
-    lines.append(f"- **Gemini multimodal**: {gemini_count}")
     if teams_data:
         total_members = sum(len(t.get("members", [])) for t in teams_data)
         lines.append(
@@ -373,19 +371,17 @@ def generate_checkpoint(
     lines.append("")
 
     codex_entries = [e for e in cli_entries if e.get("tool") == "codex"]
-    gemini_entries = [e for e in cli_entries if e.get("tool") == "gemini"]
 
-    for entries, name in [(codex_entries, "Codex"), (gemini_entries, "Gemini")]:
-        if entries:
-            lines.append(f"### {name} ({len(entries)} {'consultations' if name == 'Codex' else 'researches'})")
-            lines.append("")
-            for entry in entries[:15]:
-                status = "✓" if entry.get("success", False) else "✗"
-                prompt = entry.get("prompt", "")[:100].replace("\n", " ")
-                lines.append(f"- {status} {prompt}...")
-            if len(entries) > 15:
-                lines.append(f"- ... and {len(entries) - 15} more")
-            lines.append("")
+    if codex_entries:
+        lines.append(f"### Codex ({len(codex_entries)} consultations)")
+        lines.append("")
+        for entry in codex_entries[:15]:
+            status = "✓" if entry.get("success", False) else "✗"
+            prompt = entry.get("prompt", "")[:100].replace("\n", " ")
+            lines.append(f"- {status} {prompt}...")
+        if len(codex_entries) > 15:
+            lines.append(f"- ... and {len(codex_entries) - 15} more")
+        lines.append("")
 
     if not cli_entries:
         lines.append("No CLI consultations recorded.")
@@ -487,15 +483,12 @@ def generate_session_summary(
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     total_files = sum(len(v) for v in file_changes.values())
     codex_count = sum(1 for e in cli_entries if e.get("tool") == "codex")
-    gemini_count = sum(1 for e in cli_entries if e.get("tool") == "gemini")
 
     summary_lines = [f"### {today}", ""]
     summary_lines.append(f"- {len(commits)} commits, {total_files} files changed")
 
     if codex_count:
         summary_lines.append(f"- Codex: {codex_count} consultations")
-    if gemini_count:
-        summary_lines.append(f"- Gemini: {gemini_count} multimodal tasks")
 
     for team in teams_data:
         tasks = team.get("tasks", [])
@@ -557,7 +550,7 @@ A "skill" is a repeatable workflow pattern that can be triggered by specific phr
 
 3. **Check against existing skills** in `.claude/skills/`:
    - start-feature, team-implement, team-review, plan, tdd, simplify
-   - codex-system, gemini-system, design-tracker, checkpointing
+   - codex-system, design-tracker, checkpointing
    - research-lib, update-design, update-lib-docs, init
    - If pattern matches an existing skill, note it but still report
 

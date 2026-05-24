@@ -14,7 +14,7 @@ metadata:
 
 **Feature kickoff skill leveraging Opus 1M context and Agent Teams.**
 
-> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest @google/gemini-cli@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest`. Releases drift frequently (model names, flags, sandbox semantics).
 
 ## Overview
 
@@ -239,10 +239,10 @@ Researcher: "httpx has a connection pool limit of 100 by default"
 ```
 
 Without Agent Teams (old subagent approach), this would require:
-1. Gemini subagent finishes → returns summary
+1. Researcher subagent finishes → returns summary
 2. Claude reads summary → creates new Codex subagent prompt
 3. Codex subagent finishes → returns summary
-4. If Codex needs more info → another Gemini subagent round
+4. If Codex needs more info → another researcher subagent round
 
 Agent Teams collapses this into a single parallel session with real-time interaction.
 
