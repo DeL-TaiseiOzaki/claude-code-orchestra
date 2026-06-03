@@ -24,6 +24,10 @@ and *why*); micro work progress lives in `PROGRESS.md`. This skill automatically
 - User asks "what's our current design?" or "what have we decided?"
 - Important technical decisions are made during conversation
 
+This skill also handles **explicit, manual update requests** — e.g. "update DESIGN",
+"force a design update", "記録して" — in addition to its proactive auto-activation.
+Whether triggered automatically or on request, it runs the same workflow below.
+
 ## Workflow
 
 ### Recording Decisions
@@ -52,14 +56,14 @@ conversation topic to its section:
 
 ## Output Format
 
-When recording, confirm in Japanese:
+When recording, report concisely:
 - What was recorded
-- Which section was updated
+- Which DESIGN.md section was updated
 - Brief summary of the change
 
 ## Language Rules
 
-- **Thinking/Reasoning**: English
-- **Code examples**: English
-- **Document content**: English (technical terms) + Japanese (descriptions OK)
-- **User communication**: Japanese
+- **Reasoning / code examples**: English
+- **Document content**: English (technical terms); Japanese descriptions are
+  acceptable to match the existing 要件定義書 headings
+- **Report**: follow the surrounding session's language

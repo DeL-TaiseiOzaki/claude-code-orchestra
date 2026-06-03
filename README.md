@@ -127,7 +127,7 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 │   │   ├── general-purpose.md   # Implementation, research & Codex delegation agent (Opus)
 │   │   └── codex-debugger.md    # Error analysis agent (Opus)
 │   │
-│   ├── skills/                  # Reusable workflows (18 total)
+│   ├── skills/                  # Reusable workflows (17 total)
 │   │   ├── start-feature/       # Start feature with multi-agent coordination
 │   │   ├── team-implement/      # Parallel implementation with Agent Teams
 │   │   ├── team-review/         # Parallel review with Agent Teams
@@ -137,11 +137,11 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 │   │   ├── tdd/                 # Test-driven development
 │   │   ├── simplify/            # Code refactoring
 │   │   ├── codex-system/        # Codex CLI integration
-│   │   ├── design-tracker/      # Automatic design decision tracking
-│   │   ├── update-design/       # Explicit design document updates
+│   │   ├── design-tracker/      # Detect & record design decisions into DESIGN.md
 │   │   ├── research-lib/        # Library research
 │   │   ├── update-lib-docs/     # Library documentation updates
 │   │   ├── checkpointing/       # Session persistence + pattern discovery
+│   │   ├── context-refresh/     # Compact CLAUDE.md Zone C + conversation
 │   │   ├── catchup/             # Generate GUIDE.md for onboarding/re-onboarding
 │   │   ├── init/                # Project initialization
 │   │   └── troubleshoot/        # Error diagnosis & fix planning
@@ -160,7 +160,7 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 │   ├── settings.json             # Claude Code settings (hooks/permissions/env)
 │   │
 │   ├── docs/
-│   │   ├── DESIGN.md            # Design decision records
+│   │   ├── DESIGN.md            # 要件定義書 (macro requirements & design)
 │   │   ├── CODEX_HANDOFF_PLAYBOOK.md  # Codex delegation templates
 │   │   ├── research/            # Research results (Opus subagents)
 │   │   └── libraries/           # Library constraints
@@ -339,11 +339,7 @@ Used for design decisions, debugging, and trade-off analysis.
 
 #### `/design-tracker` — Design Decision Tracking
 
-Automatically records architecture and implementation decisions. Detects design decisions during conversation and appends them to `.claude/docs/DESIGN.md`.
-
-#### `/update-design` — Update Design Document
-
-Extracts design decisions from conversation content and explicitly updates `.claude/docs/DESIGN.md`.
+Detects design decisions during conversation and structurally updates the relevant section of `.claude/docs/DESIGN.md` (機能要件 / 非機能要件 / アーキテクチャ / 技術選定 / 制約 / Key Decisions). Activates proactively and also on explicit requests ("record this", "update DESIGN").
 
 #### `/research-lib` — Library Research
 

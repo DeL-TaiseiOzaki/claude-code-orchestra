@@ -734,9 +734,9 @@ A "skill" is a repeatable workflow pattern that can be triggered by specific phr
    - **Evidence**: What in the checkpoint suggests this pattern
 
 3. **Check against existing skills** in `.claude/skills/`:
-   - start-feature, team-implement, team-review, plan, tdd, simplify
-   - codex-system, design-tracker, checkpointing
-   - research-lib, update-design, update-lib-docs, init
+   - start-feature, team-implement, team-review, add-feature, spike, plan, tdd
+   - simplify, codex-system, design-tracker, checkpointing, context-refresh
+   - research-lib, update-lib-docs, catchup, init, troubleshoot
    - If pattern matches an existing skill, note it but still report
 
 4. **Quality criteria**:

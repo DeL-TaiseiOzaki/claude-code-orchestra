@@ -21,5 +21,9 @@ skills = true
 enabled = true
 path = ".codex/skills/context-loader"
 
+[[skills.config]]
+enabled = true
+path = ".codex/skills/design-tracker"
+
 # Response style
 verbosity = "medium"
