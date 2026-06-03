@@ -69,7 +69,7 @@ Confirm versions afterward:
 claude --version && codex --version
 ```
 
-If a model name in `${CODEX_MODEL:-...}` no longer exists after an update, override it via `.claude/settings.json` `env` block or your shell environment without editing every skill file.
+The Codex model is centralized in `.claude/settings.json` (`env.CODEX_MODEL`), which every `${CODEX_MODEL:-...}` reference resolves to. To always use the latest model, bump that single value (e.g. `gpt-5.5`) — no need to edit individual skill files. The `${CODEX_MODEL:-...}` fallback is just a default for when the env var is unset.
 
 ## Architecture
 

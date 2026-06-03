@@ -56,7 +56,7 @@ Task tool parameters:
 - prompt: |
     Consult Codex about: {topic}
 
-    codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
+    codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
     Objective: {single-sentence objective}
     Constraints:
     - {constraint 1}
@@ -78,13 +78,13 @@ Task tool parameters:
 ### Direct Call (Short questions only)
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "Objective: {brief question}" 2>/dev/null
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "Objective: {brief question}" 2>/dev/null
 ```
 
 ### Having Codex Implement Code
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox workspace-write "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox workspace-write "
 Objective: Implement {detailed implementation task}
 Constraints:
 - Follow existing project conventions
@@ -141,7 +141,7 @@ The `openai/codex-plugin-cc` plugin provides structured Codex workflows directly
 
 # Delegate a task to Codex
 /codex:rescue investigate why the tests started failing
-/codex:rescue --model gpt-5.4-mini --effort medium investigate the flaky test
+/codex:rescue --model gpt-5.5-mini --effort medium investigate the flaky test
 /codex:rescue --background investigate the regression
 
 # Job management

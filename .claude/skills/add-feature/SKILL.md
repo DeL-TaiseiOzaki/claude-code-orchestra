@@ -111,7 +111,7 @@ Task tool:
 Consult Codex for scope analysis and impact assessment:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
 Objective: Analyze the scope and impact of adding this feature to the existing codebase.
 Context:
 - Feature: {feature description}
@@ -188,7 +188,7 @@ This brief is passed to Phase 2 for design.
 Consult Codex to design how the feature fits into the existing codebase:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
 Objective: Design the architecture for adding this feature to the existing codebase.
 Context:
 - Feature Brief: {feature brief from Phase 1}
@@ -214,7 +214,7 @@ Output format:
 Consult Codex to create a step-by-step implementation plan:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
 Objective: Create a step-by-step implementation plan for this feature.
 Context:
 - Feature Brief: {feature brief from Phase 1}
@@ -239,7 +239,7 @@ Output format:
 Consult Codex to validate the plan for completeness and correctness:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
 Objective: Validate this implementation plan for completeness, correctness, and risk.
 Context:
 - Feature Brief: {feature brief}
@@ -337,7 +337,7 @@ Shall we proceed with this plan?
 For simple features, Codex implements directly:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox workspace-write "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox workspace-write "
 Objective: Implement this feature following the approved plan.
 Context:
 - Feature Brief: {feature brief}

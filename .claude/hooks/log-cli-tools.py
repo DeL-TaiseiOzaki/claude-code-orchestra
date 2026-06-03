@@ -76,7 +76,7 @@ def main() -> None:
         return
 
     prompt = extract_codex_prompt(command)
-    model = extract_model(command) or "gpt-5.4"
+    model = extract_model(command) or "gpt-5.5"
 
     if not prompt:
         # Could not extract prompt, skip logging
