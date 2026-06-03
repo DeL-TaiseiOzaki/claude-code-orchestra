@@ -84,4 +84,8 @@ _Not initialized yet. Run `/init` to populate this section._
 # @orchestra:repo-boundary
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-<!-- Working state below: appended by /start-feature, /design-tracker, and manual notes. -->
+<!-- Working state below: appended by /start-feature, /design-tracker, /checkpointing, and manual notes. -->
+
+## Progress Tracker
+
+Rolling progress summary (latest 5 checkpoints): [PROGRESS.md](./PROGRESS.md)
