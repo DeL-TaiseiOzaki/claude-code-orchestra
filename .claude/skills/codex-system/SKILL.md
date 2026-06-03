@@ -65,7 +65,7 @@ Task tool parameters:
 - prompt: |
     Consult Codex about: {topic}
 
-    codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
+    codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
     {question for Codex}
     " 2>/dev/null
 
@@ -75,13 +75,13 @@ Task tool parameters:
 ### Direct Call (responses up to ~50 lines)
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "Brief question" 2>/dev/null
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "Brief question" 2>/dev/null
 ```
 
 ### Having Codex Implement Code
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox workspace-write "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox workspace-write "
 Implement: {task description}
 Requirements: {requirements}
 Files: {file paths}
@@ -100,7 +100,7 @@ Files: {file paths}
 ### Implementation Planning
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
 Create an implementation plan for: {feature}
 
 Context: {relevant architecture/code}
@@ -116,7 +116,7 @@ Provide:
 ### Design Review
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
 Review this design approach for: {feature}
 
 Context: {relevant code or architecture}
@@ -132,7 +132,7 @@ Evaluate:
 ### Debug Analysis
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
 Debug this issue:
 
 Error: {error message}
@@ -176,7 +176,7 @@ When the `openai/codex-plugin-cc` plugin is installed, these slash commands are 
 /codex:rescue investigate why the tests started failing
 /codex:rescue fix the failing test with the smallest safe patch
 /codex:rescue --resume apply the top fix from the last run
-/codex:rescue --model gpt-5.4-mini --effort medium investigate flaky test
+/codex:rescue --model gpt-5.5-mini --effort medium investigate flaky test
 /codex:rescue --background investigate the regression
 ```
 

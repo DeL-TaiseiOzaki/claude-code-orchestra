@@ -19,6 +19,18 @@ metadata:
 - Implementation is complete (after `/team-implement` or manual implementation)
 - All tests are passing
 
+### Inputs
+
+Read these before spawning reviewers so the review is grounded in the original
+intent, not just the raw diff:
+
+- **Change diff** — `git diff main...HEAD` (scope of what to review; see Step 1)
+- **`.claude/docs/DESIGN.md`** — architecture and design decisions to check the implementation against
+- **`PROGRESS.md`** (repo root) — recent session context and next actions
+
+Carry the **same `{feature}` name forward from `/start-feature` / `/team-implement`**
+so the review references the matching design and work-log files.
+
 ## Workflow
 
 ```
@@ -125,7 +137,7 @@ Spawn reviewers:
    - Library constraint violations (.claude/docs/libraries/)
 
    Use Codex CLI for deep analysis of complex logic:
-   codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "{question}" 2>/dev/null
+   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "{question}" 2>/dev/null
 
    Changed files: {list}
 

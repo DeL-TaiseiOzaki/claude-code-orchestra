@@ -2,7 +2,7 @@
 # This file enables project-specific Codex settings
 
 # Default model configuration
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_reasoning_effort = "high"
 model_reasoning_summary = "detailed"
 
@@ -20,6 +20,10 @@ skills = true
 [[skills.config]]
 enabled = true
 path = ".codex/skills/context-loader"
+
+[[skills.config]]
+enabled = true
+path = ".codex/skills/design-tracker"
 
 # Response style
 verbosity = "medium"

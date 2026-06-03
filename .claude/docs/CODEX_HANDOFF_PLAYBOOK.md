@@ -39,7 +39,7 @@ Every Codex prompt should include:
 ### A. Planning / Design (read-only)
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
 Objective: Create an implementation plan for {feature}.
 Constraints:
 - Keep existing architecture unless explicitly justified.
@@ -61,7 +61,7 @@ Output format:
 ### B. Complex Implementation (workspace-write)
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox workspace-write "
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox workspace-write "
 Objective: Implement {feature/fix}.
 Constraints:
 - Follow project lint/type/test rules.
@@ -138,7 +138,7 @@ When the `openai/codex-plugin-cc` plugin is installed, use these structured work
 /codex:rescue --resume apply the top fix from the last run
 
 # Use specific model/effort
-/codex:rescue --model gpt-5.4-mini --effort medium investigate the flaky test
+/codex:rescue --model gpt-5.5-mini --effort medium investigate the flaky test
 ```
 
 ### D. Plugin vs Direct CLI Decision

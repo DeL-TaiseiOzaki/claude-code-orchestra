@@ -5,33 +5,54 @@ Checkpoint script: Collect all session activity and generate a comprehensive che
 Usage:
     python checkpoint.py                          # Full checkpoint (everything)
     python checkpoint.py --since YYYY-MM-DD       # Only recent activity
+    python checkpoint.py --summary-file PATH      # Embed a pre-written summary block
 
 Every run does everything:
 1. Collect git history, CLI logs, Agent Teams activity, design decisions
-2. Generate checkpoint file in .claude/checkpoints/
-3. Update CLAUDE.md with session history summary
-4. Output skill analysis prompt for subagent pattern discovery
+2. Generate checkpoint file in .claude/checkpoints/ with a PROGRESS-SUMMARY block
+   at the top (either supplied via --summary-file or auto-generated)
+3. Regenerate the rolling PROGRESS.md (latest 5 checkpoints, newest first)
+4. Ensure a Zone-C-safe PROGRESS.md link exists in CLAUDE.md
+5. Output skill analysis prompt for subagent pattern discovery
 """
 
 import argparse
 import json
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 LOG_FILE = PROJECT_ROOT / ".claude" / "logs" / "cli-tools.jsonl"
 CHECKPOINTS_DIR = PROJECT_ROOT / ".claude" / "checkpoints"
 DESIGN_FILE = PROJECT_ROOT / ".claude" / "docs" / "DESIGN.md"
 CLAUDE_MD = PROJECT_ROOT / "CLAUDE.md"
+PROGRESS_MD = PROJECT_ROOT / "PROGRESS.md"
 
 # Agent Teams data locations
 TEAMS_DIR = Path.home() / ".claude" / "teams"
 TASKS_DIR = Path.home() / ".claude" / "tasks"
 WORK_LOGS_DIR = PROJECT_ROOT / ".claude" / "logs" / "agent-teams"
 
-SESSION_HISTORY_HEADER = "## Session History"
+# PROGRESS-SUMMARY block markers (delimit the user-facing summary at the top
+# of each checkpoint; PROGRESS.md is rebuilt from the content between them).
+PROGRESS_SUMMARY_START = "<!-- PROGRESS-SUMMARY:START -->"
+PROGRESS_SUMMARY_END = "<!-- PROGRESS-SUMMARY:END -->"
+
+# Zone C boundary marker in CLAUDE.md (everything below this line is Zone C).
+REPO_BOUNDARY_MARKER = "@orchestra:repo-boundary"
+
+# Rolling PROGRESS.md keeps only the most recent N checkpoints.
+MAX_PROGRESS_ENTRIES = 5
+
+# Fixed Japanese subsection headings for the user-facing summary block.
+SUMMARY_SUBSECTIONS = [
+    "### 何をしたのか",
+    "### どういうやり取りをユーザーと行ったのか",
+    "### どうやったのか",
+    "### 途中でどういう課題が起こったのか",
+    "### 将来のアクション",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +85,7 @@ def parse_cli_logs(since: str | None = None) -> list[dict]:
     entries = []
     since_dt = None
     if since:
-        since_dt = datetime.fromisoformat(since).replace(tzinfo=timezone.utc)
+        since_dt = datetime.fromisoformat(since).replace(tzinfo=UTC)
 
     with open(LOG_FILE, encoding="utf-8") as f:
         for line in f:
@@ -273,6 +294,84 @@ def get_design_decisions_diff(since: str | None = None) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def build_summary_block(
+    summary_body: str,
+    commits: list[dict],
+    file_changes: dict[str, list[str]],
+    cli_entries: list[dict],
+    teams_data: list[dict],
+) -> str:
+    """Wrap the user-facing '## サマリ' summary in PROGRESS-SUMMARY markers.
+
+    `summary_body` is the markdown body (starting with '## サマリ') either
+    supplied via --summary-file or auto-generated when none is provided.
+    """
+    body = summary_body.strip()
+    if not body:
+        body = auto_generate_summary_body(
+            commits=commits,
+            file_changes=file_changes,
+            cli_entries=cli_entries,
+            teams_data=teams_data,
+        )
+    return "\n".join([PROGRESS_SUMMARY_START, body, PROGRESS_SUMMARY_END])
+
+
+def auto_generate_summary_body(
+    commits: list[dict],
+    file_changes: dict[str, list[str]],
+    cli_entries: list[dict],
+    teams_data: list[dict],
+) -> str:
+    """Auto-generate a '## サマリ' block from collected data (no summary file).
+
+    The Japanese subsection headings are fixed (user-facing session record).
+    The 'どういうやり取りをユーザーと行ったのか' section cannot be inferred
+    from git/CLI data, so it falls back to a pointer to the sections below.
+    """
+    total_files = sum(len(v) for v in file_changes.values())
+    codex_count = sum(1 for e in cli_entries if e.get("tool") == "codex")
+    lines: list[str] = ["## サマリ", ""]
+
+    lines.append("### 何をしたのか")
+    lines.append(
+        f"- {len(commits)} commits, {total_files} files changed"
+    )
+    if codex_count:
+        lines.append(f"- Codex consultations: {codex_count}")
+    for team in teams_data:
+        tasks = team.get("tasks", [])
+        completed = sum(1 for t in tasks if t.get("status") == "completed")
+        lines.append(
+            f"- Agent Teams: {team['name']} "
+            f"({completed}/{len(tasks)} tasks completed)"
+        )
+    lines.append("")
+
+    lines.append("### どういうやり取りをユーザーと行ったのか")
+    lines.append("(no summary file provided — see git/CLI sections below)")
+    lines.append("")
+
+    lines.append("### どうやったのか")
+    if teams_data:
+        lines.append("- Used Agent Teams for parallel work (see activity below)")
+    if codex_count:
+        lines.append("- Consulted Codex CLI (see CLI Consultations below)")
+    if not teams_data and not codex_count:
+        lines.append("(auto-generated — see Git Activity below)")
+    lines.append("")
+
+    lines.append("### 途中でどういう課題が起こったのか")
+    lines.append("(no summary file provided)")
+    lines.append("")
+
+    lines.append("### 将来のアクション")
+    lines.append("(no summary file provided)")
+    lines.append("")
+
+    return "\n".join(lines).strip()
+
+
 def generate_checkpoint(
     commits: list[dict],
     file_changes: dict[str, list[str]],
@@ -283,13 +382,28 @@ def generate_checkpoint(
     design_diff: str | None,
     branch: str,
     since: str | None,
+    summary_body: str,
 ) -> str:
     """Generate full checkpoint markdown content."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     lines: list[str] = []
 
-    # Header
-    lines.append(f"# Checkpoint: {now.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+    # Header uses the filename timestamp format (YYYY-MM-DD-HHMMSS, UTC).
+    timestamp = now.strftime("%Y-%m-%d-%H%M%S")
+    lines.append(f"# Checkpoint {timestamp}")
+    lines.append("")
+
+    # User-facing summary block (always present, wrapped in PROGRESS-SUMMARY
+    # markers so PROGRESS.md can be rebuilt from it).
+    lines.append(
+        build_summary_block(
+            summary_body=summary_body,
+            commits=commits,
+            file_changes=file_changes,
+            cli_entries=cli_entries,
+            teams_data=teams_data,
+        )
+    )
     lines.append("")
 
     # Summary
@@ -328,8 +442,8 @@ def generate_checkpoint(
         lines.append(f"- **Since**: {since}")
     lines.append("")
 
-    # Git History
-    lines.append("## Git History")
+    # Git Activity
+    lines.append("## Git Activity")
     lines.append("")
 
     if commits:
@@ -466,58 +580,129 @@ def generate_checkpoint(
         lines.append("")
 
     # Footer
-    timestamp = now.strftime("%Y-%m-%d-%H%M%S")
     lines.append("---")
     lines.append(f"*Generated by checkpointing skill at {timestamp}*")
 
     return "\n".join(lines)
 
 
-def generate_session_summary(
-    commits: list[dict],
-    file_changes: dict[str, list[str]],
-    cli_entries: list[dict],
-    teams_data: list[dict],
-) -> str:
-    """Generate concise session summary for CLAUDE.md."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    total_files = sum(len(v) for v in file_changes.values())
-    codex_count = sum(1 for e in cli_entries if e.get("tool") == "codex")
+def extract_summary_block(checkpoint_text: str) -> str | None:
+    """Extract the content between PROGRESS-SUMMARY markers, or None if absent.
 
-    summary_lines = [f"### {today}", ""]
-    summary_lines.append(f"- {len(commits)} commits, {total_files} files changed")
-
-    if codex_count:
-        summary_lines.append(f"- Codex: {codex_count} consultations")
-
-    for team in teams_data:
-        tasks = team.get("tasks", [])
-        members = team.get("members", [])
-        completed = sum(1 for t in tasks if t.get("status") == "completed")
-        summary_lines.append(
-            f"- Agent Teams: {team['name']} "
-            f"({len(members)} teammates, {completed}/{len(tasks)} tasks)"
-        )
-
-    summary_lines.append("")
-    return "\n".join(summary_lines)
+    Returns the inner markdown (typically starting with '## サマリ'), stripped.
+    """
+    start = checkpoint_text.find(PROGRESS_SUMMARY_START)
+    if start == -1:
+        return None
+    body_start = start + len(PROGRESS_SUMMARY_START)
+    end = checkpoint_text.find(PROGRESS_SUMMARY_END, body_start)
+    if end == -1:
+        return None
+    return checkpoint_text[body_start:end].strip()
 
 
-def update_claude_md(session_summary: str) -> bool:
-    """Update CLAUDE.md with session history summary."""
+def _strip_summary_heading(summary_body: str) -> str:
+    """Drop a leading '## サマリ' heading so PROGRESS.md heading levels stay sane.
+
+    In PROGRESS.md each entry's '## [ts](link)' is the heading, so the inner
+    '## サマリ' line is removed; only the '###' subsections are kept.
+    """
+    out_lines: list[str] = []
+    for line in summary_body.splitlines():
+        if line.strip() == "## サマリ":
+            continue
+        out_lines.append(line)
+    # Trim leading/trailing blank lines after removal.
+    return "\n".join(out_lines).strip()
+
+
+def get_checkpoint_files() -> list[Path]:
+    """Return checkpoint .md files (excluding .analyze-prompt.md), newest first.
+
+    Sort is by filename timestamp (YYYY-MM-DD-HHMMSS) which is lexicographically
+    ordered, so descending name sort == newest first.
+    """
+    if not CHECKPOINTS_DIR.exists():
+        return []
+    files = [
+        p
+        for p in CHECKPOINTS_DIR.glob("*.md")
+        if not p.name.endswith(".analyze-prompt.md")
+    ]
+    return sorted(files, key=lambda p: p.stem, reverse=True)
+
+
+def regenerate_progress_md() -> bool:
+    """Rebuild PROGRESS.md from the latest checkpoints (newest first, max 5).
+
+    Fully overwrites PROGRESS.md every run. Each entry links to its checkpoint
+    file and reproduces that checkpoint's PROGRESS-SUMMARY subsections.
+    """
+    checkpoint_files = get_checkpoint_files()[:MAX_PROGRESS_ENTRIES]
+
+    lines: list[str] = [
+        "# PROGRESS",
+        "",
+        "> Auto-maintained by /checkpointing. "
+        "Shows the most recent 5 checkpoints (newest first).",
+        "> Full checkpoints live in `.claude/checkpoints/` (git-ignored).",
+        "",
+    ]
+
+    for cp_file in checkpoint_files:
+        try:
+            text = cp_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        summary = extract_summary_block(text)
+        if summary is None:
+            continue
+        ts = cp_file.stem
+        lines.append(f"## [{ts}](.claude/checkpoints/{ts}.md)")
+        lines.append("")
+        lines.append(_strip_summary_heading(summary))
+        lines.append("")
+
+    PROGRESS_MD.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return True
+
+
+def ensure_progress_link() -> bool:
+    """Idempotently ensure a Zone-C PROGRESS.md link block exists in CLAUDE.md.
+
+    Inserts a '## Progress Tracker' block below the @orchestra:repo-boundary
+    marker (Zone C). Never touches Zone A/B or the marker lines. No-op if the
+    block already exists.
+    """
     if not CLAUDE_MD.exists():
         return False
 
     content = CLAUDE_MD.read_text(encoding="utf-8")
 
-    if SESSION_HISTORY_HEADER in content:
-        # Append to existing section
-        content = content.rstrip() + "\n\n" + session_summary
-    else:
-        # Create new section
-        content = content.rstrip() + "\n\n" + SESSION_HISTORY_HEADER + "\n\n" + session_summary
+    if "## Progress Tracker" in content:
+        return True  # Already present; idempotent no-op.
 
-    CLAUDE_MD.write_text(content, encoding="utf-8")
+    lines = content.splitlines()
+
+    # Find the last line containing the repo-boundary marker (end of the
+    # marker box). Zone C begins after it.
+    marker_idx = None
+    for idx, line in enumerate(lines):
+        if REPO_BOUNDARY_MARKER in line:
+            marker_idx = idx
+    if marker_idx is None:
+        return False  # Cannot safely place the block without the boundary.
+
+    block = [
+        "",
+        "## Progress Tracker",
+        "",
+        "Rolling progress summary (latest 5 checkpoints): "
+        "[PROGRESS.md](./PROGRESS.md)",
+    ]
+
+    new_lines = lines[: marker_idx + 1] + block + lines[marker_idx + 1 :]
+    CLAUDE_MD.write_text("\n".join(new_lines).rstrip() + "\n", encoding="utf-8")
     return True
 
 
@@ -549,9 +734,9 @@ A "skill" is a repeatable workflow pattern that can be triggered by specific phr
    - **Evidence**: What in the checkpoint suggests this pattern
 
 3. **Check against existing skills** in `.claude/skills/`:
-   - start-feature, team-implement, team-review, plan, tdd, simplify
-   - codex-system, design-tracker, checkpointing
-   - research-lib, update-design, update-lib-docs, init
+   - start-feature, team-implement, team-review, add-feature, spike, plan, tdd
+   - simplify, codex-system, design-tracker, checkpointing, context-refresh
+   - research-lib, update-lib-docs, catchup, init, troubleshoot
    - If pattern matches an existing skill, note it but still report
 
 4. **Quality criteria**:
@@ -575,7 +760,24 @@ def main():
         "--since",
         help="Only include data since this date (YYYY-MM-DD)",
     )
+    parser.add_argument(
+        "--summary-file",
+        help=(
+            "Path to a pre-written '## サマリ' block (5 fixed subsections). "
+            "When omitted, the summary is auto-generated from collected data."
+        ),
+    )
     args = parser.parse_args()
+
+    summary_body = ""
+    if args.summary_file:
+        summary_path = Path(args.summary_file)
+        if not summary_path.is_absolute():
+            summary_path = PROJECT_ROOT / summary_path
+        if summary_path.exists():
+            summary_body = summary_path.read_text(encoding="utf-8").strip()
+        else:
+            print(f"  Warning: summary file not found: {summary_path}")
 
     print("Collecting session data...")
 
@@ -597,7 +799,7 @@ def main():
 
     # 2. Generate checkpoint
     CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d-%H%M%S")
     checkpoint_file = CHECKPOINTS_DIR / f"{timestamp}.md"
 
     checkpoint_content = generate_checkpoint(
@@ -610,25 +812,24 @@ def main():
         design_diff=design_diff,
         branch=branch,
         since=args.since,
+        summary_body=summary_body,
     )
     checkpoint_file.write_text(checkpoint_content, encoding="utf-8")
     print(f"\nCheckpoint: {checkpoint_file}")
 
-    # 3. Update CLAUDE.md
-    session_summary = generate_session_summary(
-        commits=commits,
-        file_changes=file_changes,
-        cli_entries=cli_entries,
-        teams_data=teams_data,
-    )
-    if update_claude_md(session_summary):
-        print(f"Session history: {CLAUDE_MD}")
-
-    # 4. Generate skill analysis prompt
+    # 3. Generate skill analysis prompt
     prompt = generate_skill_analysis_prompt(checkpoint_content)
     prompt_file = checkpoint_file.with_suffix(".analyze-prompt.md")
     prompt_file.write_text(prompt, encoding="utf-8")
     print(f"Analysis prompt: {prompt_file}")
+
+    # 4. Regenerate rolling PROGRESS.md (latest 5 checkpoints, newest first).
+    if regenerate_progress_md():
+        print(f"Progress summary: {PROGRESS_MD}")
+
+    # 5. Ensure CLAUDE.md has a Zone-C-safe PROGRESS.md link.
+    if ensure_progress_link():
+        print(f"Progress link ensured in: {CLAUDE_MD}")
 
     print("\nDone. Next: spawn subagent to analyze the prompt file for skill patterns.")
 

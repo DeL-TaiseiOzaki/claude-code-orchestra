@@ -49,6 +49,15 @@ Phase 3: PLAN & APPROVE (Claude Lead + User)
 
 > Main orchestrator context is precious. Large-scale codebase analysis is delegated to Opus subagent (1M context).
 
+### Step 0: Read PROGRESS.md (always first)
+
+Before anything else, if `PROGRESS.md` exists at the repository root, **read it**.
+It is the rolling summary of the latest 5 checkpoints (maintained by
+`/checkpointing`) and carries the most recent session context, in-progress work,
+and the "将来のアクション" (next actions) from prior sessions. Use it to ground
+the new feature in what already happened and to avoid re-deciding settled
+questions. If it is absent (fresh repo), skip this step.
+
 ### Step 1: Analyze Codebase with Opus Subagent
 
 Use a general-purpose subagent (Opus) to analyze the entire codebase:
@@ -192,7 +201,7 @@ Spawn two teammates:
    4. Identify risks and mitigation strategies
 
    How to consult Codex:
-   codex exec --model "${CODEX_MODEL:-gpt-5.4}" --sandbox read-only "{question}" 2>/dev/null
+   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "{question}" 2>/dev/null
 
    Update .claude/docs/DESIGN.md with architecture decisions.
 

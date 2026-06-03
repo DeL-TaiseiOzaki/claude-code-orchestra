@@ -18,6 +18,20 @@ metadata:
 - Architecture is documented in `.claude/docs/DESIGN.md`
 - Task list has been created
 
+### Inputs
+
+Read these before designing the team so implementation stays aligned with the
+plan produced by `/start-feature`:
+
+- **CLAUDE.md Zone C** (below `@orchestra:repo-boundary`) — current project context and decisions
+- **`.claude/docs/DESIGN.md`** — architecture and design decisions from the Architect
+- **`.claude/docs/research/`** — Researcher findings and library constraints
+- **`PROGRESS.md`** (repo root) — rolling summary of recent sessions and next actions
+
+Use the **same `{feature}` / `{team-name}` naming as `/start-feature`** so work
+logs (`.claude/logs/agent-teams/{team-name}/`) and research/design files line up
+across phases.
+
 ## Workflow
 
 ```
