@@ -69,6 +69,7 @@ Save results exceeding 20 lines to `.claude/docs/` and return only a summary to 
 - Python environment uses `uv` (do not use `pip` directly)
 - Existing rules in `.claude/rules/` take highest priority
 - Research notes are stored in `.claude/docs/research/` (keep empty when distributing templates)
+- Document map: `CLAUDE.md` = orchestrator contract; `.claude/docs/DESIGN.md` = 要件定義書 (macro requirements/design); `PROGRESS.md` = micro work progress (latest 5 checkpoints).
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # @orchestra:template-boundary
@@ -78,7 +79,10 @@ Save results exceeding 20 lines to `.claude/docs/` and return only a summary to 
 
 <!-- Managed by /init. Re-run /init to refresh. -->
 
-_Not initialized yet. Run `/init` to populate this section._
+_Not initialized yet. Run `/init` to populate._
+
+Macro requirements & design live in **[.claude/docs/DESIGN.md](.claude/docs/DESIGN.md)** (要件定義書).
+Keep this section thin — a brief identity line + pointer. Thick content belongs in DESIGN.md.
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # @orchestra:repo-boundary

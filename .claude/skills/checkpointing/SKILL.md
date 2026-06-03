@@ -39,10 +39,16 @@ metadata:
 │     → Subagent analyzes the .analyze-prompt.md               │
 │     → Suggests reusable skills → user reviews                │
 │                                                              │
-│  4. Run context-refresh skill (the "compact" step)           │
+│  4. Review DESIGN.md (要件定義書) update need                │
+│     → Reflect on this session's design-level changes         │
+│       (requirements / architecture / tech choices / decisions)│
+│     → If warranted, invoke the design-tracker skill to update│
+│       the relevant DESIGN.md sections                        │
+│                                                              │
+│  5. Run context-refresh skill (the "compact" step)           │
 │     → Compact the conversation / Zone C using the checkpoint │
 │                                                              │
-│  5. Delete the temporary .pending-summary.md                 │
+│  6. Delete the temporary .pending-summary.md                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -278,12 +284,33 @@ Rolling progress summary (latest 5 checkpoints): [PROGRESS.md](./PROGRESS.md)
 
 Zone A/B and the boundary marker lines are never touched.
 
+## DESIGN.md Update Review (要件定義書)
+
+PROGRESS.md captures *micro* work progress; `.claude/docs/DESIGN.md` is the
+*macro* 要件定義書. After the checkpoint body and PROGRESS.md are written (and
+**before** context-refresh), reflect on whether this session changed anything at
+the design level:
+
+- New or changed **機能要件 (Functional Requirements)**
+- New or changed **非機能要件 (Non-Functional Requirements)**
+- **アーキテクチャ (Architecture)** changes (components, agent roles, data flow)
+- **技術選定 (Tech Stack & Rationale)** additions or swaps
+- New **制約 (Constraints)**
+- Significant **Key Decisions** made this session
+
+If any of these changed, **invoke the design-tracker skill** to update the
+corresponding DESIGN.md section(s). If nothing design-level changed, skip this
+step. This keeps the macro requirements doc current without bloating PROGRESS.md.
+
+Ordering: …→ PROGRESS.md → **DESIGN.md update review / design-tracker** →
+context-refresh.
+
 ## Context Refresh (the "compact" step)
 
-After the checkpoint, PROGRESS.md, and the CLAUDE.md link are all written, run
-the **context-refresh** skill. It uses the just-written checkpoint to compact
-the conversation and Zone C, carrying forward only what the next session needs.
-This is the final step of every `/checkpointing` run.
+After the checkpoint, PROGRESS.md, the CLAUDE.md link, and the DESIGN.md update
+review are all done, run the **context-refresh** skill. It uses the just-written
+checkpoint to compact the conversation and Zone C, carrying forward only what the
+next session needs. This is the final step of every `/checkpointing` run.
 
 ## Skill Pattern Discovery
 
@@ -321,10 +348,17 @@ The checkpoint is automatically analyzed to find reusable patterns:
     │     → Reads the .analyze-prompt.md
     │     → Identifies reusable patterns → reports → user approves
     │
-    ├─ 4. Run the context-refresh skill (the "compact" step)
+    ├─ 4. Review DESIGN.md (要件定義書) update need
+    │     → Reflect on design-level changes this session
+    │       (requirements / architecture / tech selection / key decisions)
+    │     → If warranted, invoke the design-tracker skill to update
+    │       the relevant DESIGN.md sections (機能要件 / 非機能要件 /
+    │       アーキテクチャ / 技術選定 / 制約 / Key Decisions)
+    │
+    ├─ 5. Run the context-refresh skill (the "compact" step)
     │     → Compact conversation / Zone C using the new checkpoint
     │
-    └─ 5. Delete the temporary .pending-summary.md
+    └─ 6. Delete the temporary .pending-summary.md
 ```
 
 ## When to Run
