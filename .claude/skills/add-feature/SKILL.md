@@ -14,7 +14,7 @@ metadata:
 
 **Codex-first feature addition skill for existing codebases, with complexity-based implementation routing.**
 
-> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+> Preflight: ensure codex CLI is current (see codex-system skill).
 
 ## Overview
 
@@ -30,14 +30,13 @@ This skill adds a feature to an **existing** codebase. It is lighter-weight than
     /team-implement + /team-review
 ```
 
-## When to Use
+## When NOT to Use
 
-| Skill | Use When |
-|-------|----------|
-| **`/add-feature`** | Adding a feature to an existing codebase with established patterns |
-| `/start-feature` | Starting a large new feature requiring external research and parallel design |
-| `/troubleshoot` | Diagnosing and fixing bugs where root cause is unclear |
-| `/team-implement` | Executing an already-approved implementation plan in parallel |
+- Large new feature requiring external research and parallel design → `/start-feature`
+- Bug diagnosis where root cause is unclear → `/troubleshoot`
+- Executing an already-approved implementation plan → `/team-implement`
+
+Full skill routing: CLAUDE.md §3 Routing Policy.
 
 ## Workflow
 
@@ -363,18 +362,7 @@ Output format:
 " 2>/dev/null
 ```
 
-After Codex implementation, verify:
-
-```bash
-# Run tests
-uv run pytest -v
-
-# Run linter
-uv run ruff check .
-
-# Run formatter check
-uv run ruff format --check .
-```
+After Codex implementation, run the quality gates per `.claude/rules/dev-environment.md` (pytest, ruff check, ruff format --check).
 
 ### Route B: MODERATE (3-5 files) -- Codex + Review
 
@@ -454,6 +442,6 @@ After implementation is complete, add feature context to CLAUDE.md for cross-ses
 - **Existing patterns**: The most important input to Codex is the existing codebase patterns from the Opus subagent scan. Always include them in every Codex prompt
 - **Phase 1**: Opus subagent (1M context) scans affected areas, then Codex classifies scope and complexity, while Claude collects requirements from the user
 - **Phase 2**: Three mandatory Codex consultations (architecture, plan, validation) ensure the design is sound before any code is written
-- **Phase 3**: After implementation, always run tests (`uv run pytest`) and linting (`uv run ruff check .`) regardless of complexity route
+- **Phase 3**: After implementation, always run the quality gates per `.claude/rules/dev-environment.md` regardless of complexity route
 - **Quick features**: For truly trivial changes (single function, <10 LOC), skip this skill and edit directly -- use this skill when the feature touches multiple parts of the codebase
 - **Ctrl+T**: Toggle task list display

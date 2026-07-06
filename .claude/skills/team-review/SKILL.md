@@ -12,7 +12,7 @@ metadata:
 
 **Parallel review using Agent Teams. Review from multiple perspectives simultaneously after implementation is complete.**
 
-> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+> Preflight: ensure codex CLI is current (see codex-system skill).
 
 ## Prerequisites
 
@@ -106,25 +106,10 @@ Spawn reviewers:
    Save report to .claude/docs/research/review-security-{feature}.md
 
    IMPORTANT — Work Log:
-   When your review is complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/security-reviewer.md
-
-   Use this format:
-   # Work Log: Security Reviewer
-   ## Summary
-   (1-2 sentence summary of review scope and key findings)
-   ## Review Scope
-   - Files reviewed: {list}
-   - Focus areas: {list}
-   ## Findings
-   - [{severity}] {file}:{line} — {issue summary}
-   ## Communication with Teammates
-   - → {recipient}: {summary of message sent}
-   - ← {sender}: {summary of message received}
-   (If none, write 'None')
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
+   When your review is complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/security-reviewer.md per the shared
+   format: .claude/skills/_shared/work-log-format.md (reviewer variant:
+   Review Scope + Findings instead of Tasks Completed).
    "
 
 2. **Quality Reviewer**
@@ -154,27 +139,13 @@ Spawn reviewers:
    Save report to .claude/docs/research/review-quality-{feature}.md
 
    IMPORTANT — Work Log:
-   When your review is complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/quality-reviewer.md
-
-   Use this format:
-   # Work Log: Quality Reviewer
-   ## Summary
-   (1-2 sentence summary of review scope and key findings)
-   ## Review Scope
-   - Files reviewed: {list}
-   - Focus areas: {list}
-   ## Findings
-   - [{severity}] {file}:{line} — {issue summary}
+   When your review is complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/quality-reviewer.md per the shared
+   format: .claude/skills/_shared/work-log-format.md (reviewer variant:
+   Review Scope + Findings instead of Tasks Completed).
+   Extra role-specific section after Findings:
    ## Codex Consultations
    - {question asked to Codex}: {key insight from response}
-   ## Communication with Teammates
-   - → {recipient}: {summary of message sent}
-   - ← {sender}: {summary of message received}
-   (If none, write 'None')
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 3. **Test Reviewer**
@@ -182,8 +153,8 @@ Spawn reviewers:
 
    Review test coverage and quality:
    - Coverage: use the `coverage` field from Step 1's gather_diff.sh JSON;
-     if it is null, run `uv run pytest --cov=src --cov-report=term-missing`
-     to produce it.
+     if it is null, produce it with the pytest coverage command from
+     .claude/rules/testing.md (quality-gate commands: .claude/rules/dev-environment.md).
    - Check: Are all happy paths tested?
    - Check: Are error cases covered?
    - Check: Are boundary values tested?
@@ -202,28 +173,16 @@ Spawn reviewers:
    Save report to .claude/docs/research/review-tests-{feature}.md
 
    IMPORTANT — Work Log:
-   When your review is complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/test-reviewer.md
-
-   Use this format:
-   # Work Log: Test Reviewer
-   ## Summary
-   (1-2 sentence summary of review scope and key findings)
-   ## Review Scope
-   - Files reviewed: {list}
-   - Coverage: {percentage}
-   ## Findings
-   - [{priority}] {file/function}: {missing test case description}
+   When your review is complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/test-reviewer.md per the shared
+   format: .claude/skills/_shared/work-log-format.md (reviewer variant:
+   Review Scope + Findings instead of Tasks Completed).
+   Role-specific notes: in Review Scope report Coverage: {percentage};
+   Findings use [{priority}] {file/function}: {missing test case description}.
+   Extra role-specific section after Findings:
    ## Test Execution Results
    - Total: {N} tests, Passed: {N}, Failed: {N}
    - Coverage: {percentage}
-   ## Communication with Teammates
-   - → {recipient}: {summary of message sent}
-   - ← {sender}: {summary of message received}
-   (If none, write 'None')
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 Wait for all reviewers to complete.

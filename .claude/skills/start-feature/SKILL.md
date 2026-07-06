@@ -14,7 +14,7 @@ metadata:
 
 **Feature kickoff skill leveraging Opus 1M context and Agent Teams.**
 
-> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+> Preflight: ensure codex CLI is current (see codex-system skill).
 
 ## Overview
 
@@ -165,25 +165,14 @@ Spawn two teammates:
    - Flag constraints that limit implementation options
 
    IMPORTANT — Work Log:
-   When ALL your tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/researcher.md
-
-   Use this format:
-   # Work Log: Researcher
-   ## Summary
-   (1-2 sentence summary of what you researched)
-   ## Tasks Completed
-   - [x] {task}: {brief description of findings}
+   When ALL your tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/researcher.md per the shared format:
+   .claude/skills/_shared/work-log-format.md
+   Role-specific sections (between Tasks Completed and Communication):
    ## Sources Consulted
    - {URL or source}: {what was found}
    ## Key Findings
    - {finding}: {relevance to project}
-   ## Communication with Teammates
-   - → {recipient}: {summary of message sent}
-   - ← {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 2. **Architect** — Uses Codex CLI for design and planning
@@ -211,25 +200,14 @@ Spawn two teammates:
    - Adjust design based on Researcher's findings
 
    IMPORTANT — Work Log:
-   When ALL your tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/architect.md
-
-   Use this format:
-   # Work Log: Architect
-   ## Summary
-   (1-2 sentence summary of what you designed)
-   ## Tasks Completed
-   - [x] {task}: {brief description of what was done}
+   When ALL your tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/architect.md per the shared format:
+   .claude/skills/_shared/work-log-format.md
+   Role-specific sections (between Tasks Completed and Communication):
    ## Design Decisions
    - {decision}: {rationale}
    ## Codex Consultations
    - {question asked to Codex}: {key insight from response}
-   ## Communication with Teammates
-   - → {recipient}: {summary of message sent}
-   - ← {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 Wait for both teammates to complete their tasks.
@@ -284,9 +262,7 @@ Task breakdown should follow `references/task-patterns.md`.
 
 ### Step 3: Update CLAUDE.md
 
-Append the project context to `CLAUDE.md` **Zone C** (the area below the `@orchestra:repo-boundary` marker box) for cross-session persistence. Never touch Zone A or Zone B.
-
-If `@orchestra:repo-boundary` is missing, ask the user to run `./scripts/update.sh` first — the updater migrates legacy layouts automatically.
+Append the project context to `CLAUDE.md` **Zone C** for cross-session persistence — zone contract and markers-missing rule per `.claude/rules/claude-md-zones.md`. This skill only appends to Zone C; it never touches Zone A/B.
 
 ```markdown
 ---

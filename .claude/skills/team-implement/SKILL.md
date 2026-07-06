@@ -130,25 +130,14 @@ Spawn teammates:
    When done with each task, mark it completed in the task list.
 
    IMPORTANT — Work Log:
-   When ALL your assigned tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/{your-teammate-name}.md
-
-   Use this format:
-   # Work Log: {your-teammate-name}
-   ## Summary
-   (1-2 sentence summary of what you accomplished)
-   ## Tasks Completed
-   - [x] {task}: {brief description of what was done}
+   When ALL your assigned tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/{your-teammate-name}.md per the shared
+   format: .claude/skills/_shared/work-log-format.md
+   Role-specific sections (between Tasks Completed and Communication):
    ## Files Modified
    - `{file path}`: {what was changed and why}
    ## Key Decisions
    - {decision made during implementation and rationale}
-   ## Communication with Teammates
-   - → {recipient}: {summary of message sent}
-   - ← {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 2. **Tester** (optional but recommended)
@@ -167,25 +156,14 @@ Spawn teammates:
    Test coverage target: 80%+
 
    IMPORTANT — Work Log:
-   When ALL your assigned tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/{your-teammate-name}.md
-
-   Use this format:
-   # Work Log: {your-teammate-name}
-   ## Summary
-   (1-2 sentence summary of what you accomplished)
-   ## Tasks Completed
-   - [x] {task}: {brief description of what was done}
+   When ALL your assigned tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/{your-teammate-name}.md per the shared
+   format: .claude/skills/_shared/work-log-format.md
+   Role-specific sections (between Tasks Completed and Communication):
    ## Files Modified
    - `{file path}`: {what was changed and why}
    ## Key Decisions
    - {decision made during implementation and rationale}
-   ## Communication with Teammates
-   - → {recipient}: {summary of message sent}
-   - ← {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 Use delegate mode (Shift+Tab) to prevent Lead from implementing directly.
@@ -228,16 +206,7 @@ Wait for all teammates to complete their tasks.
 
 **After all tasks are complete, run integration verification.**
 
-```bash
-# All quality checks
-uv run ruff check .
-uv run ruff format --check .
-uv run ty check src/
-uv run pytest -v
-
-# Or via poe
-poe all
-```
+Run the quality gates per `.claude/rules/dev-environment.md` (ruff check / ruff format --check / ty / pytest, or `poe all`).
 
 ### Integration Report
 

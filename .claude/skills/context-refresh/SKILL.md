@@ -54,9 +54,11 @@ There is **no** running activity log in Zone C anymore — `/checkpointing` stop
 - You want to persist this session's activity — that is `/checkpointing` (context-refresh runs *after* it, not instead of it).
 - Research notes are still actively edited by Researcher teammates — wait for the team to finish.
 
+Full skill routing: CLAUDE.md §3 Routing Policy.
+
 ## Invariants
 
-1. **Zone safety**: Touch ONLY Zone C (below `@orchestra:repo-boundary`). Never modify Zone A (above `@orchestra:template-boundary`) or Zone B (between the two markers). If either marker is missing, stop and ask the user to run `./scripts/update.sh`; do not hand-insert markers.
+1. **Zone safety**: Touch ONLY Zone C — zone contract and markers-missing rule per `.claude/rules/claude-md-zones.md`.
 2. **Progress Tracker link is sacred**: The `## Progress Tracker` block in Zone C (the link to `PROGRESS.md`) must remain intact. Do not rewrite or remove it.
 3. **Checkpoints & PROGRESS.md are off-limits**: Never delete, move, or rewrite files in `.claude/checkpoints/`, and never regenerate `PROGRESS.md`. They are owned by `/checkpointing`.
 4. **Dry-run first**: This skill performs destructive prunes and rewrites. The default behaviour is to compute and display the plan, then request explicit approval via `AskUserQuestion`. Silent approval fallback is prohibited.
@@ -106,8 +108,8 @@ python3 .claude/skills/checkpointing/refresh_guard.py --mode plan
 
 Interpret the JSON:
 
-- `markers.ok` — if false (exit code **2**), STOP and ask the user to run
-  `./scripts/update.sh`. Do not hand-insert markers.
+- `markers.ok` — if false (exit code **2**), STOP per
+  `.claude/rules/claude-md-zones.md` (user runs `./scripts/update.sh`).
 - `claude_md.total_lines` / `zone_c_lines` — size accounting.
 - `progress_tracker_present` — must remain true through the whole run.
 - `zone_c_blocks[]` — every `## Current Project|Feature|Bug Fix` block with its

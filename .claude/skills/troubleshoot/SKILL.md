@@ -15,7 +15,7 @@ metadata:
 
 **Codex-first error/bug diagnosis skill leveraging Codex deep reasoning, Opus 1M context, and Agent Teams.**
 
-> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+> Preflight: ensure codex CLI is current (see codex-system skill).
 
 ## Overview
 
@@ -293,13 +293,10 @@ Spawn two teammates:
    - Confirm or refute hypotheses based on shared evidence
 
    IMPORTANT — Work Log:
-   When ALL your tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/root-cause-analyst.md
-
-   Use this format:
-   # Work Log: Root Cause Analyst
-   ## Summary
-   (1-2 sentence summary of root cause finding)
+   When ALL your tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/root-cause-analyst.md per the shared
+   format: .claude/skills/_shared/work-log-format.md
+   Role-specific sections replacing Tasks Completed for this role:
    ## Hypotheses Evaluated
    - [confirmed/eliminated] {hypothesis}: {evidence}
    ## Root Cause
@@ -312,12 +309,6 @@ Spawn two teammates:
    - Recommended: {which and why}
    ## Codex Consultations
    - {question asked to Codex}: {key insight from response}
-   ## Communication with Teammates
-   - -> {recipient}: {summary of message sent}
-   - <- {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 2. **Impact Investigator** — Uses Opus with Git history, codebase search, WebSearch, and Codex for risk analysis
@@ -404,13 +395,10 @@ Spawn two teammates:
    - Request clarification on which code paths to investigate
 
    IMPORTANT — Work Log:
-   When ALL your tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/impact-investigator.md
-
-   Use this format:
-   # Work Log: Impact Investigator
-   ## Summary
-   (1-2 sentence summary of impact assessment)
+   When ALL your tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/impact-investigator.md per the shared
+   format: .claude/skills/_shared/work-log-format.md
+   Role-specific sections replacing Tasks Completed for this role:
    ## Git History
    - Introducing commit: {hash} — {description}
    - Related commits: {list}
@@ -425,12 +413,6 @@ Spawn two teammates:
    ## Codex Risk Analysis
    - Regression risk assessment: {Codex's verdict and reasoning}
    - Fix safety assessment: {Codex's verdict and reasoning}
-   ## Communication with Teammates
-   - -> {recipient}: {summary of message sent}
-   - <- {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 Wait for both teammates to complete their tasks.

@@ -15,7 +15,7 @@ metadata:
 
 **Codex-first time-boxed technical investigation skill leveraging Codex deep reasoning, Opus 1M context, and Agent Teams.**
 
-> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+> Preflight: ensure codex CLI is current (see codex-system skill).
 
 ## Overview
 
@@ -42,12 +42,12 @@ This skill handles time-boxed feasibility studies and technical investigations. 
 
 ### When NOT to Use
 
-| Situation | Use Instead |
-|-----------|-------------|
-| Bug diagnosis | `/troubleshoot` |
-| Known feature to implement | `/add-feature` or `/start-feature` |
-| Simple library lookup | Direct research (Opus subagent) |
-| Code review | `/team-review` |
+- Bug diagnosis → `/troubleshoot`
+- Known feature to implement → `/add-feature` or `/start-feature`
+- Simple library lookup → direct research (Opus subagent)
+- Code review → `/team-review`
+
+Full skill routing: CLAUDE.md §3 Routing Policy.
 
 ### Investigation Modes
 
@@ -215,27 +215,16 @@ Spawn two teammates:
    - Flag constraints or limitations that change the analysis
 
    IMPORTANT -- Work Log:
-   When ALL your tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/researcher.md
-
-   Use this format:
-   # Work Log: Researcher
-   ## Summary
-   (1-2 sentence summary of what you researched)
-   ## Tasks Completed
-   - [x] {task}: {brief description of findings}
+   When ALL your tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/researcher.md per the shared format:
+   .claude/skills/_shared/work-log-format.md
+   Role-specific sections (between Tasks Completed and Communication):
    ## Sources Consulted
    - {URL or source}: {what was found}
    ## Evidence Collected (per sub-question)
    - {sub-question}: FOR: {evidence} / AGAINST: {evidence}
    ## Key Findings
    - {finding}: {relevance to spike question}
-   ## Communication with Teammates
-   - -> {recipient}: {summary of message sent}
-   - <- {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 2. **Feasibility Analyst** -- Uses Codex CLI as PRIMARY analysis engine for technical feasibility
@@ -347,13 +336,10 @@ Spawn two teammates:
    - Update feasibility assessment based on Researcher's findings
 
    IMPORTANT -- Work Log:
-   When ALL your tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/feasibility-analyst.md
-
-   Use this format:
-   # Work Log: Feasibility Analyst
-   ## Summary
-   (1-2 sentence summary of feasibility assessment)
+   When ALL your tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/feasibility-analyst.md per the shared
+   format: .claude/skills/_shared/work-log-format.md
+   Role-specific sections replacing Tasks Completed for this role:
    ## Sub-question Assessments
    - {sub-question}: {FEASIBLE / NOT_FEASIBLE / UNKNOWN} -- {key reasoning}
    ## Codex Consultations
@@ -365,12 +351,6 @@ Spawn two teammates:
    ## Prototype Results (if applicable)
    - Tested: {what}
    - Result: {VALIDATED / INVALIDATED / INCONCLUSIVE}
-   ## Communication with Teammates
-   - -> {recipient}: {summary of message sent}
-   - <- {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 Wait for both teammates to complete their tasks.

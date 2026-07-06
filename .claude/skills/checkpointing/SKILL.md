@@ -98,7 +98,7 @@ detail in the "どういうやり取りをユーザーと行ったのか" sectio
 ### Teammate Work Logs
 
 - Each Teammate's work log from `.claude/logs/agent-teams/{team-name}/{teammate}.md`
-- Contains: Summary, Tasks Completed, Files Modified, Key Decisions, Communication with Teammates, Issues Encountered
+- Follows the shared work-log format (`.claude/skills/_shared/work-log-format.md`): Summary, Tasks Completed, role-specific sections, Communication with Teammates, Issues Encountered
 - Written by each Teammate upon completing all assigned tasks
 - Only present when Agent Teams were used (`/start-feature`, `/team-implement`, `/team-review`)
 
@@ -197,7 +197,7 @@ session record):
 #### researcher
 *Source: `.claude/logs/agent-teams/project-planning/researcher.md`*
 
-# Work Log: Researcher
+(work log embedded verbatim — shared format: `.claude/skills/_shared/work-log-format.md`)
 ## Summary
 Researched httpx library constraints and API patterns for the new API client module.
 ## Tasks Completed
@@ -210,7 +210,7 @@ Researched httpx library constraints and API patterns for the new API client mod
 #### architect
 *Source: `.claude/logs/agent-teams/project-planning/architect.md`*
 
-# Work Log: Architect
+(work log embedded verbatim — shared format: `.claude/skills/_shared/work-log-format.md`)
 ## Summary
 Designed API client module architecture with HTTP/2 support.
 ## Design Decisions
@@ -273,8 +273,8 @@ reads on the next session.
 ## Zone-C-safe CLAUDE.md link
 
 The script does **not** append a growing "Session History" to CLAUDE.md anymore.
-Instead it idempotently ensures a single link block exists in **Zone C** (below
-the `@orchestra:repo-boundary` marker):
+Instead it idempotently ensures a single link block exists in **Zone C** (zone
+contract: `.claude/rules/claude-md-zones.md`):
 
 ```markdown
 ## Progress Tracker

@@ -18,21 +18,14 @@ Analyze this project and:
 - `.claude/docs/DESIGN.md` = 要件定義書 (thick macro requirements/design). This is where rich project content belongs.
 - `PROGRESS.md` = micro work progress (maintained by `/checkpointing`).
 
-## CLAUDE.md 3-zone layout (recap)
+## CLAUDE.md zones
 
-```
-Zone A — Orchestra concept & template base (template-owned)
-# @orchestra:template-boundary
-Zone B — Repository Identity (thin pointer)  ← this skill writes here
-# @orchestra:repo-boundary
-Zone C — Working state (sessions, features, design pointers)
-```
+Zone contract (3-zone layout, markers, ownership, markers-missing rule): `.claude/rules/claude-md-zones.md`.
+**This skill writes ONLY Zone B** (between the two markers) — never Zone A or Zone C.
 
 ## Important
 
-- Touch ONLY Zone B of `CLAUDE.md`. Never modify Zone A (above `@orchestra:template-boundary`) or Zone C (below `@orchestra:repo-boundary`).
 - For `AGENTS.md`, do NOT modify the "Extensions" section and below — only update the top project-specific sections.
-- If `CLAUDE.md` lacks the 3-zone markers (legacy layout), ask the user to run `./scripts/update.sh` first. Do not hand-insert markers.
 
 ## Steps
 
@@ -96,10 +89,8 @@ real project, prefer concrete evidence; when nothing is known, leave the placeho
 First verify the 3-zone markers exist. Reuse the Step 1 detector output:
 `claude_md_markers.template_boundary` and `claude_md_markers.repo_boundary` must
 both be `true` (equivalently, `detect_stack.py` exits `0`, not `2`).
-
-If either marker is missing (exit code `2`), stop and ask the user to run
-`./scripts/update.sh` to migrate the file; the updater auto-migrates legacy
-single-boundary layouts. Do not hand-insert markers.
+If either is missing (exit code `2`), stop per `.claude/rules/claude-md-zones.md`
+(user runs `./scripts/update.sh`).
 
 Replace the content **between** the two markers with a **thin** identity + pointer (keep
 the marker lines and their ━ separators intact). The thick content lives in DESIGN.md —
