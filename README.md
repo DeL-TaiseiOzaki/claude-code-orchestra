@@ -128,11 +128,9 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 │   │   ├── general-purpose.md   # Implementation, research & Codex delegation agent (Opus)
 │   │   └── codex-debugger.md    # Error analysis agent (Opus)
 │   │
-│   ├── skills/                  # Reusable workflows (17 total)
-│   │   ├── start-feature/       # Start feature with multi-agent coordination
-│   │   ├── team-implement/      # Parallel implementation with Agent Teams
-│   │   ├── team-review/         # Parallel review with Agent Teams
-│   │   ├── add-feature/         # Codex-first feature addition (complexity-based routing)
+│   ├── skills/                  # Reusable workflows (14 total)
+│   │   ├── feature/             # Feature planning (existing/greenfield modes + complexity routing)
+│   │   ├── team-execute/        # Parallel implementation + parallel review with Agent Teams
 │   │   ├── spike/               # Technical investigation & feasibility study (decision document)
 │   │   ├── plan/                # Implementation plan creation
 │   │   ├── tdd/                 # Test-driven development
@@ -141,8 +139,7 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 │   │   ├── design-tracker/      # Detect & record design decisions into DESIGN.md
 │   │   ├── research-lib/        # Library research
 │   │   ├── update-lib-docs/     # Library documentation updates
-│   │   ├── checkpointing/       # Session persistence + pattern discovery
-│   │   ├── context-refresh/     # Compact CLAUDE.md Zone C + conversation
+│   │   ├── checkpointing/       # Session persistence + pattern discovery + compact phase
 │   │   ├── catchup/             # Generate GUIDE.md for onboarding/re-onboarding
 │   │   ├── init/                # Project initialization
 │   │   └── troubleshoot/        # Error diagnosis & fix planning
@@ -188,81 +185,59 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 
 ## Workflow
 
-The main workflow executes three skills in sequence.
+The main workflow executes two skills in sequence.
 
 ```
-/start-feature <feature>   Phase 1-3: Codebase understanding → Research & design → Planning
-    ↓ After user approval
-/team-implement            Phase 4: Parallel implementation with Agent Teams
-    ↓ After implementation
-/team-review               Phase 5: Parallel review with Agent Teams
+/feature <feature>   Planning: mode determination → understanding → research & design → plan
+    ↓ After user approval (COMPLEX route)
+/team-execute        Phase 1: Parallel implementation → Phase 2: Parallel review (Agent Teams)
 ```
 
-1. **Opus subagent** analyzes the codebase (1M context) + **Claude** conducts requirements gathering with the user
-2. **Agent Teams**: Researcher (Opus) and Architect (Codex) perform research and design in parallel
-3. **Claude** integrates research and design, then presents the plan to the user
-4. After approval, `/team-implement` runs parallel implementation by module
-5. `/team-review` runs parallel review for security, quality, and testing
+1. **Mode determination**: existing (Codex-direct design) or greenfield (Agent Teams research & design)
+2. **Opus subagent** analyzes the codebase (1M context) + **Claude** conducts requirements gathering with the user
+3. Existing mode: **Codex** designs, plans, and validates. Greenfield mode: **Agent Teams** — Researcher (Opus) and Architect (Codex) work in parallel
+4. **Claude** integrates research and design, then presents the plan to the user
+5. After approval, `/team-execute` runs parallel implementation by module, then parallel review for security, quality, and testing (`--review-only` skips implementation)
 
 ## Skills
 
 ### Core Workflow
 
-#### `/start-feature` — Start Feature
+#### `/feature` — Feature Planning & Implementation (unified)
 
-Starts a feature with multi-agent coordination.
-
-```
-/start-feature user authentication feature
-```
-
-**Workflow:**
-1. **Opus subagent** → Codebase analysis & preliminary research (1M context)
-2. **Claude** → Requirements gathering with the user
-3. **Agent Teams** → Researcher (Opus) and Architect (Codex) perform parallel research & design
-4. **Claude** → Plan integration & user approval
-
-#### `/team-implement` — Parallel Implementation
-
-Parallel implementation with Agent Teams. Executes based on the plan approved in `/start-feature`.
+One entry point for feature work, with two modes (merger of the old `/add-feature` and `/start-feature`).
 
 ```
-/team-implement
+/feature user profile editing feature
 ```
 
-**Features:**
+**Modes:**
+- **existing** (formerly `/add-feature`) — Codex-first addition to an established codebase: Opus subagent + Codex scope & impact analysis, then Codex architecture design, implementation plan, and validation
+- **greenfield** (formerly `/start-feature`) — large/new feature requiring external research: Opus subagent codebase analysis, then Agent Teams (Researcher [Opus] + Architect [Codex]) perform parallel research & design
+
+**Shared complexity-based routing:**
+- SIMPLE (1-3 files, <50 LOC) → Direct Codex implementation
+- MODERATE (3-5 files) → Codex implementation + `/team-execute --review-only`
+- COMPLEX (5+ files) → `/team-execute`
+
+#### `/team-execute` — Parallel Implementation + Review (unified)
+
+Two-phase Agent Teams execution (merger of the old `/team-implement` and `/team-review`). Executes based on the plan approved in `/feature`.
+
+```
+/team-execute                 # Phase 1 IMPLEMENT → Phase 2 REVIEW
+/team-execute --review-only   # Skip Phase 1; review existing changes
+```
+
+**Phase 1 IMPLEMENT:**
 - Launches Teammates per module/layer with separated file ownership
 - Manages dependencies via shared task list for autonomous coordination
 - Each Teammate records a work log to `.claude/logs/agent-teams/` upon completion
 
-#### `/team-review` — Parallel Review
-
-Parallel code review with Agent Teams. Run after implementation is complete.
-
-```
-/team-review
-```
-
-**Reviewer composition:**
+**Phase 2 REVIEW (reviewer composition):**
 - **Security Reviewer** — Detects security vulnerabilities
 - **Quality Reviewer** — Checks code quality & pattern compliance (leveraging Codex)
 - **Test Reviewer** — Validates test coverage & quality
-
-#### `/add-feature` — Add Feature
-
-Adds a feature to an existing codebase using a Codex-first approach. Lighter-weight than `/start-feature` (which targets large new features requiring research), with complexity-based implementation routing.
-
-```
-/add-feature user profile editing feature
-```
-
-**Workflow:**
-1. **Opus subagent + Codex** → Scope & impact analysis
-2. **Codex** → Architecture design, implementation plan, validation
-3. **Complexity-based routing:**
-   - SIMPLE (1-3 files, <50 LOC) → Direct Codex implementation
-   - MODERATE (3-5 files) → Codex implementation + `/team-review`
-   - COMPLEX (5+ files) → `/team-implement` + `/team-review`
 
 #### `/spike` — Technical Investigation & Feasibility Study
 
@@ -277,7 +252,7 @@ A Codex-first, time-boxed technical investigation. Produces a **decision documen
 2. **Agent Teams** → Researcher (Opus external research) and Feasibility Analyst (Codex deep analysis) investigate in parallel
 3. **Codex** → Synthesize into go/no-go recommendation & produce research report
 
-> After a GO decision, proceed to implementation with `/add-feature` or `/start-feature`
+> After a GO decision, proceed to implementation with `/feature`
 
 ### Development
 
@@ -358,11 +333,12 @@ Updates existing documentation in `.claude/docs/libraries/` with the latest info
 
 #### `/checkpointing` — Session Persistence
 
-Records all session activity (user requests, git history, CLI consultations, Agent Teams activity, design decisions) into a checkpoint whose top is a 5-section サマリ (何をしたのか / どういうやり取りをユーザーと行ったのか / どうやったのか / 途中でどういう課題が起こったのか / 将来のアクション). It then regenerates the rolling `PROGRESS.md` (latest 5 checkpoint summaries), reviews whether `.claude/docs/DESIGN.md` needs updating (invoking `/design-tracker` when warranted), and finishes by running `/context-refresh` to compact the conversation. It also discovers reusable skill patterns.
+Records all session activity (user requests, git history, CLI consultations, Agent Teams activity, design decisions) into a checkpoint whose top is a 5-section サマリ (何をしたのか / どういうやり取りをユーザーと行ったのか / どうやったのか / 途中でどういう課題が起こったのか / 将来のアクション). It then regenerates the rolling `PROGRESS.md` (latest 5 checkpoint summaries), reviews whether `.claude/docs/DESIGN.md` needs updating (invoking `/design-tracker` when warranted), and finishes with a built-in **Compact Phase** that prunes stale CLAUDE.md Zone C work blocks and compacts the conversation. It also discovers reusable skill patterns.
 
 ```bash
 /checkpointing                    # Full recording + pattern discovery
 /checkpointing --since "2026-02-08"  # Only since a specific date
+/checkpointing --compact-only    # Run only the Compact Phase (old /context-refresh)
 ```
 
 #### `/init` — Project Initialization

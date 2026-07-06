@@ -23,15 +23,17 @@ metadata:
 
 ## When NOT to Use
 
-- You need a single focused answer (use `/start-feature` planning phases or direct research instead)
+- You need a single focused answer (use `/feature` planning phases or direct research instead)
 - You want to capture the current session for later (use `/checkpointing`)
 - You want running design history (use `/design-tracker` or read `DESIGN.md` directly)
+
+Full skill routing: CLAUDE.md §3 Routing Policy.
 
 ## Workflow
 
 ```
-Phase 1: COLLECT (Opus subagent — 1M context)
-  Scan repo artifacts in parallel and save raw findings
+Phase 1: COLLECT (collect_repo_state.py)
+  Run the collector script -> single JSON of repo artifacts
     |
 Phase 2: SYNTHESIZE (Claude Lead)
   Integrate findings into the GUIDE.md structure
@@ -42,97 +44,36 @@ Phase 3: WRITE GUIDE.md
 
 ---
 
-## Phase 1: COLLECT (Opus Subagent)
+## Phase 1: COLLECT (via collect_repo_state.py)
 
-**Delegate the scan to a `general-purpose` subagent with Opus 1M context.** The orchestrator context must stay light — the subagent reads many files and returns a structured summary.
+Run the bundled collector script. It aggregates git state, project identity,
+rules/skills/agents frontmatter, design & research docs, checkpoints, and
+CLI-log topics into one JSON document — replacing the old subagent scan and
+keeping the orchestrator context light:
 
-### Subagent Brief
-
-Spawn a `general-purpose` subagent with the following prompt skeleton:
-
-```
-You are preparing a GUIDE.md for new or returning contributors of this
-repository. Scan the following sources and return a structured summary.
-DO NOT write GUIDE.md yourself — only return findings.
-
-## Sources to scan
-
-### Git state
-- `git log --oneline -n 100` (recent commit topics)
-- `git log --since="30 days ago" --stat` (recent change footprint)
-- `git branch -a` (active branches, including remote)
-- `git status` (uncommitted work)
-- `git diff HEAD --stat` (work-in-progress files)
-- `git stash list` (shelved experiments)
-
-### Project identity & rules
-- README.md
-- CLAUDE.md
-- AGENTS.md (if present)
-- .codex/AGENTS.md (if present)
-- pyproject.toml (tech stack, scripts)
-- .claude/rules/*.md (every rule file, summarize each in 1–2 lines)
-
-### Capabilities catalog
-- .claude/skills/*/SKILL.md — read only the YAML frontmatter (name,
-  description, metadata.short-description). Build a list of available
-  slash commands and their one-line purposes.
-- .claude/agents/*.md — list subagent types and their specializations
-  (frontmatter only).
-
-### Design & research context
-- .claude/docs/DESIGN.md (architecture decisions, key choices)
-- .claude/docs/research/*.md (each research note, 1–2 line summary)
-- .claude/docs/libraries/*.md (library constraints, 1–2 line summary)
-
-### Local history (scan ONLY if the path exists)
-- .claude/checkpoints/*.md (newest 5, summarize each in 1–2 lines)
-- .claude/logs/agent-teams/*/*.md (teammate work logs, group by team)
-- .claude/logs/cli-tools.jsonl (last ~50 entries; extract distinct
-  Codex consultation topics)
-
-## Return format
-
-Return a single markdown block with these sections. Keep each bullet
-tight — this feeds into GUIDE.md synthesis, not GUIDE.md itself.
-
-### Project identity
-- Purpose (1 sentence)
-- Tech stack (language, package manager, key libs)
-- Conventions (language for comments/communication, lint/test stack)
-
-### Current state
-- Active branch + any "Current Project" section from CLAUDE.md
-- WIP files (from git status / diff)
-- Stashed experiments (from git stash list)
-
-### Recent work (last 30 days)
-- Thematic grouping of recent commits (3–7 themes with commit counts)
-- Notable features merged
-
-### Architecture & decisions
-- Top 5 design decisions from DESIGN.md with rationale
-- Active research threads (from .claude/docs/research/)
-- Library constraints worth knowing (from .claude/docs/libraries/)
-
-### Capabilities
-- Slash commands available (from skills/) — name + one-line purpose
-- Subagents available (from agents/) — name + specialization
-
-### Local history (if available)
-- Latest checkpoint summaries
-- Agent Teams sessions (team name, teammates, outcome)
-- Frequent CLI consultation topics
-
-### Rules summary
-- One-line summary per .claude/rules/*.md file
-
-If any source is missing, note it as "not present" instead of fabricating.
+```bash
+python3 .claude/skills/catchup/collect_repo_state.py
 ```
 
-### Execution Pattern
+Optional flags: `--since "30 days ago"` (recent-work window), `--max-commits 100`.
 
-Use the `general-purpose` subagent in the foreground and wait for its structured summary. The summary is the sole input to Phase 2 — the subagent must NOT create `GUIDE.md` itself.
+The script degrades gracefully — any missing path becomes `null` / `"not present"`
+and it still exits `0` (exit `1` only signals a non-git directory, with `git:null`).
+Feed the emitted JSON to Phase 2 synthesis as its sole input.
+
+Top-level JSON keys:
+
+- `git` — log (oneline), branches, status, stash, diffstat.
+- `identity` — README / CLAUDE.md / AGENTS.md / pyproject.toml presence + first line.
+- `rules` — rule files + first line each.
+- `skills` — name + short-description (available slash commands).
+- `agents` — name + specialization.
+- `docs` — DESIGN.md presence, research & library listings (file + first line).
+- `checkpoints` — newest 5 (file + first heading).
+- `cli_tools` — recent Codex consultation topics.
+
+For very large repos you may still hand this JSON to a `general-purpose` subagent
+for thematic grouping, but the mechanical collection is already done.
 
 ---
 
@@ -206,11 +147,9 @@ _Generated by `/catchup` on {YYYY-MM-DD}_
 
 - **Environment setup**: {commands from pyproject.toml / README}
 - **Common commands**: {lint / test / run / build}
-- **Suggested next skills**:
-  - New feature (large, needs research) → `/start-feature`
-  - Feature on existing codebase → `/add-feature`
-  - Technical investigation → `/spike`
-  - Bug / error diagnosis → `/troubleshoot`
+- **Suggested next skills**: {derive from CLAUDE.md §3 Routing Policy and the
+  skill catalog in the collected JSON (e.g. `/feature`, `/spike`,
+  `/troubleshoot`)}
 
 ## 8. Recent Sessions (if available)
 

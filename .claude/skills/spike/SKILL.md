@@ -6,7 +6,7 @@ description: |
   Phase 1: Frame the investigation question & constraints (Claude user interaction + Codex question decomposition).
   Phase 2: Parallel investigation (Agent Teams: Researcher [Opus external research] + Feasibility Analyst [Codex deep analysis] + optional prototype).
   Phase 3: Codex synthesis into go/no-go recommendation & research report.
-  Produces a DECISION DOCUMENT, NOT an implementation plan. Use /add-feature or /start-feature after a GO decision.
+  Produces a DECISION DOCUMENT, NOT an implementation plan. Use /feature after a GO decision.
 metadata:
   short-description: Codex-first time-boxed technical investigation with Agent Teams (Decision phase)
 ---
@@ -15,18 +15,18 @@ metadata:
 
 **Codex-first time-boxed technical investigation skill leveraging Codex deep reasoning, Opus 1M context, and Agent Teams.**
 
-> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+> Preflight: ensure codex CLI is current (see codex-system skill).
 
 ## Overview
 
-This skill handles time-boxed feasibility studies and technical investigations. It produces a **decision document** (go/no-go recommendation), NOT an implementation plan. After a GO decision, the user proceeds to `/add-feature` or `/start-feature` for actual implementation.
+This skill handles time-boxed feasibility studies and technical investigations. It produces a **decision document** (go/no-go recommendation), NOT an implementation plan. After a GO decision, the user proceeds to `/feature` (existing or greenfield mode) for actual implementation.
 
 ```
 /spike <question or hypothesis>    <- This skill (investigation & decision)
     | After GO decision
-/add-feature or /start-feature      <- Implementation planning
+/feature                            <- Implementation planning
     | After approval
-/team-implement                    <- Parallel implementation
+/team-execute                      <- Parallel implementation + review
 ```
 
 ### When to Use
@@ -42,12 +42,12 @@ This skill handles time-boxed feasibility studies and technical investigations. 
 
 ### When NOT to Use
 
-| Situation | Use Instead |
-|-----------|-------------|
-| Bug diagnosis | `/troubleshoot` |
-| Known feature to implement | `/add-feature` or `/start-feature` |
-| Simple library lookup | Direct research (Opus subagent) |
-| Code review | `/team-review` |
+- Bug diagnosis → `/troubleshoot`
+- Known feature to implement → `/feature`
+- Simple library lookup → direct research (Opus subagent)
+- Code review → `/team-execute --review-only`
+
+Full skill routing: CLAUDE.md §3 Routing Policy.
 
 ### Investigation Modes
 
@@ -215,27 +215,16 @@ Spawn two teammates:
    - Flag constraints or limitations that change the analysis
 
    IMPORTANT -- Work Log:
-   When ALL your tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/researcher.md
-
-   Use this format:
-   # Work Log: Researcher
-   ## Summary
-   (1-2 sentence summary of what you researched)
-   ## Tasks Completed
-   - [x] {task}: {brief description of findings}
+   When ALL your tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/researcher.md per the shared format:
+   .claude/skills/_shared/work-log-format.md
+   Role-specific sections (between Tasks Completed and Communication):
    ## Sources Consulted
    - {URL or source}: {what was found}
    ## Evidence Collected (per sub-question)
    - {sub-question}: FOR: {evidence} / AGAINST: {evidence}
    ## Key Findings
    - {finding}: {relevance to spike question}
-   ## Communication with Teammates
-   - -> {recipient}: {summary of message sent}
-   - <- {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 2. **Feasibility Analyst** -- Uses Codex CLI as PRIMARY analysis engine for technical feasibility
@@ -347,13 +336,10 @@ Spawn two teammates:
    - Update feasibility assessment based on Researcher's findings
 
    IMPORTANT -- Work Log:
-   When ALL your tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/feasibility-analyst.md
-
-   Use this format:
-   # Work Log: Feasibility Analyst
-   ## Summary
-   (1-2 sentence summary of feasibility assessment)
+   When ALL your tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/feasibility-analyst.md per the shared
+   format: .claude/skills/_shared/work-log-format.md
+   Role-specific sections replacing Tasks Completed for this role:
    ## Sub-question Assessments
    - {sub-question}: {FEASIBLE / NOT_FEASIBLE / UNKNOWN} -- {key reasoning}
    ## Codex Consultations
@@ -365,12 +351,6 @@ Spawn two teammates:
    ## Prototype Results (if applicable)
    - Tested: {what}
    - Result: {VALIDATED / INVALIDATED / INCONCLUSIVE}
-   ## Communication with Teammates
-   - -> {recipient}: {summary of message sent}
-   - <- {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 Wait for both teammates to complete their tasks.
@@ -432,7 +412,7 @@ Output format:
 ## Confidence Level: HIGH / MEDIUM / LOW
 ## Decisive Factor
 ## If GO: Constraints and Risks to Carry Forward
-## If GO: Recommended Next Skill (/add-feature or /start-feature)
+## If GO: Recommended Next Skill (/feature — existing or greenfield mode)
 ## If NO-GO: Decisive Blocker and Alternatives
 ## If INCONCLUSIVE: What Additional Investigation Is Needed
 " 2>/dev/null
@@ -497,7 +477,7 @@ Save the complete spike report to `.claude/docs/research/spike-{topic}.md`:
 {GO / NO-GO / INCONCLUSIVE with detailed reasoning}
 
 ### If GO
-- Next step: {/add-feature or /start-feature}
+- Next step: {/feature — existing or greenfield mode}
 - Key constraints to carry forward: {list}
 - Risks to monitor: {list}
 
@@ -546,7 +526,7 @@ Present the spike result to the user:
 
 ### Next Steps
 **If GO:**
-1. Proceed with `/add-feature` or `/start-feature` for implementation
+1. Proceed with `/feature` (existing or greenfield mode) for implementation
 2. Key constraints to carry forward: {list}
 3. Risks to monitor during implementation: {list}
 
@@ -583,7 +563,7 @@ Shall we proceed with the recommended next step?
 - **Time budget discipline**: Respect the time budget. If investigation is taking too long, Codex can evaluate with partial evidence and mark the verdict as INCONCLUSIVE
 - **Phase 1 is critical**: A well-decomposed question makes Phase 2 much more efficient. Invest time in framing the right sub-questions with Codex
 - **Phase 2**: Agent Teams bidirectional communication allows Researcher (Opus) and Feasibility Analyst (Codex-driven) to converge on evidence-based assessment
-- **Phase 3**: Codex synthesizes all findings into a decision. After a GO decision, proceed to `/add-feature` or `/start-feature` -- do NOT start implementation within the spike
+- **Phase 3**: Codex synthesizes all findings into a decision. After a GO decision, proceed to `/feature` -- do NOT start implementation within the spike
 - **PROTOTYPE mode**: Prototype code is throwaway. It lives in `.claude/spikes/` and is NOT production code. Its only purpose is to generate evidence for the decision
 - **Short-circuit**: If Phase 2 discovers a hard blocker early, short-circuit to Phase 3 immediately. No need to complete all sub-questions if the answer is already clear
 - **Inconclusive is OK**: Not every spike produces a clear answer. An INCONCLUSIVE result with documented unknowns is more valuable than a false GO

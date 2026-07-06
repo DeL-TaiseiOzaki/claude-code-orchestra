@@ -6,7 +6,7 @@ description: |
   Phase 1: Error reproduction & context gathering (Opus subagent 1M context + Codex initial analysis + Claude user interaction).
   Phase 2: Parallel diagnosis (Agent Teams: Root Cause Analyst [Codex-driven] + Impact Investigator [Opus + Codex risk analysis]).
   Phase 3: Fix plan synthesis, Codex validation & user approval.
-  Fix implementation is handled separately by /team-implement.
+  Fix implementation is handled separately by /team-execute.
 metadata:
   short-description: Codex-first error/bug diagnosis with Agent Teams (Diagnosis phase)
 ---
@@ -15,18 +15,18 @@ metadata:
 
 **Codex-first error/bug diagnosis skill leveraging Codex deep reasoning, Opus 1M context, and Agent Teams.**
 
-> **Preflight:** Update CLIs before starting — `claude update && npm install -g @openai/codex@latest`. Releases drift frequently (model names, flags, sandbox semantics).
+> Preflight: ensure codex CLI is current (see codex-system skill).
 
 ## Overview
 
-This skill handles the diagnosis phases (Phase 1-3) with a **Codex-first approach**: Codex CLI is consulted proactively in every phase for pattern recognition, hypothesis evaluation, root cause reasoning, and fix validation. Fix implementation is done via `/team-implement`, and review via `/team-review`.
+This skill handles the diagnosis phases (Phase 1-3) with a **Codex-first approach**: Codex CLI is consulted proactively in every phase for pattern recognition, hypothesis evaluation, root cause reasoning, and fix validation. Fix implementation and review are done via `/team-execute`.
 
 ```
 /troubleshoot <error description>   <- This skill (diagnosis & fix planning)
     | After approval
-/team-implement                     <- Parallel fix implementation
+/team-execute                       <- Parallel fix implementation (Phase 1)
     | After completion
-/team-review                        <- Parallel review (regression check)
+    Phase 2 REVIEW                  <- Parallel review (regression check)
 ```
 
 ## Workflow
@@ -63,33 +63,41 @@ Ask the user to provide:
 4. **Environment**: OS, Python version, dependency versions
 5. **Recent changes**: What changed before the error appeared (if known)
 
-### Step 2: Reproduce & Analyze with Opus Subagent
+### Step 2: Reproduce & Capture Context (repro.sh)
 
-Use a general-purpose subagent (Opus) to reproduce and analyze:
+First run the bundled script for the **mechanical** capture — it runs the failing
+command, records stdout/stderr/exit code + extracted traceback to
+`.claude/logs/troubleshoot-repro.log`, and gathers recent git history (plus
+optional blame for a stack-trace file):
+
+```bash
+bash .claude/skills/troubleshoot/repro.sh "<repro-command>" [--file <path-from-stack-trace>]
+```
+
+The script always exits `0` in capture mode (the repro command's own result is
+the JSON `exit_code`); exit `1` means bad arguments. Read the JSON fields:
+`exit_code`, `stdout_tail`, `stderr_tail`, `traceback`, `recent_commits`, `blame`,
+`log_file`.
+
+Then hand that captured context to a `general-purpose` subagent (Opus) for the
+**judgment** part — do NOT re-run the command or re-fetch git history:
 
 ```
 Task tool:
   subagent_type: "general-purpose"
   prompt: |
-    Investigate this error in the codebase:
+    Analyze this reproduced error (already captured by repro.sh):
 
     Error: {error message / stack trace}
-    Reproduction: {steps from user}
+    repro.sh JSON: {exit_code, traceback, recent_commits, log_file}
 
     Tasks:
-    1. Try to reproduce the error:
-       - Run the failing command/test
-       - Capture full error output with stack trace
-    2. Analyze the error context:
-       - Read all files mentioned in the stack trace
-       - Trace the execution flow leading to the error
-       - Identify the immediate cause (what line throws/fails)
-    3. Gather surrounding context:
-       - Check recent git history for related changes: git log --oneline -20
-       - Look for related tests and whether they pass/fail
-       - Check if similar patterns exist elsewhere in the codebase
+    1. Read all files mentioned in the traceback; trace the execution flow
+       leading to the error and identify the immediate cause (what line fails).
+    2. Look for related tests and whether they pass/fail.
+    3. Check if similar patterns exist elsewhere in the codebase.
 
-    Use Bash, Glob, Grep, and Read tools to investigate thoroughly.
+    Use Glob, Grep, and Read tools to investigate thoroughly.
 
     Save analysis to .claude/docs/research/troubleshoot-{issue}-context.md
     Return concise summary (5-7 key findings).
@@ -285,13 +293,10 @@ Spawn two teammates:
    - Confirm or refute hypotheses based on shared evidence
 
    IMPORTANT — Work Log:
-   When ALL your tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/root-cause-analyst.md
-
-   Use this format:
-   # Work Log: Root Cause Analyst
-   ## Summary
-   (1-2 sentence summary of root cause finding)
+   When ALL your tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/root-cause-analyst.md per the shared
+   format: .claude/skills/_shared/work-log-format.md
+   Role-specific sections replacing Tasks Completed for this role:
    ## Hypotheses Evaluated
    - [confirmed/eliminated] {hypothesis}: {evidence}
    ## Root Cause
@@ -304,12 +309,6 @@ Spawn two teammates:
    - Recommended: {which and why}
    ## Codex Consultations
    - {question asked to Codex}: {key insight from response}
-   ## Communication with Teammates
-   - -> {recipient}: {summary of message sent}
-   - <- {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 2. **Impact Investigator** — Uses Opus with Git history, codebase search, WebSearch, and Codex for risk analysis
@@ -396,13 +395,10 @@ Spawn two teammates:
    - Request clarification on which code paths to investigate
 
    IMPORTANT — Work Log:
-   When ALL your tasks are complete, write a work log file to:
-     .claude/logs/agent-teams/{team-name}/impact-investigator.md
-
-   Use this format:
-   # Work Log: Impact Investigator
-   ## Summary
-   (1-2 sentence summary of impact assessment)
+   When ALL your tasks are complete, write your work log to
+   .claude/logs/agent-teams/{team-name}/impact-investigator.md per the shared
+   format: .claude/skills/_shared/work-log-format.md
+   Role-specific sections replacing Tasks Completed for this role:
    ## Git History
    - Introducing commit: {hash} — {description}
    - Related commits: {list}
@@ -417,12 +413,6 @@ Spawn two teammates:
    ## Codex Risk Analysis
    - Regression risk assessment: {Codex's verdict and reasoning}
    - Fix safety assessment: {Codex's verdict and reasoning}
-   ## Communication with Teammates
-   - -> {recipient}: {summary of message sent}
-   - <- {sender}: {summary of message received}
-   ## Issues Encountered
-   - {issue}: {how it was resolved}
-   (If none, write 'None')
    "
 
 Wait for both teammates to complete their tasks.
@@ -501,8 +491,11 @@ Task breakdown should follow `references/debug-patterns.md`.
 Typical fix task structure:
 1. **Write failing test** -- Reproduce the bug as a test case
 2. **Apply fix** -- Implement the root cause fix
-3. **Verify fix** -- Confirm the failing test now passes
-4. **Check regressions** -- Run full test suite
+3. **Verify fix** -- Re-run the original repro command through
+   `bash .claude/skills/troubleshoot/repro.sh "<repro-command>"` and confirm the
+   JSON `exit_code` is now `0` (the failing test/command passes).
+4. **Check regressions** -- Run the full test suite (wrap it in repro.sh to persist
+   the output to `.claude/logs/troubleshoot-repro.log` if you want it captured).
 5. **Fix collateral damage** -- Address blast radius items (if any)
 
 ### Step 3: Update CLAUDE.md
@@ -572,8 +565,7 @@ Present the diagnosis and fix plan to the user:
 
 ### Next Steps
 1. Shall we proceed with this fix plan?
-2. After approval, start fix implementation with `/team-implement`
-3. After implementation, run regression review with `/team-review`
+2. After approval, start fix implementation and regression review with `/team-execute`
 
 ---
 Shall we proceed with this fix plan?
@@ -599,8 +591,8 @@ Shall we proceed with this fix plan?
 - **Codex for hypothesis testing**: When hypotheses conflict, ask Codex to evaluate evidence for each. Codex is better at logical reasoning about code behavior than pattern matching
 - **Phase 1**: Opus subagent (1M context) reproduces the error and gathers full context, then Codex generates initial hypotheses, while Claude collects details from the user
 - **Phase 2**: Agent Teams bidirectional communication allows Root Cause Analyst (Codex-driven) and Impact Investigator (Opus + Codex) to converge on the true root cause
-- **Phase 3**: Codex validates the fix plan before presenting to user. After approval, proceed to implementation with `/team-implement`
-- **Competing Hypotheses**: If Phase 2 yields inconclusive results, consider spawning additional teammates with adversarial hypotheses (see `/team-review` competing hypotheses pattern)
+- **Phase 3**: Codex validates the fix plan before presenting to user. After approval, proceed to implementation with `/team-execute`
+- **Competing Hypotheses**: If Phase 2 yields inconclusive results, consider spawning additional teammates with adversarial hypotheses (see the `/team-execute` Phase 2 competing hypotheses pattern)
 - **Quick bugs**: For obvious single-file bugs, skip this skill and fix directly -- use this skill for non-trivial bugs where root cause is unclear
 - **Ctrl+T**: Toggle task list display
 - **Shift+Up/Down**: Navigate between teammates (when using Agent Teams)

@@ -25,15 +25,17 @@ The above must always be delegated.
 - **Error root cause analysis** → `codex-debugger`
 - **Minor fixes (single file, small changes)** → Claude handles directly
 
+Codex delegation detail (when to delegate, triggers, prompt contract): `.claude/rules/codex-delegation.md`.
+
 ## 4) Delegation Trigger
 
 Delegate when any of the following apply:
 
 1. Output is likely to exceed 10 lines
-2. Editing 2 or more files
-3. Need to read 3 or more files
-4. Design decisions or trade-off comparisons are required
-5. Web information or up-to-date information needs to be verified
+2. Need to read 3 or more files
+3. Web information or up-to-date information needs to be verified
+
+Codex-specific triggers (multi-file changes, design decisions, trade-off analysis, unclear root cause): see `.claude/rules/codex-delegation.md` — Delegation Decision.
 
 ## 5) Execution Patterns
 
@@ -61,8 +63,7 @@ Save results exceeding 20 lines to `.claude/docs/` and return only a summary to 
 
 ## 8) Language Protocol
 
-- User-facing explanations: Japanese
-- Code, identifiers, commands: English
+See `.claude/rules/language.md` (SSOT): think in English, respond to the user in Japanese, code/identifiers/commands in English.
 
 ## 9) Repository Conventions
 
@@ -88,7 +89,7 @@ Keep this section thin — a brief identity line + pointer. Thick content belong
 # @orchestra:repo-boundary
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-<!-- Working state below: appended by /start-feature, /design-tracker, /checkpointing, and manual notes. -->
+<!-- Working state below: appended by /feature, /design-tracker, /checkpointing, and manual notes. -->
 
 ## Progress Tracker
 
