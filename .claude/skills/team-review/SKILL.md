@@ -51,18 +51,22 @@ Step 4: Report to User
 
 ## Step 1: Gather Diff
 
-**Identify the scope of changes to review.**
+**Identify the scope of changes to review** with the bundled script:
 
 ```bash
-# All changes from main branch
-git diff main...HEAD
-
-# Changed files list
-git diff main...HEAD --name-only
-
-# Commit history
-git log main..HEAD --oneline
+bash .claude/skills/team-review/gather_diff.sh [base-ref]   # base-ref defaults to main
 ```
+
+It writes the full diff to `.claude/logs/review-diff.patch` (kept out of context)
+and prints a lightweight JSON summary on stdout:
+
+- `changed_files[]`, `diffstat`, `commits[]` — the review scope.
+- `diff_file` — path to the full patch for reviewers to read as needed.
+- `ruff` — `{ok, issues}` lint snapshot (recorded, never fatal).
+- `coverage` — existing coverage report if present, else `null`.
+
+Exit codes: `0` normal · `1` not a git repo or base ref missing. Pass the
+`changed_files` list and `diff_file` path to the reviewers in Step 2.
 
 ---
 
@@ -177,7 +181,9 @@ Spawn reviewers:
    Prompt: "You are a Test Reviewer for: {feature}.
 
    Review test coverage and quality:
-   - Run: uv run pytest --cov=src --cov-report=term-missing
+   - Coverage: use the `coverage` field from Step 1's gather_diff.sh JSON;
+     if it is null, run `uv run pytest --cov=src --cov-report=term-missing`
+     to produce it.
    - Check: Are all happy paths tested?
    - Check: Are error cases covered?
    - Check: Are boundary values tested?

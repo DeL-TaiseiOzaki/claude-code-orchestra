@@ -94,75 +94,48 @@ Create directories on demand with `mkdir -p`:
 
 ---
 
-## Phase 1 — Scan (Opus Subagent)
+## Phase 1 — Scan (mechanical, via refresh_guard.py)
 
-Delegate inventory to a `general-purpose` subagent. The orchestrator must not read raw research files or every Zone C block itself.
+Run the bundled guard script to inventory Zone C and research notes
+deterministically. It is **non-writing** (dry-run) and replaces the old
+subagent scan — no raw-file reading needed:
 
-### Subagent Brief
-
-```
-You are preparing an inventory for the /context-refresh skill. Do NOT
-modify, move, or delete any file. Return a structured summary only.
-
-## Sources to scan
-
-### CLAUDE.md Zone C (only the area below `@orchestra:repo-boundary`)
-- List every section heading currently present.
-- Confirm the `## Progress Tracker` link block is present (it must be preserved).
-- For each `## Current Project|Feature|Bug Fix` block: title, last update date
-  (infer from git log on CLAUDE.md if no inline date), 3-line gist.
-- Flag any leftover legacy running-history sections — `## Work Evolution`,
-  `## Archive Index`, or any per-session activity-log heading (these are
-  obsolete and should be removed).
-
-### Research notes
-- Path: `.claude/docs/research/*.md` (NOT including `archive/`)
-- For each file: filename, last-modified date, 1-line topic summary,
-  and whether the feature still appears in a Zone C `Current ...` block.
-
-### Existing research archives
-- Path: `.claude/docs/research/archive/`
-- List filenames and 1-line description of contents (so we can append
-  rather than overwrite).
-
-## Return format
-
-```markdown
-### Zone C Inventory
-- Sections present: ...
-- Progress Tracker link present: yes/no
-- Current blocks: <table: title | date | gist>
-- Legacy sections to remove: <list or "none">
-
-### Research notes
-- Active (still referenced): <list>
-- Archive candidates: <table: filename | last-modified | topic | reason>
-
-### Existing research archives
-- <table: filename | contents>
-
-### Anomalies
-- Missing markers, malformed sections, or unparseable files.
+```bash
+python3 .claude/skills/checkpointing/refresh_guard.py --mode plan
 ```
 
-If a path does not exist, write "not present" instead of fabricating data.
-```
+Interpret the JSON:
 
-Run the subagent in the foreground. The returned summary is the sole input to Phase 2.
+- `markers.ok` — if false (exit code **2**), STOP and ask the user to run
+  `./scripts/update.sh`. Do not hand-insert markers.
+- `claude_md.total_lines` / `zone_c_lines` — size accounting.
+- `progress_tracker_present` — must remain true through the whole run.
+- `zone_c_blocks[]` — every `## Current Project|Feature|Bug Fix` block with its
+  `line`, inferred `date`, and `keep` flag (latest of each category = `keep:true`,
+  older duplicates = `keep:false`).
+- `legacy_sections[]` — obsolete running-history headings to remove.
+- `research_notes[]` — each note with `active` (still referenced in Zone C).
+- `move_plan[]` — computed archive moves (`create`/`append`); **never executed here**.
+
+Exit codes: `0` ok · `2` markers missing (abort) · `3` CLAUDE.md unreadable.
+
+The script owns the mechanical inventory. Your judgment is still required to write
+a short gist for each retired block, decide which archive candidates are genuinely
+stale, and compose the conversation compaction (Phase 4).
 
 ---
 
 ## Phase 2 — Plan (dry-run)
 
-Compute the rewrite plan from the Phase 1 summary. Do not write any file yet.
+`refresh_guard.py --mode plan` already computed the deterministic plan (blocks to
+keep vs drop via the `keep` flag, `legacy_sections`, and the research `move_plan`).
+Turn that JSON into a user-facing preview — do **not** write any file yet:
 
-1. **Identify the single most-recent** `## Current Project`, `## Current Feature`, and `## Current Bug Fix` block to keep; mark older instances for removal.
-2. **Mark obsolete sections** (`## Work Evolution`, `## Archive Index`, or any legacy per-session activity-log heading) for removal if present.
-3. **Bucket research archive candidates** (features no longer in any Zone C `Current ...` block).
-4. **Compose new Zone C body** in this order:
-   - `## Progress Tracker` (preserved verbatim — the link to PROGRESS.md).
-   - The single most-recent `## Current Project`, `## Current Feature`, `## Current Bug Fix` block (drop older instances).
-5. **Compose research-move plan** as a list of `(source, destination, append-or-create)` tuples.
+1. Keep the `keep:true` blocks; list `keep:false` blocks + `legacy_sections` as removals.
+2. **Compose the new Zone C body**: `## Progress Tracker` (preserved verbatim — the
+   link to PROGRESS.md) followed by the kept `## Current *` blocks in order.
+3. Use `move_plan[]` as-is for the research archive moves (source → destination,
+   `create`/`append` mode).
 
 ### Preview Format
 
@@ -246,21 +219,23 @@ Summarize the live conversation down to what the next turn needs (current goal, 
 
 ## Phase 5 — Verify
 
-After Phase 4 completes:
+After Phase 4 completes, re-run the guard in verify mode:
 
-1. Run `wc -l CLAUDE.md` and report new line count vs previous.
-2. Confirm the `## Progress Tracker` link block is still present in Zone C.
-3. List the contents of `.claude/docs/research/` and `.claude/docs/research/archive/`.
-4. Confirm `.claude/checkpoints/` and `PROGRESS.md` are unchanged (they were never touched).
-5. Re-grep for both boundary markers to confirm they survived intact:
+```bash
+python3 .claude/skills/checkpointing/refresh_guard.py --mode verify
+```
 
-   ```bash
-   grep -c "@orchestra:template-boundary" CLAUDE.md
-   grep -c "@orchestra:repo-boundary" CLAUDE.md
-   ```
+Confirm from the JSON (and exit code):
 
-   Both must return `1`.
-6. Provide a single user-facing recap paragraph (Japanese, per `.claude/rules/language.md`) summarising: lines removed from Zone C, work blocks retired, research notes archived, and confirmation that PROGRESS.md / checkpoints were left intact.
+1. `markers.ok` is true and the script exits `0` (not `2`) — both boundary markers
+   survived intact.
+2. `progress_tracker_present` is true — the `## Progress Tracker` link block is still
+   in Zone C.
+3. `claude_md.total_lines` — report the new line count vs the previous one.
+4. Manually confirm `.claude/docs/research/` and `.claude/docs/research/archive/`
+   reflect the planned moves, and that `.claude/checkpoints/` and `PROGRESS.md` are
+   unchanged (they were never touched).
+5. Provide a single user-facing recap paragraph (Japanese, per `.claude/rules/language.md`) summarising: lines removed from Zone C, work blocks retired, research notes archived, and confirmation that PROGRESS.md / checkpoints were left intact.
 
 ---
 

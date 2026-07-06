@@ -63,33 +63,41 @@ Ask the user to provide:
 4. **Environment**: OS, Python version, dependency versions
 5. **Recent changes**: What changed before the error appeared (if known)
 
-### Step 2: Reproduce & Analyze with Opus Subagent
+### Step 2: Reproduce & Capture Context (repro.sh)
 
-Use a general-purpose subagent (Opus) to reproduce and analyze:
+First run the bundled script for the **mechanical** capture — it runs the failing
+command, records stdout/stderr/exit code + extracted traceback to
+`.claude/logs/troubleshoot-repro.log`, and gathers recent git history (plus
+optional blame for a stack-trace file):
+
+```bash
+bash .claude/skills/troubleshoot/repro.sh "<repro-command>" [--file <path-from-stack-trace>]
+```
+
+The script always exits `0` in capture mode (the repro command's own result is
+the JSON `exit_code`); exit `1` means bad arguments. Read the JSON fields:
+`exit_code`, `stdout_tail`, `stderr_tail`, `traceback`, `recent_commits`, `blame`,
+`log_file`.
+
+Then hand that captured context to a `general-purpose` subagent (Opus) for the
+**judgment** part — do NOT re-run the command or re-fetch git history:
 
 ```
 Task tool:
   subagent_type: "general-purpose"
   prompt: |
-    Investigate this error in the codebase:
+    Analyze this reproduced error (already captured by repro.sh):
 
     Error: {error message / stack trace}
-    Reproduction: {steps from user}
+    repro.sh JSON: {exit_code, traceback, recent_commits, log_file}
 
     Tasks:
-    1. Try to reproduce the error:
-       - Run the failing command/test
-       - Capture full error output with stack trace
-    2. Analyze the error context:
-       - Read all files mentioned in the stack trace
-       - Trace the execution flow leading to the error
-       - Identify the immediate cause (what line throws/fails)
-    3. Gather surrounding context:
-       - Check recent git history for related changes: git log --oneline -20
-       - Look for related tests and whether they pass/fail
-       - Check if similar patterns exist elsewhere in the codebase
+    1. Read all files mentioned in the traceback; trace the execution flow
+       leading to the error and identify the immediate cause (what line fails).
+    2. Look for related tests and whether they pass/fail.
+    3. Check if similar patterns exist elsewhere in the codebase.
 
-    Use Bash, Glob, Grep, and Read tools to investigate thoroughly.
+    Use Glob, Grep, and Read tools to investigate thoroughly.
 
     Save analysis to .claude/docs/research/troubleshoot-{issue}-context.md
     Return concise summary (5-7 key findings).
@@ -501,8 +509,11 @@ Task breakdown should follow `references/debug-patterns.md`.
 Typical fix task structure:
 1. **Write failing test** -- Reproduce the bug as a test case
 2. **Apply fix** -- Implement the root cause fix
-3. **Verify fix** -- Confirm the failing test now passes
-4. **Check regressions** -- Run full test suite
+3. **Verify fix** -- Re-run the original repro command through
+   `bash .claude/skills/troubleshoot/repro.sh "<repro-command>"` and confirm the
+   JSON `exit_code` is now `0` (the failing test/command passes).
+4. **Check regressions** -- Run the full test suite (wrap it in repro.sh to persist
+   the output to `.claude/logs/troubleshoot-repro.log` if you want it captured).
 5. **Fix collateral damage** -- Address blast radius items (if any)
 
 ### Step 3: Update CLAUDE.md
