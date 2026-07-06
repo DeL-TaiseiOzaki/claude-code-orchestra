@@ -6,7 +6,7 @@ description: |
   Phase 1: Error reproduction & context gathering (Opus subagent 1M context + Codex initial analysis + Claude user interaction).
   Phase 2: Parallel diagnosis (Agent Teams: Root Cause Analyst [Codex-driven] + Impact Investigator [Opus + Codex risk analysis]).
   Phase 3: Fix plan synthesis, Codex validation & user approval.
-  Fix implementation is handled separately by /team-implement.
+  Fix implementation is handled separately by /team-execute.
 metadata:
   short-description: Codex-first error/bug diagnosis with Agent Teams (Diagnosis phase)
 ---
@@ -19,14 +19,14 @@ metadata:
 
 ## Overview
 
-This skill handles the diagnosis phases (Phase 1-3) with a **Codex-first approach**: Codex CLI is consulted proactively in every phase for pattern recognition, hypothesis evaluation, root cause reasoning, and fix validation. Fix implementation is done via `/team-implement`, and review via `/team-review`.
+This skill handles the diagnosis phases (Phase 1-3) with a **Codex-first approach**: Codex CLI is consulted proactively in every phase for pattern recognition, hypothesis evaluation, root cause reasoning, and fix validation. Fix implementation and review are done via `/team-execute`.
 
 ```
 /troubleshoot <error description>   <- This skill (diagnosis & fix planning)
     | After approval
-/team-implement                     <- Parallel fix implementation
+/team-execute                       <- Parallel fix implementation (Phase 1)
     | After completion
-/team-review                        <- Parallel review (regression check)
+    Phase 2 REVIEW                  <- Parallel review (regression check)
 ```
 
 ## Workflow
@@ -565,8 +565,7 @@ Present the diagnosis and fix plan to the user:
 
 ### Next Steps
 1. Shall we proceed with this fix plan?
-2. After approval, start fix implementation with `/team-implement`
-3. After implementation, run regression review with `/team-review`
+2. After approval, start fix implementation and regression review with `/team-execute`
 
 ---
 Shall we proceed with this fix plan?
@@ -592,8 +591,8 @@ Shall we proceed with this fix plan?
 - **Codex for hypothesis testing**: When hypotheses conflict, ask Codex to evaluate evidence for each. Codex is better at logical reasoning about code behavior than pattern matching
 - **Phase 1**: Opus subagent (1M context) reproduces the error and gathers full context, then Codex generates initial hypotheses, while Claude collects details from the user
 - **Phase 2**: Agent Teams bidirectional communication allows Root Cause Analyst (Codex-driven) and Impact Investigator (Opus + Codex) to converge on the true root cause
-- **Phase 3**: Codex validates the fix plan before presenting to user. After approval, proceed to implementation with `/team-implement`
-- **Competing Hypotheses**: If Phase 2 yields inconclusive results, consider spawning additional teammates with adversarial hypotheses (see `/team-review` competing hypotheses pattern)
+- **Phase 3**: Codex validates the fix plan before presenting to user. After approval, proceed to implementation with `/team-execute`
+- **Competing Hypotheses**: If Phase 2 yields inconclusive results, consider spawning additional teammates with adversarial hypotheses (see the `/team-execute` Phase 2 competing hypotheses pattern)
 - **Quick bugs**: For obvious single-file bugs, skip this skill and fix directly -- use this skill for non-trivial bugs where root cause is unclear
 - **Ctrl+T**: Toggle task list display
 - **Shift+Up/Down**: Navigate between teammates (when using Agent Teams)

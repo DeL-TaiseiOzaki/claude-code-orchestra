@@ -34,7 +34,7 @@ reference this file instead of inlining the template.
 1. The 5 core sections (`Summary`, `Tasks Completed`, `Communication with
    Teammates`, `Issues Encountered`, plus the role-specific block between
    `Tasks Completed` and `Communication with Teammates`) are mandatory.
-2. **Reviewer roles** (e.g. in `/team-review`) replace `## Tasks Completed`
+2. **Reviewer roles** (e.g. in `/team-execute` Phase 2 REVIEW) replace `## Tasks Completed`
    with `## Review Scope` (files reviewed + focus areas) and `## Findings`
    (`- [{severity}] {file}:{line} — {issue summary}`).
 3. Role-specific extra sections (e.g. `## Codex Consultations`,

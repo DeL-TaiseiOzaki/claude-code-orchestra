@@ -89,7 +89,7 @@ Keep this section thin — a brief identity line + pointer. Thick content belong
 # @orchestra:repo-boundary
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-<!-- Working state below: appended by /start-feature, /design-tracker, /checkpointing, and manual notes. -->
+<!-- Working state below: appended by /feature, /design-tracker, /checkpointing, and manual notes. -->
 
 ## Progress Tracker
 

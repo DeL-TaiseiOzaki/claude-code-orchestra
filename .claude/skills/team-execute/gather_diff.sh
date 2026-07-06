@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gather_diff.sh — collect review scope for the team-review skill.
+# gather_diff.sh — collect review scope for the team-execute skill (Phase 2 REVIEW).
 #
 # Writes the full diff to .claude/logs/review-diff.patch (can be large) and
 # emits a lightweight JSON summary on stdout for the reviewers to consume.
@@ -13,7 +13,7 @@ set -u
 
 BASE="${1:-main}"
 
-# Resolve repo root from this script's location (.claude/skills/team-review/).
+# Resolve repo root from this script's location (.claude/skills/team-execute/).
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 LOG_DIR="$REPO_ROOT/.claude/logs"

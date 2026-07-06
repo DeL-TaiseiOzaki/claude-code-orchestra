@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Refresh guard: mechanical verification for the context-refresh (compact) phase.
+"""Refresh guard: mechanical verification for the checkpointing Compact Phase.
 
-Non-writing (dry-run only). Computes the deterministic parts of context-refresh:
+Non-writing (dry-run only). Computes the deterministic parts of the compact:
 boundary-marker verification, CLAUDE.md line accounting, Zone C work-block
 inventory, legacy-section detection, research-note staleness, and an archive
 move plan (computed, never executed). All LLM judgment (summarization, archive
@@ -35,7 +35,7 @@ REPO_BOUNDARY_MARKER = "@orchestra:repo-boundary"
 PROGRESS_TRACKER_HEADING = "## Progress Tracker"
 BOUNDARY_BOX_CHAR = "━"  # heavy horizontal (━) used in marker boxes
 
-# Zone C work blocks that context-refresh manages (keep only the latest each).
+# Zone C work blocks that the Compact Phase manages (keep only the latest each).
 CURRENT_BLOCK_RE = re.compile(r"^## Current (Project|Feature|Bug Fix)\b")
 # Obsolete running-history sections that should be removed if present.
 LEGACY_HEADINGS = (
@@ -203,7 +203,7 @@ def build_report(lines: list[str]) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Mechanical guard for context-refresh (dry-run, non-writing)",
+        description="Mechanical guard for the checkpointing Compact Phase (dry-run, non-writing)",
     )
     parser.add_argument(
         "--mode",

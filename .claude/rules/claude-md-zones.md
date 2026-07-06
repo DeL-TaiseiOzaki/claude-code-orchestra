@@ -28,7 +28,7 @@ anchors: `@orchestra:template-boundary` and `@orchestra:repo-boundary`.
 |------|-----------------|---------|
 | **A** | Template — replaced wholesale by `scripts/update.sh` | Orchestrator contract (Mission, Routing, etc.). Never edited by skills. |
 | **B** | `/init` only | Thin Repository Identity + pointer to `.claude/docs/DESIGN.md`. |
-| **C** | `/start-feature`, `/add-feature`, `/troubleshoot` (append work blocks); `/checkpointing` (idempotent `## Progress Tracker` link); `/context-refresh` (prunes stale blocks); manual notes | Cross-session working state. |
+| **C** | `/feature`, `/troubleshoot` (append work blocks); `/checkpointing` (idempotent `## Progress Tracker` link; its Compact Phase / `--compact-only` prunes stale blocks); manual notes | Cross-session working state. |
 
 Additional invariants:
 
