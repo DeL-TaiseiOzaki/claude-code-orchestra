@@ -123,11 +123,13 @@ def get_git_commits(since: str | None = None) -> list[dict]:
             continue
         parts = line.split("|", 2)
         if len(parts) == 3:
-            commits.append({
-                "hash": parts[0][:7],
-                "date": parts[1],
-                "message": parts[2],
-            })
+            commits.append(
+                {
+                    "hash": parts[0][:7],
+                    "date": parts[1],
+                    "message": parts[2],
+                }
+            )
     return commits
 
 
@@ -262,11 +264,13 @@ def collect_work_logs() -> dict[str, list[dict]]:
         for log_file in sorted(team_dir.glob("*.md")):
             try:
                 content = log_file.read_text(encoding="utf-8")
-                team_logs.append({
-                    "teammate": log_file.stem,
-                    "file": str(log_file.relative_to(PROJECT_ROOT)),
-                    "content": content,
-                })
+                team_logs.append(
+                    {
+                        "teammate": log_file.stem,
+                        "file": str(log_file.relative_to(PROJECT_ROOT)),
+                        "content": content,
+                    }
+                )
             except OSError:
                 continue
 
@@ -282,9 +286,22 @@ def get_design_decisions_diff(since: str | None = None) -> str | None:
         return None
 
     if since:
-        args = ["log", "--since", since, "-p", "--", str(DESIGN_FILE.relative_to(PROJECT_ROOT))]
+        args = [
+            "log",
+            "--since",
+            since,
+            "-p",
+            "--",
+            str(DESIGN_FILE.relative_to(PROJECT_ROOT)),
+        ]
     else:
-        args = ["diff", "HEAD~10", "HEAD", "--", str(DESIGN_FILE.relative_to(PROJECT_ROOT))]
+        args = [
+            "diff",
+            "HEAD~10",
+            "HEAD",
+            "--",
+            str(DESIGN_FILE.relative_to(PROJECT_ROOT)),
+        ]
 
     return run_git_command(args)
 
@@ -334,17 +351,14 @@ def auto_generate_summary_body(
     lines: list[str] = ["## サマリ", ""]
 
     lines.append("### 何をしたのか")
-    lines.append(
-        f"- {len(commits)} commits, {total_files} files changed"
-    )
+    lines.append(f"- {len(commits)} commits, {total_files} files changed")
     if codex_count:
         lines.append(f"- Codex consultations: {codex_count}")
     for team in teams_data:
         tasks = team.get("tasks", [])
         completed = sum(1 for t in tasks if t.get("status") == "completed")
         lines.append(
-            f"- Agent Teams: {team['name']} "
-            f"({completed}/{len(tasks)} tasks completed)"
+            f"- Agent Teams: {team['name']} ({completed}/{len(tasks)} tasks completed)"
         )
     lines.append("")
 
@@ -431,8 +445,7 @@ def generate_checkpoint(
     if teams_data:
         total_members = sum(len(t.get("members", [])) for t in teams_data)
         lines.append(
-            f"- **Agent Teams sessions**: {len(teams_data)} "
-            f"({total_members} teammates)"
+            f"- **Agent Teams sessions**: {len(teams_data)} ({total_members} teammates)"
         )
         lines.append(f"- **Tasks**: {completed_tasks}/{total_tasks} completed")
     total_work_logs = sum(len(logs) for logs in work_logs.values())
@@ -572,7 +585,8 @@ def generate_checkpoint(
         added_lines = [
             line[1:].strip()
             for line in design_diff.split("\n")
-            if line.startswith("+") and not line.startswith("+++")
+            if line.startswith("+")
+            and not line.startswith("+++")
             and line.strip() not in ("+", "")
         ]
         for added in added_lines[:20]:
@@ -697,8 +711,7 @@ def ensure_progress_link() -> bool:
         "",
         "## Progress Tracker",
         "",
-        "Rolling progress summary (latest 5 checkpoints): "
-        "[PROGRESS.md](./PROGRESS.md)",
+        "Rolling progress summary (latest 5 checkpoints): [PROGRESS.md](./PROGRESS.md)",
     ]
 
     new_lines = lines[: marker_idx + 1] + block + lines[marker_idx + 1 :]
@@ -792,7 +805,9 @@ def main():
     design_diff = get_design_decisions_diff(args.since)
 
     total_logs = sum(len(logs) for logs in work_logs.values())
-    print(f"  Git: {len(commits)} commits, {sum(len(v) for v in file_changes.values())} files")
+    print(
+        f"  Git: {len(commits)} commits, {sum(len(v) for v in file_changes.values())} files"
+    )
     print(f"  CLI: {len(cli_entries)} consultations")
     print(f"  Agent Teams: {len(teams_data)} teams")
     print(f"  Work logs: {total_logs} teammate logs")

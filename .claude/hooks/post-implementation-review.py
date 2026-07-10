@@ -59,7 +59,9 @@ def count_lines(content: str) -> int:
     """Count meaningful lines in content."""
     lines = content.split("\n")
     # Count non-empty, non-comment lines
-    meaningful = [l for l in lines if l.strip() and not l.strip().startswith("#")]
+    meaningful = [
+        line for line in lines if line.strip() and not line.strip().startswith("#")
+    ]
     return len(meaningful)
 
 
@@ -98,7 +100,10 @@ def main():
             sys.exit(0)
 
         # Skip non-source files
-        if not any(file_path.endswith(ext) for ext in [".py", ".ts", ".js", ".tsx", ".jsx", ".go", ".rs"]):
+        if not any(
+            file_path.endswith(ext)
+            for ext in [".py", ".ts", ".js", ".tsx", ".jsx", ".go", ".rs"]
+        ):
             sys.exit(0)
 
         # Load and update state
@@ -123,7 +128,7 @@ def main():
                         "Consider having Codex review the implementation. "
                         "**Recommended**: Use Task tool with subagent_type='general-purpose' "
                         "to consult Codex with git diff and preserve main context."
-                    )
+                    ),
                 }
             }
             print(json.dumps(output))

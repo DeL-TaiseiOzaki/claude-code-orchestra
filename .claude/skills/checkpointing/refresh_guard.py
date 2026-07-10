@@ -84,13 +84,15 @@ def collect_zone_c_blocks(lines: list[str], zone_c_start: int) -> list[dict]:
         line_no = zone_c_start + offset + 1  # 1-based
         block_text = _block_text(lines, zone_c_start + offset)
         date_match = DATE_RE.search(block_text)
-        blocks.append({
-            "heading": line.strip(),
-            "line": line_no,
-            "date": date_match.group(0) if date_match else None,
-            "category": match.group(1),
-            "keep": True,  # provisional; demoted below for older duplicates
-        })
+        blocks.append(
+            {
+                "heading": line.strip(),
+                "line": line_no,
+                "date": date_match.group(0) if date_match else None,
+                "category": match.group(1),
+                "keep": True,  # provisional; demoted below for older duplicates
+            }
+        )
 
     # Demote all but the last block of each category.
     last_of_category: dict[str, int] = {}
@@ -106,7 +108,7 @@ def collect_zone_c_blocks(lines: list[str], zone_c_start: int) -> list[dict]:
 def _block_text(lines: list[str], heading_idx: int) -> str:
     """Return the text of a `## ` block starting at heading_idx up to the next `## `."""
     collected = [lines[heading_idx]]
-    for line in lines[heading_idx + 1:]:
+    for line in lines[heading_idx + 1 :]:
         if line.startswith("## "):
             break
         collected.append(line)
@@ -132,11 +134,13 @@ def collect_research_notes(zone_c_text: str) -> list[dict]:
     for path in sorted(RESEARCH_DIR.glob("*.md")):
         stem = path.stem
         mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
-        notes.append({
-            "file": path.name,
-            "mtime": mtime.strftime("%Y-%m-%d"),
-            "active": stem.lower() in zone_c_lower,
-        })
+        notes.append(
+            {
+                "file": path.name,
+                "mtime": mtime.strftime("%Y-%m-%d"),
+                "active": stem.lower() in zone_c_lower,
+            }
+        )
     return notes
 
 
@@ -148,11 +152,13 @@ def build_move_plan(research_notes: list[dict]) -> list[dict]:
             continue
         src = RESEARCH_DIR / note["file"]
         dst = ARCHIVE_DIR / note["file"]
-        plan.append({
-            "src": str(src),
-            "dst": str(dst),
-            "mode": "append" if dst.exists() else "create",
-        })
+        plan.append(
+            {
+                "src": str(src),
+                "dst": str(dst),
+                "mode": "append" if dst.exists() else "create",
+            }
+        )
     return plan
 
 
@@ -300,7 +306,9 @@ def main() -> int:
     if args.mode == "compose":
         zone_c_start = find_zone_c_start(lines)
         composed_body, blocks_kept, blocks_pruned = compose_zone_c(
-            lines, zone_c_start, report["zone_c_blocks"],
+            lines,
+            zone_c_start,
+            report["zone_c_blocks"],
         )
         logs_dir = args.project_root / ".claude" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)

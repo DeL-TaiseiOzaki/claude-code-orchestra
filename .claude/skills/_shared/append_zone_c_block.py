@@ -241,22 +241,26 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     existing_text, _ = find_existing_block(original_text, block_id)
     if existing_text is not None:
         if existing_text.strip() == rendered.strip():
-            _emit({
-                "ok": True,
-                "result": "no-op",
-                "heading": f"{TYPE_HEADING_MAP[args.type]}: {data['title']}",
-                "block_id": block_id,
-                "markers_ok": True,
-                "progress_tracker_preserved": True,
-            })
+            _emit(
+                {
+                    "ok": True,
+                    "result": "no-op",
+                    "heading": f"{TYPE_HEADING_MAP[args.type]}: {data['title']}",
+                    "block_id": block_id,
+                    "markers_ok": True,
+                    "progress_tracker_preserved": True,
+                }
+            )
             return EXIT_OK
-        _emit({
-            "ok": False,
-            "error": (
-                f"block with id '{block_id}' already exists with different content; "
-                "delete or revise the existing block manually"
-            ),
-        })
+        _emit(
+            {
+                "ok": False,
+                "error": (
+                    f"block with id '{block_id}' already exists with different content; "
+                    "delete or revise the existing block manually"
+                ),
+            }
+        )
         return EXIT_CONFLICT
 
     # --- Compose new file ---
@@ -271,15 +275,17 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
         preview_path = logs_dir / f"zone-c-preview-{timestamp}.md"
         preview_path.write_text(new_text, encoding="utf-8")
-        _emit({
-            "ok": True,
-            "result": "preview",
-            "heading": heading,
-            "block_id": block_id,
-            "preview_file": str(preview_path),
-            "markers_ok": True,
-            "progress_tracker_preserved": True,
-        })
+        _emit(
+            {
+                "ok": True,
+                "result": "preview",
+                "heading": heading,
+                "block_id": block_id,
+                "preview_file": str(preview_path),
+                "markers_ok": True,
+                "progress_tracker_preserved": True,
+            }
+        )
         return EXIT_OK
 
     # --- Atomic apply ---
@@ -291,16 +297,20 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         return EXIT_CONFLICT
 
     if _sha256(current_text) != original_hash:
-        _emit({
-            "ok": False,
-            "error": "CLAUDE.md was modified concurrently; aborting",
-        })
+        _emit(
+            {
+                "ok": False,
+                "error": "CLAUDE.md was modified concurrently; aborting",
+            }
+        )
         return EXIT_CONFLICT
 
     # Write to temp file in same directory, validate, then replace
     target_dir = claude_md_path.parent
     fd, tmp_path_str = tempfile.mkstemp(
-        prefix=".claude-md-", suffix=".tmp", dir=str(target_dir),
+        prefix=".claude-md-",
+        suffix=".tmp",
+        dir=str(target_dir),
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -322,14 +332,16 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         _emit({"ok": False, "error": f"write failure: {exc}"})
         return EXIT_CONFLICT
 
-    _emit({
-        "ok": True,
-        "result": "applied",
-        "heading": heading,
-        "block_id": block_id,
-        "markers_ok": True,
-        "progress_tracker_preserved": True,
-    })
+    _emit(
+        {
+            "ok": True,
+            "result": "applied",
+            "heading": heading,
+            "block_id": block_id,
+            "markers_ok": True,
+            "progress_tracker_preserved": True,
+        }
+    )
     return EXIT_OK
 
 

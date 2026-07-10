@@ -7,8 +7,8 @@ for debugging complex failures.
 """
 
 import json
-import sys
 import re
+import sys
 
 # Commands that run tests or builds
 TEST_BUILD_COMMANDS = [
@@ -83,7 +83,9 @@ def has_complex_failure(output: str) -> tuple[bool, str]:
         return True, f"Multiple failures detected ({failure_count} issues)"
 
     # Single failure in test output
-    if failure_count >= 1 and any(p in output.lower() for p in ["traceback", "assertion"]):
+    if failure_count >= 1 and any(
+        p in output.lower() for p in ["traceback", "assertion"]
+    ):
         return True, "Test failure with traceback"
 
     return False, ""
@@ -101,7 +103,9 @@ def main():
         tool_input = data.get("tool_input", {})
         tool_response = data.get("tool_response", {})
         command = tool_input.get("command", "")
-        tool_output = tool_response.get("stdout", "") or tool_response.get("content", "")
+        tool_output = tool_response.get("stdout", "") or tool_response.get(
+            "content", ""
+        )
 
         # Check if it's a test/build command
         if not is_test_or_build_command(command):
@@ -119,7 +123,7 @@ def main():
                         "Consider consulting Codex for debugging analysis. "
                         "**Recommended**: Use Task tool with subagent_type='general-purpose' "
                         "to consult Codex with full error context and preserve main context."
-                    )
+                    ),
                 }
             }
             print(json.dumps(output))

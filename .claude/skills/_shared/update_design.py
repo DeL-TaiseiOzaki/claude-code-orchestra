@@ -29,9 +29,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
 DECISIONS_HEADER = "| Decision | Rationale | Alternatives Considered | Date |"
-DECISIONS_SEPARATOR_RE = re.compile(
-    r"^\|\s*-+\s*\|\s*-+\s*\|\s*-+\s*\|\s*-+\s*\|"
-)
+DECISIONS_SEPARATOR_RE = re.compile(r"^\|\s*-+\s*\|\s*-+\s*\|\s*-+\s*\|\s*-+\s*\|")
 HEADING_RE = re.compile(r"^## ")
 
 EXIT_OK = 0
@@ -145,7 +143,9 @@ def _find_section_range(lines: list[str], heading: str) -> tuple[int, int] | Non
 
 
 def apply_changes(  # noqa: C901
-    text: str, data: dict, today: str,
+    text: str,
+    data: dict,
+    today: str,
 ) -> tuple[str, int, int, list[str]] | tuple[None, None, None, str]:
     """Apply decisions + section_updates to *text*.
 
@@ -163,11 +163,14 @@ def apply_changes(  # noqa: C901
     if decisions:
         table_range = _find_decisions_table(lines)
         if table_range is None:
-            return None, None, None, (
-                f"cannot locate unique '{DECISIONS_HEADER}' table in DESIGN.md"
+            return (
+                None,
+                None,
+                None,
+                (f"cannot locate unique '{DECISIONS_HEADER}' table in DESIGN.md"),
             )
         _header_idx, last_row = table_range
-        existing_rows = lines[_header_idx:last_row + 1]
+        existing_rows = lines[_header_idx : last_row + 1]
         for dec in decisions:
             date = dec.get("date") or today
             decision_text = dec["decision"]
@@ -198,8 +201,11 @@ def apply_changes(  # noqa: C901
             continue
         sec_range = _find_section_range(lines, heading)
         if sec_range is None:
-            return None, None, None, (
-                f"cannot locate unique section '{heading}' in DESIGN.md"
+            return (
+                None,
+                None,
+                None,
+                (f"cannot locate unique section '{heading}' in DESIGN.md"),
             )
         _sec_start, sec_end = sec_range
         # Insert content lines before sec_end
@@ -257,10 +263,12 @@ def main() -> int:
     # --- Load DESIGN.md ---
     design_path = args.project_root / ".claude" / "docs" / "DESIGN.md"
     if not design_path.exists():
-        _emit({
-            "ok": False,
-            "error": "DESIGN.md does not exist; run /init first",
-        })
+        _emit(
+            {
+                "ok": False,
+                "error": "DESIGN.md does not exist; run /init first",
+            }
+        )
         return EXIT_STRUCTURE_INVALID
 
     try:
@@ -281,15 +289,17 @@ def main() -> int:
         return EXIT_STRUCTURE_INVALID
 
     # --- No-op check ---
-    is_noop = (decisions_appended == 0 and not sections_updated)
+    is_noop = decisions_appended == 0 and not sections_updated
     if is_noop:
-        _emit({
-            "ok": True,
-            "result": "no-op",
-            "decisions_appended": 0,
-            "skipped_duplicates": skipped_duplicates,
-            "sections_updated": [],
-        })
+        _emit(
+            {
+                "ok": True,
+                "result": "no-op",
+                "decisions_appended": 0,
+                "skipped_duplicates": skipped_duplicates,
+                "sections_updated": [],
+            }
+        )
         return EXIT_OK
 
     # --- Preview or apply ---
@@ -300,14 +310,16 @@ def main() -> int:
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
         preview_path = logs_dir / f"design-preview-{timestamp}.md"
         preview_path.write_text(new_text, encoding="utf-8")
-        _emit({
-            "ok": True,
-            "result": "preview",
-            "decisions_appended": decisions_appended,
-            "skipped_duplicates": skipped_duplicates,
-            "sections_updated": sections_updated,
-            "preview_file": str(preview_path),
-        })
+        _emit(
+            {
+                "ok": True,
+                "result": "preview",
+                "decisions_appended": decisions_appended,
+                "skipped_duplicates": skipped_duplicates,
+                "sections_updated": sections_updated,
+                "preview_file": str(preview_path),
+            }
+        )
         return EXIT_OK
 
     # --- Atomic apply ---
@@ -318,15 +330,19 @@ def main() -> int:
         return EXIT_CONFLICT
 
     if _sha256(current_text) != original_hash:
-        _emit({
-            "ok": False,
-            "error": "DESIGN.md was modified concurrently; aborting",
-        })
+        _emit(
+            {
+                "ok": False,
+                "error": "DESIGN.md was modified concurrently; aborting",
+            }
+        )
         return EXIT_CONFLICT
 
     target_dir = design_path.parent
     fd, tmp_path_str = tempfile.mkstemp(
-        prefix=".design-md-", suffix=".tmp", dir=str(target_dir),
+        prefix=".design-md-",
+        suffix=".tmp",
+        dir=str(target_dir),
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -340,13 +356,15 @@ def main() -> int:
         _emit({"ok": False, "error": f"write failure: {exc}"})
         return EXIT_CONFLICT
 
-    _emit({
-        "ok": True,
-        "result": "applied",
-        "decisions_appended": decisions_appended,
-        "skipped_duplicates": skipped_duplicates,
-        "sections_updated": sections_updated,
-    })
+    _emit(
+        {
+            "ok": True,
+            "result": "applied",
+            "decisions_appended": decisions_appended,
+            "skipped_duplicates": skipped_duplicates,
+            "sections_updated": sections_updated,
+        }
+    )
     return EXIT_OK
 
 
