@@ -629,7 +629,13 @@ Output format:
 " 2>/dev/null
 ```
 
-After Codex implementation, run the quality gates per `.claude/rules/dev-environment.md` (pytest, ruff check, ruff format --check).
+After Codex implementation, run the quality gates:
+
+```bash
+bash .claude/skills/_shared/verify.sh
+```
+
+Read the JSON: `overall` is `pass` / `fail` / `no_gates`. On `fail`, inspect the `log_file`. On `no_gates` (project has no configured gates), fall back to the project's own verification commands and confirm manually.
 
 #### Route B: MODERATE (3-5 files) — Codex + Review
 

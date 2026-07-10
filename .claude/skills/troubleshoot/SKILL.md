@@ -494,8 +494,13 @@ Typical fix task structure:
 3. **Verify fix** -- Re-run the original repro command through
    `bash .claude/skills/troubleshoot/repro.sh "<repro-command>"` and confirm the
    JSON `exit_code` is now `0` (the failing test/command passes).
-4. **Check regressions** -- Run the full test suite (wrap it in repro.sh to persist
-   the output to `.claude/logs/troubleshoot-repro.log` if you want it captured).
+4. **Check regressions** -- Run the quality gates:
+
+   ```bash
+   bash .claude/skills/_shared/verify.sh
+   ```
+
+   Read the JSON: `overall` is `pass` / `fail` / `no_gates`. On `fail`, inspect the `log_file`. On `no_gates` (project has no configured gates), fall back to the project's own verification commands and confirm manually.
 5. **Fix collateral damage** -- Address blast radius items (if any)
 
 ### Step 3: Update CLAUDE.md

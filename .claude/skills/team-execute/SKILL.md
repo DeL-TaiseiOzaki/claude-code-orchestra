@@ -221,7 +221,13 @@ Wait for all teammates to complete their tasks.
 
 **After all tasks are complete, run integration verification.**
 
-Run the quality gates per `.claude/rules/dev-environment.md` (ruff check / ruff format --check / ty / pytest, or `poe all`).
+Run the quality gates:
+
+```bash
+bash .claude/skills/_shared/verify.sh
+```
+
+Read the JSON: `overall` is `pass` / `fail` / `no_gates`. On `fail`, inspect the `log_file`. On `no_gates` (project has no configured gates), fall back to the project's own verification commands and confirm manually.
 
 ### Integration Report
 
