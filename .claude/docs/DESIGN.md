@@ -90,6 +90,6 @@
 ## TODO / Open Questions
 
 - [ ] Promote .agents/ to full SSOT only when: deterministic generator with --check, update.sh migration tests from old VERSIONs, and a proven Antigravity adapter exist
-- [ ] agent-router.py: bare 「レビュー」/"review" in CODEX_TRIGGERS shadows CODEX_PLUGIN_TRIGGERS review entries (pre-existing; fix separately)
+- [x] agent-router.py: bare 「レビュー」/"review" in CODEX_TRIGGERS shadows CODEX_PLUGIN_TRIGGERS review entries — fixed 2026-07-11 (plugin triggers checked before broad Codex triggers)
 - [ ] Full Antigravity support (workflows are experimental skeletons; not executable yet)
 - [ ] update.sh rsync of SAFE_DIRS is not strictly atomic; consider stage-and-swap or post-sync self-check if interruption tolerance is needed

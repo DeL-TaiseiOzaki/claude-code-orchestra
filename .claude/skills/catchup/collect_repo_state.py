@@ -146,10 +146,12 @@ def collect_skills(root: Path) -> list[dict] | str:
     skills: list[dict] = []
     for skill_md in sorted(skills_dir.glob("*/SKILL.md")):
         fm = parse_frontmatter(skill_md)
-        skills.append({
-            "name": fm.get("name", skill_md.parent.name),
-            "short_description": fm.get("short-description", ""),
-        })
+        skills.append(
+            {
+                "name": fm.get("name", skill_md.parent.name),
+                "short_description": fm.get("short-description", ""),
+            }
+        )
     return skills
 
 
@@ -161,10 +163,12 @@ def collect_agents(root: Path) -> list[dict] | str:
     agents: list[dict] = []
     for agent_md in sorted(agents_dir.glob("*.md")):
         fm = parse_frontmatter(agent_md)
-        agents.append({
-            "name": fm.get("name", agent_md.stem),
-            "specialization": fm.get("description", ""),
-        })
+        agents.append(
+            {
+                "name": fm.get("name", agent_md.stem),
+                "specialization": fm.get("description", ""),
+            }
+        )
     return agents
 
 
@@ -195,8 +199,11 @@ def collect_checkpoints(root: Path) -> list[dict] | str:
     if not checkpoints_dir.exists():
         return "not present"
     files = sorted(
-        (p for p in checkpoints_dir.glob("*.md")
-         if not p.name.endswith(".analyze-prompt.md")),
+        (
+            p
+            for p in checkpoints_dir.glob("*.md")
+            if not p.name.endswith(".analyze-prompt.md")
+        ),
         key=lambda p: p.stem,
         reverse=True,
     )
@@ -225,10 +232,12 @@ def collect_cli_tools(root: Path) -> list[dict] | str:
         except json.JSONDecodeError:
             continue
         if record.get("tool") == "codex":
-            entries.append({
-                "prompt": (record.get("prompt", "") or "")[:120],
-                "success": record.get("success"),
-            })
+            entries.append(
+                {
+                    "prompt": (record.get("prompt", "") or "")[:120],
+                    "success": record.get("success"),
+                }
+            )
     return entries
 
 
