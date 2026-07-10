@@ -34,12 +34,14 @@ Every Codex prompt should include:
 4. **Acceptance checks**: commands to run.
 5. **Output format**: concise markdown sections.
 
+> Always append `< /dev/null` (and prefer `timeout <sec>`): codex exec waits for stdin EOF and hangs indefinitely when stdin is left open (e.g. background shells).
+
 ## 3) Recommended Prompt Templates
 
 ### A. Planning / Design (read-only)
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
 Objective: Create an implementation plan for {feature}.
 Constraints:
 - Keep existing architecture unless explicitly justified.
@@ -55,13 +57,13 @@ Output format:
 ## Implementation Plan
 ## Risks
 ## Next Steps
-"
+" < /dev/null 2>/dev/null
 ```
 
 ### B. Complex Implementation (workspace-write)
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox workspace-write "
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox workspace-write "
 Objective: Implement {feature/fix}.
 Constraints:
 - Follow project lint/type/test rules.
@@ -75,7 +77,7 @@ Output format:
 ## Changes Made
 ## Validation
 ## Remaining Risks
-"
+" < /dev/null 2>/dev/null
 ```
 
 ## 4) Claude-side Compression Rules

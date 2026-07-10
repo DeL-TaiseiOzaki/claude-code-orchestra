@@ -81,11 +81,17 @@ Return to Step 1 with next test case from the list.
 
 ### Phase 3: Completion Check
 
-```bash
-# Run all tests
-uv run pytest -v
+Run the quality gates:
 
-# Check coverage (target 80%+)
+```bash
+bash .claude/skills/_shared/verify.sh
+```
+
+Read the JSON: `overall` is `pass` / `fail` / `no_gates`. On `fail`, inspect the `log_file`. On `no_gates` (project has no configured gates), fall back to the project's own verification commands and confirm manually.
+
+Then check coverage separately:
+
+```bash
 uv run pytest --cov={module} --cov-report=term-missing
 ```
 

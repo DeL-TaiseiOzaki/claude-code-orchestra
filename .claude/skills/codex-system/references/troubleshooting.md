@@ -40,14 +40,14 @@ tool_timeout_sec = 600
 
 ```bash
 # Run outside of a Git repository
-codex exec --skip-git-repo-check ...
+codex exec --skip-git-repo-check ... < /dev/null
 ```
 
 ## Excessive Reasoning Output
 
 ```bash
 # Suppress stderr
-codex exec ... 2>/dev/null
+codex exec ... < /dev/null 2>/dev/null
 
 # Or configure in config.toml
 hide_agent_reasoning = true

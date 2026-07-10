@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Refresh guard: mechanical verification for the checkpointing Compact Phase.
 
-Non-writing (dry-run only). Computes the deterministic parts of the compact:
+Non-writing (dry-run only, except ``--mode compose`` which writes a draft file
+under ``.claude/logs/``). Computes the deterministic parts of the compact:
 boundary-marker verification, CLAUDE.md line accounting, Zone C work-block
 inventory, legacy-section detection, research-note staleness, and an archive
 move plan (computed, never executed). All LLM judgment (summarization, archive
@@ -11,6 +12,7 @@ Usage:
     python3 refresh_guard.py --mode check    # markers + line counts (abort gate)
     python3 refresh_guard.py --mode plan     # full inventory + dry-run move plan
     python3 refresh_guard.py --mode verify   # post-run marker/line re-check
+    python3 refresh_guard.py --mode compose  # compose new Zone C body → draft file
 
 Exit codes:
     0  normal
@@ -154,6 +156,62 @@ def build_move_plan(research_notes: list[dict]) -> list[dict]:
     return plan
 
 
+def extract_progress_tracker_block(lines: list[str], zone_c_start: int) -> str:
+    """Return the full text of the ``## Progress Tracker`` block in Zone C.
+
+    Includes the heading line and all body lines up to (but not including) the
+    next ``## `` heading or end of file.
+    """
+    for idx in range(zone_c_start, len(lines)):
+        if lines[idx].strip() == PROGRESS_TRACKER_HEADING:
+            return _block_text(lines, idx)
+    return ""
+
+
+def extract_kept_block_texts(
+    lines: list[str],
+    zone_c_blocks: list[dict],
+) -> list[str]:
+    """Return the full markdown text for each ``keep:true`` block, in file order.
+
+    Each text spans from the ``## Current ...`` heading through to (but not
+    including) the next ``## `` heading or EOF.
+    """
+    kept: list[str] = []
+    for block in zone_c_blocks:
+        if not block["keep"]:
+            continue
+        # block["line"] is 1-based
+        heading_idx = block["line"] - 1
+        kept.append(_block_text(lines, heading_idx))
+    return kept
+
+
+def compose_zone_c(
+    lines: list[str],
+    zone_c_start: int,
+    zone_c_blocks: list[dict],
+) -> tuple[str, list[str], list[str]]:
+    """Compose a new Zone C body from the Progress Tracker block and kept blocks.
+
+    Returns (composed_body, blocks_kept_headings, blocks_pruned_headings).
+    """
+    progress_block = extract_progress_tracker_block(lines, zone_c_start)
+    kept_texts = extract_kept_block_texts(lines, zone_c_blocks)
+
+    parts: list[str] = []
+    if progress_block:
+        parts.append(progress_block)
+    for text in kept_texts:
+        parts.append(text)
+
+    composed = "\n\n".join(parts) + "\n" if parts else ""
+
+    blocks_kept = [b["heading"] for b in zone_c_blocks if b["keep"]]
+    blocks_pruned = [b["heading"] for b in zone_c_blocks if not b["keep"]]
+    return composed, blocks_kept, blocks_pruned
+
+
 def build_report(lines: list[str]) -> dict:
     """Assemble the full JSON report from CLAUDE.md lines."""
     template_count = sum(1 for line in lines if TEMPLATE_BOUNDARY_MARKER in line)
@@ -207,9 +265,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--mode",
-        choices=["check", "plan", "verify"],
+        choices=["check", "plan", "verify", "compose"],
         default="check",
-        help="check: abort gate; plan: full move plan; verify: post-run re-check",
+        help="check: abort gate; plan: full move plan; verify: post-run re-check; compose: draft new Zone C body",
     )
     parser.add_argument(
         "--project-root",
@@ -235,10 +293,30 @@ def main() -> int:
         print()
         return EXIT_PARSE_ERROR
 
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-
     if not report["markers"]["ok"]:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
         return EXIT_MARKERS_MISSING
+
+    if args.mode == "compose":
+        zone_c_start = find_zone_c_start(lines)
+        composed_body, blocks_kept, blocks_pruned = compose_zone_c(
+            lines, zone_c_start, report["zone_c_blocks"],
+        )
+        logs_dir = args.project_root / ".claude" / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        composed_path = logs_dir / "composed-zone-c.md"
+        composed_path.write_text(composed_body, encoding="utf-8")
+
+        compose_report = {
+            **report,
+            "composed_zone_c": str(composed_path),
+            "blocks_kept": blocks_kept,
+            "blocks_pruned": blocks_pruned,
+        }
+        print(json.dumps(compose_report, ensure_ascii=False, indent=2))
+        return 0
+
+    print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
 

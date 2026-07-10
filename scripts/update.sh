@@ -31,11 +31,14 @@ SAFE_DIRS=(
     ".claude/rules"
     ".claude/agents"
     ".codex"
+    ".agents"
 )
 SAFE_FILES=(
     ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"
     ".claude/docs/libraries/_TEMPLATE.md"
+    ".claude/docs/reviews/.gitkeep"
     "scripts/update.sh"
+    "AGENTS.md"
 )
 
 # Paths that previous template versions installed but no longer ship.
@@ -89,6 +92,7 @@ TMPDIR_UPDATE=""
 UPDATED_FILES=()
 AUTO_YES=false
 TARGET_REF=""
+SELF_UPDATED=false
 
 cleanup() {
     if [[ -n "${TMPDIR_UPDATE}" && -d "${TMPDIR_UPDATE}" ]]; then
@@ -322,7 +326,15 @@ sync_safe_files() {
         fi
 
         mkdir -p "$(dirname "${dst}")"
-        cp -f "${src}" "${dst}"
+        if [[ "${file}" == "scripts/update.sh" && -f "${dst}" ]] \
+            && ! cmp -s "${src}" "${dst}"; then
+            SELF_UPDATED=true
+        fi
+        # Copy via temp + mv: an atomic rename gives the destination a new
+        # inode, so the running update.sh keeps reading its original file
+        # instead of a half-overwritten one (self-update safety).
+        cp -f "${src}" "${dst}.tmp.$$"
+        mv -f "${dst}.tmp.$$" "${dst}"
         info "Updated ${file}"
         UPDATED_FILES+=("${file}")
     done
@@ -600,6 +612,13 @@ print_summary() {
     done
 
     echo ""
+
+    if [[ "${SELF_UPDATED}" == "true" ]]; then
+        warn "scripts/update.sh itself was updated during this run."
+        warn "Run ${BOLD}./scripts/update.sh${RESET} once more to sync targets added in the new version (e.g. new template directories)."
+        echo ""
+    fi
+
     info "Please review the changes and commit when ready:"
     echo "  git add -A && git commit -m \"chore: update orchestra template to ${NEW_VERSION}\""
     echo ""

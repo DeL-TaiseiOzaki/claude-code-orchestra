@@ -3,6 +3,7 @@
 UserPromptSubmit hook: Route to appropriate agent based on user intent.
 
 Routing rules:
+- Design arbitration / stuck problems / final review → Fable advisor (rare)
 - Codebase understanding / large analysis → Opus subagent (1M context)
 - External research / survey → Opus subagent
 - Planning, design, complex code → Codex CLI
@@ -12,6 +13,23 @@ Multimodal files (PDF/video/audio/image) are handled directly by Claude (Opus 4.
 
 import json
 import sys
+
+# Triggers for Fable advisor (rare escalation: arbitration, stuck, final review)
+FABLE_TRIGGERS = {
+    "ja": [
+        "設計判断に迷", "設計の裁定", "裁定して",
+        "行き詰ま", "詰まった", "打開",
+        "最終レビュー", "最終判断",
+        "方針を決めて", "方針決定",
+        "fableに聞", "fableに相談", "アドバイザー",
+    ],
+    "en": [
+        "design arbitration", "arbitrate", "settle this",
+        "stuck", "deadlocked", "blocked on design",
+        "final review", "final judgment", "second opinion",
+        "ask fable", "fable advisor", "advisor",
+    ],
+}
 
 # Triggers for Codex (planning, design, debugging, complex implementation)
 CODEX_TRIGGERS = {
@@ -81,6 +99,14 @@ def detect_agent(prompt: str) -> tuple[str | None, str]:
     """
     prompt_lower = prompt.lower()
 
+    # Fable triggers (rare escalation: arbitration, stuck, final review)
+    # Checked FIRST — narrow, high-specificity triggers that must not be
+    # swallowed by the broader Codex keywords.
+    for triggers in FABLE_TRIGGERS.values():
+        for trigger in triggers:
+            if trigger in prompt_lower:
+                return "fable", trigger
+
     # Codex triggers (planning, design, debug, complex code)
     for triggers in CODEX_TRIGGERS.values():
         for trigger in triggers:
@@ -113,16 +139,32 @@ def main():
 
         agent, trigger = detect_agent(prompt)
 
-        if agent == "codex":
+        if agent == "fable":
+            output = {
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": (
+                        f"[Fable Advisor] Detected '{trigger}' — this may warrant the "
+                        "fable-advisor subagent (rare escalation: design arbitration / "
+                        "stuck problems / final review of large changes; read-only, never "
+                        "implements; notes saved to .claude/docs/reviews/). For routine "
+                        "review or implementation, use the normal Codex/team-execute "
+                        "routes instead."
+                    )
+                }
+            }
+            print(json.dumps(output))
+
+        elif agent == "codex":
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "UserPromptSubmit",
                     "additionalContext": (
                         f"[Agent Routing] Detected '{trigger}' — this task may benefit from "
                         "Codex CLI for planning, design, or complex implementation. Consider: "
-                        "`codex exec --model \"${CODEX_MODEL:-gpt-5.5}\" --sandbox read-only "
-                        '"{task description}"` for design decisions, planning, debugging, '
-                        "or complex analysis."
+                        "`codex exec --model \"${CODEX_MODEL:-gpt-5.6-sol}\" --sandbox read-only "
+                        '"{task description}" < /dev/null` for design decisions, planning, '
+                        "debugging, or complex analysis."
                     )
                 }
             }

@@ -108,7 +108,7 @@ Task tool:
 Consult Codex for initial hypothesis generation before creating the Bug Report:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
 Objective: Analyze this error and generate initial hypotheses for root cause.
 Context:
 - Error: {error message / stack trace}
@@ -123,46 +123,14 @@ Output format:
 ## Hypotheses (ranked by likelihood)
 ## Investigation Plan (per hypothesis)
 ## Known Similar Patterns
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 Use Codex's analysis to strengthen the Initial Hypotheses section of the Bug Report.
 
 ### Step 3: Create Bug Report
 
-Combine error details + codebase analysis + Codex initial hypotheses into a "Bug Report":
-
-```markdown
-## Bug Report: {issue}
-
-### Error
-- Message: {error message}
-- Location: {file:line}
-- Stack trace: {key frames}
-
-### Reproduction
-- Steps: {numbered list}
-- Reproducibility: {always / intermittent / environment-specific}
-
-### Immediate Context
-- Failing code: {file:line and surrounding logic}
-- Call chain: {caller -> ... -> failing function}
-- Recent changes: {relevant git commits}
-
-### Affected Area
-- Files involved: {list}
-- Related tests: {list with pass/fail status}
-
-### Initial Hypotheses (informed by Codex analysis)
-1. {Hypothesis A}: {brief reasoning} -- Codex confidence: {high/medium/low}
-2. {Hypothesis B}: {brief reasoning} -- Codex confidence: {high/medium/low}
-3. {Hypothesis C}: {brief reasoning} -- Codex confidence: {high/medium/low}
-
-### Codex Pattern Recognition
-- Error pattern: {Codex's classification of the error type}
-- Known similar patterns: {any patterns Codex identified}
-- Recommended investigation priority: {Codex's suggested order}
-```
+Combine error details + codebase analysis + Codex initial hypotheses into a Bug Report following the template contract in `references/bug-report-template.md`.
 
 This bug report is passed to Phase 2 teammates as shared context.
 
@@ -212,7 +180,7 @@ Spawn two teammates:
 
    ### 1. Execution Flow Tracing
    For complex control flow, consult Codex:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only '
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
    Objective: Trace the execution flow from {entry point} to {error location}.
    Context:
    - Entry point: {file:function}
@@ -226,11 +194,11 @@ Spawn two teammates:
    ## State Transformations
    ## Assumption Violations
    ## Critical Decision Points
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 2. Hypothesis Evaluation
    For each hypothesis, consult Codex to evaluate evidence:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only '
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
    Objective: Evaluate hypothesis \"{hypothesis}\" against collected evidence.
    Context:
    - Hypothesis: {description}
@@ -244,11 +212,11 @@ Spawn two teammates:
    ## Verdict (CONFIRMED / ELIMINATED / INCONCLUSIVE)
    ## Reasoning
    ## Remaining Unknowns
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 3. Fix Approach Design
    Consult Codex for trade-off analysis of fix alternatives:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only '
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
    Objective: Design and compare fix approaches for root cause: {root cause description}.
    Context:
    - Root cause: {description}
@@ -264,11 +232,11 @@ Spawn two teammates:
    ## Approach B: {name}
    ## Comparison Matrix
    ## Recommendation with Rationale
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 4. Fix Correctness Verification
    Before finalizing, consult Codex to verify the proposed fix:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only '
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
    Objective: Verify that the proposed fix correctly resolves the root cause.
    Context:
    - Root cause: {description}
@@ -283,7 +251,7 @@ Spawn two teammates:
    ## Edge Case Coverage
    ## New Failure Modes (if any)
    ## Confidence Level
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    Save analysis to .claude/docs/research/troubleshoot-{issue}-root-cause.md
 
@@ -349,7 +317,7 @@ Spawn two teammates:
 
    ### Regression Risk Reasoning
    Consult Codex to evaluate what could break if the proposed change is applied:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only '
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
    Objective: Evaluate regression risk if {proposed change} is applied to {file:line}.
    Context:
    - Current behavior: {description}
@@ -365,11 +333,11 @@ Spawn two teammates:
    ## Affected Code Paths
    ## Implicit Contracts at Risk
    ## Recommended Safeguards
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### Fix Safety Analysis
    Consult Codex to verify the proposed fix does not introduce new issues:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only '
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
    Objective: Analyze whether the proposed fix introduces new issues or side effects.
    Context:
    - Root cause: {from Root Cause Analyst}
@@ -385,7 +353,7 @@ Spawn two teammates:
    ## New Issues Identified
    ## Side Effects
    ## Mitigation Recommendations
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    Save findings to .claude/docs/research/troubleshoot-{issue}-impact.md
 
@@ -451,7 +419,7 @@ Read outputs from Phase 2:
 Before presenting to the user, validate the fix plan with Codex:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
 Objective: Validate this fix plan for completeness and correctness.
 Context:
 - Root cause: {from Root Cause Analyst}
@@ -469,7 +437,7 @@ Output format:
 ## Potential New Issues
 ## Additional Test Cases Recommended
 ## Revised Task List (if needed)
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 If Codex returns NEEDS_REVISION, update the fix plan before presenting to user.
@@ -494,82 +462,58 @@ Typical fix task structure:
 3. **Verify fix** -- Re-run the original repro command through
    `bash .claude/skills/troubleshoot/repro.sh "<repro-command>"` and confirm the
    JSON `exit_code` is now `0` (the failing test/command passes).
-4. **Check regressions** -- Run the full test suite (wrap it in repro.sh to persist
-   the output to `.claude/logs/troubleshoot-repro.log` if you want it captured).
+4. **Check regressions** -- Run the quality gates:
+
+   ```bash
+   bash .claude/skills/_shared/verify.sh
+   ```
+
+   Read the JSON: `overall` is `pass` / `fail` / `no_gates`. On `fail`, inspect the `log_file`. On `no_gates` (project has no configured gates), fall back to the project's own verification commands and confirm manually.
 5. **Fix collateral damage** -- Address blast radius items (if any)
 
 ### Step 3: Update CLAUDE.md
 
-Add bug context to CLAUDE.md for cross-session persistence:
+Add bug context to CLAUDE.md Zone C for cross-session persistence using the
+shared writer script (zone contract per `.claude/rules/claude-md-zones.md`).
 
-```markdown
----
+**Gather these fields** from the diagnosis:
 
-## Current Bug Fix: {issue}
+- **Context**: Error summary, Root cause, Affected files
+- **Fix Approach**: Recommended approach from Root Cause Analyst
+- **Codex Validation**: Result + additional test cases
+- **Regression Risks**: Key risks from Impact Investigator + Codex assessment
+- **Decisions** with rationale
 
-### Context
-- Error: {1-2 sentence summary}
-- Root cause: {description}
-- Affected files: {list}
+**Write the input JSON** to `.claude/logs/zone-c-input.json`:
 
-### Fix Approach
-- {Recommended approach from Root Cause Analyst}
-
-### Codex Validation
-- Validation result: {PASS / NEEDS_REVISION}
-- Additional test cases: {from Codex validation}
-
-### Regression Risks
-- {Key risks from Impact Investigator}
-- {Codex risk assessment summary}
-
-### Decisions
-- {Decision 1}: {rationale}
-- {Decision 2}: {rationale}
+```json
+{
+  "title": "{issue}",
+  "sections": [
+    {"heading": "Context", "content": "- Error: ...\n- Root cause: ...\n- Affected files: ..."},
+    {"heading": "Fix Approach", "content": "- {approach}"},
+    {"heading": "Regression Risks", "content": "- {risks}"},
+    {"heading": "Decisions", "content": "- {Decision 1}: {rationale}"}
+  ]
+}
 ```
+
+**Run dry-run**, review the preview, then apply:
+
+```bash
+python3 .claude/skills/_shared/append_zone_c_block.py \
+  --type bug-fix --input .claude/logs/zone-c-input.json
+# Review the preview file path in the JSON output, then:
+python3 .claude/skills/_shared/append_zone_c_block.py \
+  --type bug-fix --input .claude/logs/zone-c-input.json --apply
+```
+
+Verify `"ok": true` and `"progress_tracker_preserved": true` in the output.
+Exit code 2 means markers are invalid — tell the user to run `./scripts/update.sh`.
 
 ### Step 4: Present to User
 
-Present the diagnosis and fix plan to the user:
-
-```markdown
-## Diagnosis Report: {issue}
-
-### Error Reproduction
-{Reproduction result -- confirmed / partially confirmed / could not reproduce}
-
-### Root Cause (Root Cause Analyst + Codex)
-- **Defect**: {description of the underlying defect}
-- **Location**: `{file}:{line}`
-- **Trigger**: {conditions under which the error occurs}
-- **Evidence**: {key evidence supporting this conclusion}
-- **Codex confidence**: {Codex's assessment of root cause certainty}
-
-### Impact Assessment (Impact Investigator + Codex)
-- **Blast radius**: {affected code paths and features}
-- **Introducing commit**: {hash and description, if identified}
-- **External context**: {known issues, upstream fixes if any}
-- **Regression risk**: {what could break during fix}
-- **Codex risk assessment**: {Codex's regression risk verdict}
-
-### Fix Plan ({N} tasks) -- Codex Validated: {PASS / NEEDS_REVISION}
-1. Write failing test to reproduce the bug
-2. {Fix task -- the core fix}
-3. {Additional fix tasks from blast radius}
-4. {Additional test cases recommended by Codex}
-5. Run full test suite for regression check
-
-### Alternative Approaches Considered
-- **Approach A**: {description} -- {why chosen / not chosen}
-- **Approach B**: {description} -- {why chosen / not chosen}
-
-### Next Steps
-1. Shall we proceed with this fix plan?
-2. After approval, start fix implementation and regression review with `/team-execute`
-
----
-Shall we proceed with this fix plan?
-```
+Present the diagnosis and fix plan to the user following the template contract in `references/diagnosis-template.md`.
 
 ---
 

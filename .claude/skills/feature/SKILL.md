@@ -140,7 +140,7 @@ Every Codex consultation in this skill uses the same wrapper (read-only for
 analysis/design; workspace-write only for implementation in Phase 3):
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "{prompt}" 2>/dev/null
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "{prompt}" < /dev/null 2>/dev/null
 ```
 
 Prompts below show only the prompt body (Objective / Context / Constraints /
@@ -174,36 +174,40 @@ In both modes, record the feature's architecture decisions in
 Append the feature context to `CLAUDE.md` **Zone C** for cross-session
 persistence — zone contract and markers-missing rule per
 `.claude/rules/claude-md-zones.md`. This skill only appends to Zone C; it never
-touches Zone A/B.
+touches Zone A/B. Use the shared writer script for deterministic, atomic writes.
 
-```markdown
----
+**Gather these fields** from the planning phases:
 
-## Current Feature: {feature}
+- **Context**: Goal (1-2 sentences), Key files (new/modified), Dependencies, Complexity (SIMPLE / MODERATE / COMPLEX)
+- **Architecture**: Key decisions from Codex / Architect
+- **Library Constraints** (greenfield) or **Codex Validation** (existing)
+- **Integration Points** and **Decisions** with rationale
 
-### Context
-- Goal: {1-2 sentences}
-- Key files: {list of new/modified files}
-- Dependencies: {list}
-- Complexity: {SIMPLE / MODERATE / COMPLEX}
+**Write the input JSON** to `.claude/logs/zone-c-input.json`:
 
-### Architecture
-- {Key architecture decisions from Codex / Architect}
-
-### Library Constraints (greenfield)
-- {Key constraints from Researcher}
-
-### Codex Validation (existing)
-- Design validation: {PASS / NEEDS_REVISION}
-- Additional test cases: {from Codex validation}
-
-### Integration Points
-- {Integration point}: {description}
-
-### Decisions
-- {Decision 1}: {rationale}
-- {Decision 2}: {rationale}
+```json
+{
+  "title": "{feature name}",
+  "sections": [
+    {"heading": "Context", "content": "- Goal: ...\n- Key files: ...\n- Dependencies: ...\n- Complexity: MODERATE"},
+    {"heading": "Architecture", "content": "- {decisions}"},
+    {"heading": "Decisions", "content": "- {Decision 1}: {rationale}"}
+  ]
+}
 ```
+
+**Run dry-run**, review the preview, then apply:
+
+```bash
+python3 .claude/skills/_shared/append_zone_c_block.py \
+  --type feature --input .claude/logs/zone-c-input.json
+# Review the preview file path in the JSON output, then:
+python3 .claude/skills/_shared/append_zone_c_block.py \
+  --type feature --input .claude/logs/zone-c-input.json --apply
+```
+
+Verify `"ok": true` and `"progress_tracker_preserved": true` in the output.
+Exit code 2 means markers are invalid — tell the user to run `./scripts/update.sh`.
 
 Timing: MODE=greenfield writes this at plan time (Phase 3); MODE=existing may
 defer it to post-implementation. Either way it is written exactly once per feature.
@@ -249,40 +253,7 @@ Use Codex's complexity classification to determine the implementation route in P
 
 ### Create Feature Brief
 
-Combine user requirements + codebase analysis + Codex scope assessment:
-
-```markdown
-## Feature Brief: {feature}
-
-### Current State
-- Architecture: {existing architecture in affected area}
-- Relevant files: {key files and modules}
-- Patterns: {existing patterns to follow}
-
-### Feature Goal
-{User's desired outcome in 1-2 sentences}
-
-### Scope
-- Include: {list}
-- Exclude: {list}
-
-### Complexity Classification (from Codex)
-- Classification: {SIMPLE / MODERATE / COMPLEX}
-- Estimated files: {count}
-- Estimated LOC: {range}
-- Implementation route: {Codex direct / Codex + review / team-execute}
-
-### Integration Points
-- {Integration point 1}: {how the feature connects}
-- {Integration point 2}: {how the feature connects}
-
-### Risks
-- {Risk 1}: {mitigation}
-- {Risk 2}: {mitigation}
-
-### Success Criteria
-- {measurable criteria}
-```
+Combine user requirements + codebase analysis + Codex scope assessment into a Feature Brief following the MODE=existing template in `references/brief-templates.md`.
 
 This brief is passed to Phase 2E for design.
 
@@ -375,30 +346,7 @@ Then update DESIGN.md (common protocol) and continue to Phase 3.
 
 ### Create Project Brief
 
-Combine codebase understanding + requirements:
-
-```markdown
-## Project Brief: {feature}
-
-### Current State
-- Architecture: {existing architecture summary}
-- Relevant code: {key files and modules}
-- Patterns: {existing patterns to follow}
-
-### Goal
-{User's desired outcome in 1-2 sentences}
-
-### Scope
-- Include: {list}
-- Exclude: {list}
-
-### Constraints
-- {technical constraints}
-- {library requirements}
-
-### Success Criteria
-- {measurable criteria}
-```
+Combine codebase understanding + requirements into a Project Brief following the MODE=greenfield template in `references/brief-templates.md`.
 
 This brief is passed to Phase 2G teammates as shared context.
 
@@ -471,7 +419,7 @@ Spawn two teammates:
    4. Identify risks and mitigation strategies
 
    How to consult Codex:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "{question}" 2>/dev/null
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "{question}" < /dev/null 2>/dev/null
 
    Update .claude/docs/DESIGN.md with architecture decisions.
 
@@ -599,7 +547,7 @@ use the classification from the Codex scope analysis.
 Codex implements directly (workspace-write):
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox workspace-write "
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox workspace-write "
 Objective: Implement this feature following the approved plan.
 Context:
 - Feature Brief: {feature brief}
@@ -622,10 +570,16 @@ Output format:
 ## Tests Written
 ## Validation Results
 ## Remaining Risks
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
-After Codex implementation, run the quality gates per `.claude/rules/dev-environment.md` (pytest, ruff check, ruff format --check).
+After Codex implementation, run the quality gates:
+
+```bash
+bash .claude/skills/_shared/verify.sh
+```
+
+Read the JSON: `overall` is `pass` / `fail` / `no_gates`. On `fail`, inspect the `log_file`. On `no_gates` (project has no configured gates), fall back to the project's own verification commands and confirm manually.
 
 #### Route B: MODERATE (3-5 files) — Codex + Review
 

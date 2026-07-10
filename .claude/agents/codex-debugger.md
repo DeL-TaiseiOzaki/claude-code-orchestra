@@ -30,7 +30,7 @@ Before calling Codex, gather relevant context:
 ### Step 2: Call Codex CLI
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox workspace-write "
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox workspace-write "
 Analyze this error and provide root cause + fix:
 
 ## Error Output
@@ -47,7 +47,7 @@ Respond with:
 2. Why this happened
 3. Specific fix (code diff or exact changes)
 4. How to prevent this in the future
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ### Step 3: Apply and Verify the Fix

@@ -219,9 +219,27 @@ Wait for all teammates to complete their tasks.
 
 ## Step 1-4: Integration & Verification
 
-**After all tasks are complete, run integration verification.**
+**After all tasks are complete, validate work logs and run integration verification.**
 
-Run the quality gates per `.claude/rules/dev-environment.md` (ruff check / ruff format --check / ty / pytest, or `poe all`).
+### Work Log Validation
+
+Before reading each teammate's work log, validate it against the shared format:
+
+```bash
+python3 .claude/skills/_shared/validate_work_log.py --file .claude/logs/agent-teams/{team-name}/{teammate}.md
+```
+
+If the script exits non-zero (exit 3 = required sections missing), ask the teammate to fix its log before proceeding.
+
+### Quality Gates
+
+Run the quality gates:
+
+```bash
+bash .claude/skills/_shared/verify.sh
+```
+
+Read the JSON: `overall` is `pass` / `fail` / `no_gates`. On `fail`, inspect the `log_file`. On `no_gates` (project has no configured gates), fall back to the project's own verification commands and confirm manually.
 
 ### Integration Report
 
@@ -338,7 +356,7 @@ Spawn reviewers:
    - Library constraint violations (.claude/docs/libraries/)
 
    Use Codex CLI for deep analysis of complex logic:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "{question}" 2>/dev/null
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "{question}" < /dev/null 2>/dev/null
 
    Changed files: {list}
 
@@ -413,7 +431,19 @@ Have them actively try to disprove each other's theories.
 
 ## Step 2-3: Synthesize Findings
 
-**Integrate results from all reviewers and assign priorities.**
+**Validate reviewer work logs, then integrate results and assign priorities.**
+
+### Reviewer Work Log Validation
+
+Before reading each reviewer's work log, validate it against the shared format:
+
+```bash
+python3 .claude/skills/_shared/validate_work_log.py --file .claude/logs/agent-teams/{team-name}/{reviewer}.md
+```
+
+If the script exits non-zero (exit 3 = required sections missing), ask the reviewer to fix its log before proceeding.
+
+### Review Reports
 
 Read review reports:
 - `.claude/docs/research/review-security-{feature}.md`
