@@ -76,8 +76,15 @@
 
 | Decision | Rationale | Alternatives Considered | Date |
 |----------|-----------|------------------------|------|
-| | | | |
+| 3-tier agent hierarchy (default/sol/fable) redefined in repo terms | Maps vault's Sonnet/Sol/Fable onto orchestrator-direct + subagents / Codex / rare advisor without renaming existing machinery | Import vault terminology as-is (mismatch with Opus orchestrator design) | 2026-07-10 |
+| Sol = gpt-5.6-sol at xhigh effort, bumped only at central points (settings.json env.CODEX_MODEL, .codex/config.toml) + fallback sweep | Single-point model management preserved; template self-consistency (SAFE_DIRS files are overwritten wholesale on update) | Per-file hardcoding; leaving stale prior-model fallbacks | 2026-07-10 |
+| Keep approval_policy="never"; safety via completion-verification guardrails | Non-interactive hooks/Agent-Teams flows must not block; writes already require caller's explicit --sandbox workspace-write | Strict read-only default with approval escalation (blocks autonomous template flows) | 2026-07-10 |
+| .agents/ = canonical spec for CLI subagents; .claude/ = main-agent spec; .codex/ = adapter | .codex-centric layout hindered adding other CLI subagents (Antigravity, Grok); user decision | Full centralization incl. .claude (drift risk without a generator); no neutral layer | 2026-07-10 |
+| Tier-1 model norm: implementation subagents on Sonnet, research/large analysis on Opus 1M | Cost/perf split per task type; user decision | All-Opus (costly); all-Sonnet (loses 1M-ctx analysis) | 2026-07-10 |
+| Fable = rare escalation advisor, differentiated from team-execute Phase 2 reviewers and /codex:adversarial-review | Scarcity keeps signal high; read-only + reviews/ output enforces "never implements" | Fable as routine reviewer (duplicates ship-gate reviews) | 2026-07-10 |
 
 ## TODO / Open Questions
 
-- [ ] 
+- [ ] Promote .agents/ to full SSOT only when: deterministic generator with --check, update.sh migration tests from old VERSIONs, and a proven Antigravity adapter exist
+- [ ] agent-router.py: bare 「レビュー」/"review" in CODEX_TRIGGERS shadows CODEX_PLUGIN_TRIGGERS review entries (pre-existing; fix separately)
+- [ ] Full Antigravity support (workflows are experimental skeletons; not executable yet)
