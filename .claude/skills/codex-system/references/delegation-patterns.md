@@ -39,7 +39,7 @@ Task received
 
 ```bash
 codex exec \
-  --model gpt-5.5 \
+  --model "${CODEX_MODEL:-gpt-5.6-sol}" \
   --config model_reasoning_effort="high" \
   --sandbox read-only \
   "Review the architecture of src/auth/ module. Focus on:
@@ -56,7 +56,7 @@ codex exec \
 
 ```bash
 codex exec \
-  --model gpt-5.5 \
+  --model "${CODEX_MODEL:-gpt-5.6-sol}" \
   --config model_reasoning_effort="high" \
   --sandbox read-only \
   "This bug has resisted 2 fix attempts:
@@ -77,7 +77,7 @@ codex exec \
 
 ```bash
 codex exec \
-  --model gpt-5.5 \
+  --model "${CODEX_MODEL:-gpt-5.6-sol}" \
   --config model_reasoning_effort="xhigh" \
   --sandbox read-only \
   "Optimize the algorithm in src/data/aggregator.py:
@@ -100,7 +100,7 @@ codex exec \
 
 ```bash
 codex exec \
-  --model gpt-5.5 \
+  --model "${CODEX_MODEL:-gpt-5.6-sol}" \
   --config model_reasoning_effort="xhigh" \
   --sandbox read-only \
   "Security audit of src/api/auth.py:

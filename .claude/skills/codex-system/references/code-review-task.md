@@ -68,7 +68,7 @@ Well-implemented points
 ## Example Invocation
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
 Review this code change:
 
 ## Changes

@@ -204,6 +204,6 @@
     "EDITOR": "code --wait",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-4-6",
-    "CODEX_MODEL": "gpt-5.5"
+    "CODEX_MODEL": "gpt-5.6-sol"
   }
 }

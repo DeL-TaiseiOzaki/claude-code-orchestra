@@ -95,7 +95,7 @@ Ask the user to provide:
 Consult Codex to decompose the spike question into a structured investigation plan:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
 Objective: Decompose this spike question into a structured investigation plan.
 Context:
 - Spike question: {question/hypothesis from user}
@@ -250,7 +250,7 @@ Spawn two teammates:
 
    ### 1. Technical Feasibility Assessment
    For each sub-question, consult Codex:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only '
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
    Objective: Assess technical feasibility of {sub-question}.
    Context:
    - Spike question: {main question}
@@ -271,7 +271,7 @@ Spawn two teammates:
 
    ### 2. Architecture Compatibility Analysis
    Consult Codex to evaluate fit with existing architecture:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only '
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
    Objective: Evaluate how {proposed approach} fits with the existing architecture.
    Context:
    - Proposed approach: {description}
@@ -290,7 +290,7 @@ Spawn two teammates:
 
    ### 3. Risk and Trade-off Analysis
    Consult Codex to evaluate risks:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only '
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
    Objective: Identify and evaluate risks of adopting {proposed approach}.
    Context:
    - Proposed approach: {description}
@@ -310,7 +310,7 @@ Spawn two teammates:
 
    ### 4. Prototype Validation (PROTOTYPE mode only)
    If the investigation mode is PROTOTYPE, build a minimal throwaway prototype:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox workspace-write '
+   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox workspace-write '
    Objective: Build a minimal prototype to validate {specific technical question}.
    Context:
    - Question to validate: {what the prototype tests}
@@ -391,7 +391,7 @@ Read outputs from Phase 2:
 Consult Codex to synthesize all findings into a go/no-go recommendation:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
 Objective: Synthesize spike investigation findings and produce a go/no-go recommendation.
 Context:
 - Spike question: {original question}

@@ -59,6 +59,32 @@ Exec syntax, subagent/direct patterns, implementation calls, and the sandbox-mod
 
 Plugin slash commands (`/codex:review`, `/codex:rescue`, job management) and plugin-vs-CLI guidance: see the codex-system skill.
 
+## Sol Guardrails
+
+When a Codex (Sol-tier) delegation reports completion, the orchestrator or
+delegating subagent **MUST verify before trusting it**:
+
+1. **Run acceptance checks** -- execute every validation command from the
+   original prompt contract and confirm they pass.
+2. **Inspect the diff** -- review `git diff --stat` / `git diff` for:
+   - Unapproved deletions (files or significant code removed without
+     justification).
+   - Out-of-scope changes (files modified that were not part of the task).
+   - Stub or placeholder completions (`pass`, `TODO`, `NotImplementedError`
+     left where real logic was requested).
+3. **Watch for cheating patterns** -- reject completion if:
+   - Tests were deleted, skipped (`@pytest.mark.skip`), or weakened
+     (assertions removed/loosened) to make the suite pass.
+   - Exceptions silently swallowed (bare `except: pass` or equivalent).
+   - Hardcoded return values substituted for real implementation logic.
+
+**On failure**: report the specific failure(s) with evidence to the user,
+then re-delegate at most once with the original prompt plus failure context.
+If the second attempt also fails, halt and require explicit user approval.
+
+Canonical definition: `.agents/AGENTS.md` section "Guardrails (Completion
+Verification)".
+
 ## Language Protocol
 
 See `.claude/rules/language.md` (SSOT): ask Codex in English; report to the user per that rule.
