@@ -127,7 +127,7 @@ def main():
                         "**Recommended**: Use Task tool with subagent_type='general-purpose' "
                         "to preserve main context. "
                         "(Direct call OK for quick questions: "
-                        "`codex exec --model \"${CODEX_MODEL:-gpt-5.6-sol}\" --sandbox read-only '...'`)"
+                        "`codex exec --model \"${CODEX_MODEL:-gpt-5.6-sol}\" --sandbox read-only '...' < /dev/null 2>/dev/null`)"
                     )
                 }
             }

@@ -40,6 +40,8 @@ Delegation policy — when to consult, when NOT to, and trigger criteria — liv
 
 ## How to Consult
 
+> Always append `< /dev/null` (and prefer `timeout <sec>`): codex exec waits for stdin EOF and hangs indefinitely when stdin is left open (e.g. background shells).
+
 ### Subagent Pattern (Recommended)
 
 ```
@@ -63,7 +65,7 @@ Task tool parameters:
     ## Implementation Plan
     ## Risks
     ## Next Steps
-    " 2>/dev/null
+    " < /dev/null 2>/dev/null
 
     Return CONCISE summary (key recommendation + rationale).
 ```
@@ -71,7 +73,7 @@ Task tool parameters:
 ### Direct Call (short questions, responses up to ~50 lines)
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "Objective: {brief question}" 2>/dev/null
+codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "Objective: {brief question}" < /dev/null 2>/dev/null
 ```
 
 ### Having Codex Implement Code
@@ -90,7 +92,7 @@ Output format:
 ## Changes Made
 ## Validation
 ## Remaining Risks
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ### Sandbox Modes
@@ -115,7 +117,7 @@ Provide:
 2. Files to create/modify
 3. Key design decisions
 4. Risks and mitigations
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ### Design Review
@@ -131,7 +133,7 @@ Evaluate:
 2. Alternative approaches?
 3. Potential issues?
 4. Recommendations?
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ### Debug Analysis
@@ -145,7 +147,7 @@ Code: {relevant code}
 Context: {what was happening}
 
 Analyze root cause and suggest fixes.
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ## Language Protocol

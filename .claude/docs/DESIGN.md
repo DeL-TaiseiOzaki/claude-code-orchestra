@@ -82,9 +82,14 @@
 | .agents/ = canonical spec for CLI subagents; .claude/ = main-agent spec; .codex/ = adapter | .codex-centric layout hindered adding other CLI subagents (Antigravity, Grok); user decision | Full centralization incl. .claude (drift risk without a generator); no neutral layer | 2026-07-10 |
 | Tier-1 model norm: implementation subagents on Sonnet, research/large analysis on Opus 1M | Cost/perf split per task type; user decision | All-Opus (costly); all-Sonnet (loses 1M-ctx analysis) | 2026-07-10 |
 | Fable = rare escalation advisor, differentiated from team-execute Phase 2 reviewers and /codex:adversarial-review | Scarcity keeps signal high; read-only + reviews/ output enforces "never implements" | Fable as routine reviewer (duplicates ship-gate reviews) | 2026-07-10 |
+| _shared/ is a bundled runtime, not a skill: skills may depend on _shared/, never on each other | Preserves skill independence while deduplicating deterministic helpers; update.sh syncs skills dir atomically | Per-skill script duplication; cross-skill imports | 2026-07-10 |
+| Document writers (Zone C append, DESIGN.md update) are scripts with typed-JSON input, dry-run default, --apply, atomic replace, stable-ID idempotency | Mis-writes to CLAUDE.md/DESIGN.md are the top risk of mechanized writes; structure validation + no-op/conflict semantics contain it | LLM edits documents directly from prose templates (re-interpretation risk) | 2026-07-10 |
+| Embedded SKILL.md output templates moved to per-skill references/ as content contracts, not scaffold scripts | Templates are contracts, not computation; avoids generator API/test/empty-file debt (Codex recommendation, user-approved) | Scaffolder scripts pre-filling deterministic fields; keep templates inline | 2026-07-10 |
+| codex exec invocations always append < /dev/null (and prefer timeout) | codex exec waits for stdin EOF and hangs indefinitely when stdin is left open — observed 27-minute hang in background shell | Leave stdin handling to callers (repeated hangs) | 2026-07-10 |
 
 ## TODO / Open Questions
 
 - [ ] Promote .agents/ to full SSOT only when: deterministic generator with --check, update.sh migration tests from old VERSIONs, and a proven Antigravity adapter exist
 - [ ] agent-router.py: bare 「レビュー」/"review" in CODEX_TRIGGERS shadows CODEX_PLUGIN_TRIGGERS review entries (pre-existing; fix separately)
 - [ ] Full Antigravity support (workflows are experimental skeletons; not executable yet)
+- [ ] update.sh rsync of SAFE_DIRS is not strictly atomic; consider stage-and-swap or post-sync self-check if interruption tolerance is needed

@@ -79,7 +79,7 @@ $(cat src/services/llm_client.py)
 - Improve naming
 
 [Principles and patterns as above...]
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ## Checklist

@@ -34,6 +34,8 @@ Every Codex prompt should include:
 4. **Acceptance checks**: commands to run.
 5. **Output format**: concise markdown sections.
 
+> Always append `< /dev/null` (and prefer `timeout <sec>`): codex exec waits for stdin EOF and hangs indefinitely when stdin is left open (e.g. background shells).
+
 ## 3) Recommended Prompt Templates
 
 ### A. Planning / Design (read-only)
@@ -55,7 +57,7 @@ Output format:
 ## Implementation Plan
 ## Risks
 ## Next Steps
-"
+" < /dev/null 2>/dev/null
 ```
 
 ### B. Complex Implementation (workspace-write)
@@ -75,7 +77,7 @@ Output format:
 ## Changes Made
 ## Validation
 ## Remaining Risks
-"
+" < /dev/null 2>/dev/null
 ```
 
 ## 4) Claude-side Compression Rules

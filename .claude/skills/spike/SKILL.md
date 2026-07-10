@@ -116,43 +116,12 @@ Output format:
 ## Investigation Approach
 ## Critical Path (which finding would short-circuit the spike)
 ## Risk of Inconclusive Result
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ### Step 3: Create Spike Brief
 
-Combine user parameters + Codex decomposition into a "Spike Brief":
-
-```markdown
-## Spike Brief: {topic}
-
-### Question
-{The core question or hypothesis in one sentence}
-
-### Parameters
-- Time budget: {duration}
-- Investigation mode: {RESEARCH-ONLY / PROTOTYPE}
-- Started: {timestamp}
-- Deadline: {timestamp}
-
-### Success Criteria
-- GO if: {conditions that make this a GO}
-- NO-GO if: {conditions that make this a NO-GO}
-- INCONCLUSIVE if: {what would leave us uncertain}
-
-### Sub-questions (from Codex decomposition)
-1. {Sub-question A}: Evidence needed: {description}
-2. {Sub-question B}: Evidence needed: {description}
-3. {Sub-question C}: Evidence needed: {description}
-
-### Critical Path
-{Which sub-question is most decisive -- investigate this first}
-
-### Investigation Plan
-- Researcher (Opus): {what to research externally}
-- Feasibility Analyst (Codex): {what to analyze technically}
-- Prototype (if applicable): {what to build and test}
-```
+Combine user parameters + Codex decomposition into a Spike Brief following the template contract in `references/brief-template.md`.
 
 This brief is passed to Phase 2 teammates as shared context.
 
@@ -267,7 +236,7 @@ Spawn two teammates:
    ## Hard Blockers (if any)
    ## Soft Challenges
    ## Effort Estimate (if feasible)
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 2. Architecture Compatibility Analysis
    Consult Codex to evaluate fit with existing architecture:
@@ -286,7 +255,7 @@ Spawn two teammates:
    ## Alignment with Existing Patterns
    ## Required Architectural Changes
    ## Migration Complexity (LOW / MEDIUM / HIGH)
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 3. Risk and Trade-off Analysis
    Consult Codex to evaluate risks:
@@ -306,7 +275,7 @@ Spawn two teammates:
    ## Risk Matrix (likelihood x impact)
    ## Comparison with Alternatives
    ## Mitigation Strategies
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 4. Prototype Validation (PROTOTYPE mode only)
    If the investigation mode is PROTOTYPE, build a minimal throwaway prototype:
@@ -326,7 +295,7 @@ Spawn two teammates:
    ## Prototype Code (with inline comments)
    ## Result (VALIDATED / INVALIDATED / INCONCLUSIVE)
    ## Evidence
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    Save analysis to .claude/docs/research/spike-{topic}-feasibility.md
 
@@ -415,80 +384,12 @@ Output format:
 ## If GO: Recommended Next Skill (/feature — existing or greenfield mode)
 ## If NO-GO: Decisive Blocker and Alternatives
 ## If INCONCLUSIVE: What Additional Investigation Is Needed
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ### Step 3: Save Research Report
 
-Save the complete spike report to `.claude/docs/research/spike-{topic}.md`:
-
-```markdown
-# Spike Report: {topic}
-
-## Question
-{The original spike question}
-
-## Verdict: {GO / NO-GO / INCONCLUSIVE}
-**Confidence**: {HIGH / MEDIUM / LOW}
-**Decisive factor**: {one-sentence summary of why}
-
-## Investigation Parameters
-- Time budget: {duration}
-- Mode: {RESEARCH-ONLY / PROTOTYPE}
-- Date: {date}
-
-## Success Criteria Evaluation
-| Criterion | Evidence | Met? |
-|-----------|----------|------|
-| {criterion 1} | {evidence summary} | {YES / NO / PARTIAL} |
-| {criterion 2} | {evidence summary} | {YES / NO / PARTIAL} |
-
-## Sub-question Findings
-### {Sub-question 1}
-- Finding: {description}
-- Evidence: {sources and data}
-- Assessment: {FEASIBLE / NOT_FEASIBLE / UNKNOWN}
-
-### {Sub-question 2}
-- Finding: {description}
-- Evidence: {sources and data}
-- Assessment: {FEASIBLE / NOT_FEASIBLE / UNKNOWN}
-
-## Risks
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| {risk 1} | {H/M/L} | {H/M/L} | {strategy} |
-
-## Prototype Results (if applicable)
-- Tested: {what was tested}
-- Result: {VALIDATED / INVALIDATED / INCONCLUSIVE}
-- Evidence: {observations}
-
-## Architecture Compatibility
-- Assessment: {COMPATIBLE / REQUIRES_CHANGES / INCOMPATIBLE}
-- Required changes: {list, if any}
-
-## Alternatives Considered
-| Alternative | Pros | Cons | Verdict |
-|-------------|------|------|---------|
-| {alt 1} | {pros} | {cons} | {recommendation} |
-
-## Recommendation
-{GO / NO-GO / INCONCLUSIVE with detailed reasoning}
-
-### If GO
-- Next step: {/feature — existing or greenfield mode}
-- Key constraints to carry forward: {list}
-- Risks to monitor: {list}
-
-### If NO-GO
-- Decisive blocker: {description}
-- Suggested alternatives: {list}
-
-### If INCONCLUSIVE
-- Missing evidence: {what we still need}
-- Suggested follow-up: {description}
-```
+Save the complete spike report to `.claude/docs/research/spike-{topic}.md` following the template contract in `references/report-template.md`.
 
 ### Step 4: Present to User
 
