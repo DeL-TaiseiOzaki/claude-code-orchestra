@@ -366,15 +366,24 @@ stale, and compose the conversation compaction (Compact 4).
 
 ## Compact 2 — Plan (dry-run)
 
-`refresh_guard.py --mode plan` already computed the deterministic plan (blocks to
-keep vs drop via the `keep` flag, `legacy_sections`, and the research `move_plan`).
-Turn that JSON into a user-facing preview — do **not** write any file yet:
+Run the compose mode to generate a draft Zone C body:
 
-1. Keep the `keep:true` blocks; list `keep:false` blocks + `legacy_sections` as removals.
-2. **Compose the new Zone C body**: `## Progress Tracker` (preserved verbatim — the
-   link to PROGRESS.md) followed by the kept `## Current *` blocks in order.
-3. Use `move_plan[]` as-is for the research archive moves (source → destination,
-   `create`/`append` mode).
+```bash
+python3 .claude/skills/checkpointing/refresh_guard.py --mode compose
+```
+
+This reuses the existing Zone C block inventory logic (same keep/prune decisions
+as `--mode plan`), composes the new Zone C body (`## Progress Tracker` verbatim
+first, then kept `## Current *` blocks in original order), and writes it to the
+draft file reported in the JSON output (`composed_zone_c` field, typically
+`.claude/logs/composed-zone-c.md`).
+
+Review the draft at the reported path. The JSON also provides `blocks_kept` and
+`blocks_pruned` lists, plus the full `move_plan[]` for research archive moves
+(source -> destination, `create`/`append` mode).
+
+Turn the JSON into a user-facing preview — present it as the Compact Phase
+dry-run plan:
 
 ### Preview Format
 

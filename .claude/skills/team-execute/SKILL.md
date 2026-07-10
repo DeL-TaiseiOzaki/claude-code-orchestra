@@ -219,7 +219,19 @@ Wait for all teammates to complete their tasks.
 
 ## Step 1-4: Integration & Verification
 
-**After all tasks are complete, run integration verification.**
+**After all tasks are complete, validate work logs and run integration verification.**
+
+### Work Log Validation
+
+Before reading each teammate's work log, validate it against the shared format:
+
+```bash
+python3 .claude/skills/_shared/validate_work_log.py --file .claude/logs/agent-teams/{team-name}/{teammate}.md
+```
+
+If the script exits non-zero (exit 3 = required sections missing), ask the teammate to fix its log before proceeding.
+
+### Quality Gates
 
 Run the quality gates:
 
@@ -419,7 +431,19 @@ Have them actively try to disprove each other's theories.
 
 ## Step 2-3: Synthesize Findings
 
-**Integrate results from all reviewers and assign priorities.**
+**Validate reviewer work logs, then integrate results and assign priorities.**
+
+### Reviewer Work Log Validation
+
+Before reading each reviewer's work log, validate it against the shared format:
+
+```bash
+python3 .claude/skills/_shared/validate_work_log.py --file .claude/logs/agent-teams/{team-name}/{reviewer}.md
+```
+
+If the script exits non-zero (exit 3 = required sections missing), ask the reviewer to fix its log before proceeding.
+
+### Review Reports
 
 Read review reports:
 - `.claude/docs/research/review-security-{feature}.md`

@@ -9,6 +9,7 @@ scripts and format documents.
 | File | Description |
 |------|-------------|
 | `work-log-format.md` | Canonical work-log template for Agent Teams teammates (format doc, not a script). |
+| `validate_work_log.py` | Validate a teammate work log against the `work-log-format.md` contract. |
 | `append_zone_c_block.py` | Append a `## Current Feature/Bug Fix/Project` block to CLAUDE.md Zone C. |
 | `update_design.py` | Append Key Decisions rows and/or section content to `.claude/docs/DESIGN.md`. |
 
