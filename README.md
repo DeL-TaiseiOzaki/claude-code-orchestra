@@ -396,9 +396,14 @@ Safely applies template updates to your local project.
   - **Zone B** (between the two markers) — repository identity, managed by `/init`; preserved across updates
   - **Zone C** (below `@orchestra:repo-boundary`) — working state (features, session notes); preserved across updates
 - Projects still using the legacy `@orchestra:local-boundary` layout are auto-migrated on first run: their content below the legacy marker becomes Zone C, and Zone B is reset to the placeholder so `/init` can repopulate it
-- skills/hooks/rules/agents are fully synced
+- skills/hooks/rules/agents (and `.agents/`, `.codex/`) are fully synced
 - Local data such as `.claude/docs/research/` is preserved
 - `.claude/settings.json` only shows a diff (manual merge required)
+- If the update modifies `scripts/update.sh` itself (e.g. a new version adds
+  template directories such as `.agents/`), **run `./scripts/update.sh` a second
+  time** — the first run still uses the old script's sync list. Newer scripts
+  print a reminder when this applies (updating from v0.2.0 does not, so run
+  twice when upgrading to v0.3.0)
 
 ### Tech Stack
 
