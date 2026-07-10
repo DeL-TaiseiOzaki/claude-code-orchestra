@@ -9,14 +9,16 @@ dependencies = []
 [project.optional-dependencies]
 dev = [
     "ruff>=0.8",
-    "ty>=0.1",
+    "ty>=0.0.58,<0.1",
     "pytest>=8.0",
     "poethepoet>=0.31",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+# This template repo is not a Python package — pyproject.toml exists to carry
+# dev tooling (ruff/ty/pytest/poe). Downstream projects that ship a package
+# should add their own [build-system].
+[tool.uv]
+package = false
 
 # ============================================================
 # ruff

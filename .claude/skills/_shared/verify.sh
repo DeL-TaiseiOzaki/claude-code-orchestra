@@ -122,6 +122,12 @@ elif ! [ -d "$PROJECT_ROOT/tests" ] && ! grep -q '\[tool\.pytest' "$PYPROJECT" 2
     record_skip pytest "tests/ not found and no [tool.pytest] in pyproject.toml"
 else
     record_run pytest uv run pytest -q
+    # pytest exit code 5 = no tests collected: that is absence of a gate,
+    # not a failure — report it as skipped so overall stays truthful.
+    if [ "$(cat "$TMP_DIR/pytest.exit" 2>/dev/null)" = "5" ]; then
+        echo "skipped" >"$TMP_DIR/pytest.status"
+        echo "no tests collected (pytest exit 5)" >"$TMP_DIR/pytest.reason"
+    fi
     # Extract summary line from pytest output (e.g. "2 passed in 0.5s")
     if [ -f "$TMP_DIR/pytest.out" ]; then
         PYTEST_SUMMARY="$(tail -5 "$TMP_DIR/pytest.out" | grep -E '(passed|failed|error)' | tail -1)"
