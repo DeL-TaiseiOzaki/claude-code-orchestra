@@ -23,7 +23,10 @@ The above must always be delegated.
 - **External research, broad analysis** → `general-purpose` subagent (Opus)
 - **Multimodal input (PDF, images, etc.)** → Claude handles directly (Opus 4.7+ has strong multimodal capabilities); delegate large-scale analysis to the `general-purpose` subagent
 - **Error root cause analysis** → `codex-debugger`
+- **Design arbitration, stuck problems, final review of large changes** → `fable-advisor` (rare escalation; read-only, never implements)
 - **Minor fixes (single file, small changes)** → Claude handles directly
+
+**Model tiers**: Implementation-work subagents run on Sonnet; research / large-scale analysis stays on Opus (1M context). Tier definitions: `.agents/tiers.md`.
 
 Codex delegation detail (when to delegate, triggers, prompt contract): `.claude/rules/codex-delegation.md`.
 
