@@ -130,39 +130,7 @@ Use Codex's analysis to strengthen the Initial Hypotheses section of the Bug Rep
 
 ### Step 3: Create Bug Report
 
-Combine error details + codebase analysis + Codex initial hypotheses into a "Bug Report":
-
-```markdown
-## Bug Report: {issue}
-
-### Error
-- Message: {error message}
-- Location: {file:line}
-- Stack trace: {key frames}
-
-### Reproduction
-- Steps: {numbered list}
-- Reproducibility: {always / intermittent / environment-specific}
-
-### Immediate Context
-- Failing code: {file:line and surrounding logic}
-- Call chain: {caller -> ... -> failing function}
-- Recent changes: {relevant git commits}
-
-### Affected Area
-- Files involved: {list}
-- Related tests: {list with pass/fail status}
-
-### Initial Hypotheses (informed by Codex analysis)
-1. {Hypothesis A}: {brief reasoning} -- Codex confidence: {high/medium/low}
-2. {Hypothesis B}: {brief reasoning} -- Codex confidence: {high/medium/low}
-3. {Hypothesis C}: {brief reasoning} -- Codex confidence: {high/medium/low}
-
-### Codex Pattern Recognition
-- Error pattern: {Codex's classification of the error type}
-- Known similar patterns: {any patterns Codex identified}
-- Recommended investigation priority: {Codex's suggested order}
-```
+Combine error details + codebase analysis + Codex initial hypotheses into a Bug Report following the template contract in `references/bug-report-template.md`.
 
 This bug report is passed to Phase 2 teammates as shared context.
 
@@ -545,46 +513,7 @@ Exit code 2 means markers are invalid — tell the user to run `./scripts/update
 
 ### Step 4: Present to User
 
-Present the diagnosis and fix plan to the user:
-
-```markdown
-## Diagnosis Report: {issue}
-
-### Error Reproduction
-{Reproduction result -- confirmed / partially confirmed / could not reproduce}
-
-### Root Cause (Root Cause Analyst + Codex)
-- **Defect**: {description of the underlying defect}
-- **Location**: `{file}:{line}`
-- **Trigger**: {conditions under which the error occurs}
-- **Evidence**: {key evidence supporting this conclusion}
-- **Codex confidence**: {Codex's assessment of root cause certainty}
-
-### Impact Assessment (Impact Investigator + Codex)
-- **Blast radius**: {affected code paths and features}
-- **Introducing commit**: {hash and description, if identified}
-- **External context**: {known issues, upstream fixes if any}
-- **Regression risk**: {what could break during fix}
-- **Codex risk assessment**: {Codex's regression risk verdict}
-
-### Fix Plan ({N} tasks) -- Codex Validated: {PASS / NEEDS_REVISION}
-1. Write failing test to reproduce the bug
-2. {Fix task -- the core fix}
-3. {Additional fix tasks from blast radius}
-4. {Additional test cases recommended by Codex}
-5. Run full test suite for regression check
-
-### Alternative Approaches Considered
-- **Approach A**: {description} -- {why chosen / not chosen}
-- **Approach B**: {description} -- {why chosen / not chosen}
-
-### Next Steps
-1. Shall we proceed with this fix plan?
-2. After approval, start fix implementation and regression review with `/team-execute`
-
----
-Shall we proceed with this fix plan?
-```
+Present the diagnosis and fix plan to the user following the template contract in `references/diagnosis-template.md`.
 
 ---
 

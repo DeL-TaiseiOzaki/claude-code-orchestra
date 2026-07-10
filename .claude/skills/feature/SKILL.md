@@ -253,40 +253,7 @@ Use Codex's complexity classification to determine the implementation route in P
 
 ### Create Feature Brief
 
-Combine user requirements + codebase analysis + Codex scope assessment:
-
-```markdown
-## Feature Brief: {feature}
-
-### Current State
-- Architecture: {existing architecture in affected area}
-- Relevant files: {key files and modules}
-- Patterns: {existing patterns to follow}
-
-### Feature Goal
-{User's desired outcome in 1-2 sentences}
-
-### Scope
-- Include: {list}
-- Exclude: {list}
-
-### Complexity Classification (from Codex)
-- Classification: {SIMPLE / MODERATE / COMPLEX}
-- Estimated files: {count}
-- Estimated LOC: {range}
-- Implementation route: {Codex direct / Codex + review / team-execute}
-
-### Integration Points
-- {Integration point 1}: {how the feature connects}
-- {Integration point 2}: {how the feature connects}
-
-### Risks
-- {Risk 1}: {mitigation}
-- {Risk 2}: {mitigation}
-
-### Success Criteria
-- {measurable criteria}
-```
+Combine user requirements + codebase analysis + Codex scope assessment into a Feature Brief following the MODE=existing template in `references/brief-templates.md`.
 
 This brief is passed to Phase 2E for design.
 
@@ -379,30 +346,7 @@ Then update DESIGN.md (common protocol) and continue to Phase 3.
 
 ### Create Project Brief
 
-Combine codebase understanding + requirements:
-
-```markdown
-## Project Brief: {feature}
-
-### Current State
-- Architecture: {existing architecture summary}
-- Relevant code: {key files and modules}
-- Patterns: {existing patterns to follow}
-
-### Goal
-{User's desired outcome in 1-2 sentences}
-
-### Scope
-- Include: {list}
-- Exclude: {list}
-
-### Constraints
-- {technical constraints}
-- {library requirements}
-
-### Success Criteria
-- {measurable criteria}
-```
+Combine codebase understanding + requirements into a Project Brief following the MODE=greenfield template in `references/brief-templates.md`.
 
 This brief is passed to Phase 2G teammates as shared context.
 
