@@ -121,7 +121,7 @@ def main():
                         f"[Agent Routing] Detected '{trigger}' — this task may benefit from "
                         "Codex CLI for planning, design, or complex implementation. Consider: "
                         "`codex exec --model \"${CODEX_MODEL:-gpt-5.5}\" --sandbox read-only "
-                        '"{task description}"` for design decisions, planning, debugging, '
+                        '"{task description}" < /dev/null 2>/dev/null` for design decisions, planning, debugging, '
                         "or complex analysis."
                     )
                 }

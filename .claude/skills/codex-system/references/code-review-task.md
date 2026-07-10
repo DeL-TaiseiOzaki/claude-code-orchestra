@@ -83,7 +83,7 @@ $(git diff HEAD~1)
 - pydantic: Use Field() for validation, avoid root validators
 
 [Review checklist as above...]
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ## When to Use

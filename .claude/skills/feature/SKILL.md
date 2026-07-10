@@ -140,7 +140,7 @@ Every Codex consultation in this skill uses the same wrapper (read-only for
 analysis/design; workspace-write only for implementation in Phase 3):
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "{prompt}" 2>/dev/null
+codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "{prompt}" < /dev/null 2>/dev/null
 ```
 
 Prompts below show only the prompt body (Objective / Context / Constraints /
@@ -419,7 +419,7 @@ Spawn two teammates:
    4. Identify risks and mitigation strategies
 
    How to consult Codex:
-   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "{question}" 2>/dev/null
+   codex exec --model "${CODEX_MODEL:-gpt-5.5}" --sandbox read-only "{question}" < /dev/null 2>/dev/null
 
    Update .claude/docs/DESIGN.md with architecture decisions.
 
@@ -570,7 +570,7 @@ Output format:
 ## Tests Written
 ## Validation Results
 ## Remaining Risks
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 After Codex implementation, run the quality gates:

@@ -49,7 +49,7 @@ codex exec \
    4. Extensibility for future auth providers
 
    Related files: src/auth/**/*.py
-   Constraints: Must maintain backward compatibility" 2>/dev/null
+   Constraints: Must maintain backward compatibility" < /dev/null 2>/dev/null
 ```
 
 ### Pattern 2: Failure-Based Delegation
@@ -70,7 +70,7 @@ codex exec \
    Please analyze from fresh perspective:
    - What root cause might we be missing?
    - Are there architectural issues causing this?
-   - What alternative approaches should we consider?" 2>/dev/null
+   - What alternative approaches should we consider?" < /dev/null 2>/dev/null
 ```
 
 ### Pattern 3: Performance Optimization
@@ -93,7 +93,7 @@ codex exec \
    Provide:
    1. Optimized implementation
    2. Complexity analysis
-   3. Benchmark comparison approach" 2>/dev/null
+   3. Benchmark comparison approach" < /dev/null 2>/dev/null
 ```
 
 ### Pattern 4: Security Audit
@@ -117,7 +117,7 @@ codex exec \
    - CRITICAL: Must fix immediately
    - HIGH: Fix before release
    - MEDIUM: Address in next sprint
-   - LOW: Tech debt" 2>/dev/null
+   - LOW: Tech debt" < /dev/null 2>/dev/null
 ```
 
 ## Cases Not to Delegate

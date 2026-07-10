@@ -47,7 +47,7 @@ Respond with:
 2. Why this happened
 3. Specific fix (code diff or exact changes)
 4. How to prevent this in the future
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ### Step 3: Apply and Verify the Fix

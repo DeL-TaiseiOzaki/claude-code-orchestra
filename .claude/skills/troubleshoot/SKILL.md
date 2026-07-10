@@ -123,7 +123,7 @@ Output format:
 ## Hypotheses (ranked by likelihood)
 ## Investigation Plan (per hypothesis)
 ## Known Similar Patterns
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 Use Codex's analysis to strengthen the Initial Hypotheses section of the Bug Report.
@@ -194,7 +194,7 @@ Spawn two teammates:
    ## State Transformations
    ## Assumption Violations
    ## Critical Decision Points
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 2. Hypothesis Evaluation
    For each hypothesis, consult Codex to evaluate evidence:
@@ -212,7 +212,7 @@ Spawn two teammates:
    ## Verdict (CONFIRMED / ELIMINATED / INCONCLUSIVE)
    ## Reasoning
    ## Remaining Unknowns
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 3. Fix Approach Design
    Consult Codex for trade-off analysis of fix alternatives:
@@ -232,7 +232,7 @@ Spawn two teammates:
    ## Approach B: {name}
    ## Comparison Matrix
    ## Recommendation with Rationale
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 4. Fix Correctness Verification
    Before finalizing, consult Codex to verify the proposed fix:
@@ -251,7 +251,7 @@ Spawn two teammates:
    ## Edge Case Coverage
    ## New Failure Modes (if any)
    ## Confidence Level
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    Save analysis to .claude/docs/research/troubleshoot-{issue}-root-cause.md
 
@@ -333,7 +333,7 @@ Spawn two teammates:
    ## Affected Code Paths
    ## Implicit Contracts at Risk
    ## Recommended Safeguards
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### Fix Safety Analysis
    Consult Codex to verify the proposed fix does not introduce new issues:
@@ -353,7 +353,7 @@ Spawn two teammates:
    ## New Issues Identified
    ## Side Effects
    ## Mitigation Recommendations
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    Save findings to .claude/docs/research/troubleshoot-{issue}-impact.md
 
@@ -437,7 +437,7 @@ Output format:
 ## Potential New Issues
 ## Additional Test Cases Recommended
 ## Revised Task List (if needed)
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 If Codex returns NEEDS_REVISION, update the fix plan before presenting to user.

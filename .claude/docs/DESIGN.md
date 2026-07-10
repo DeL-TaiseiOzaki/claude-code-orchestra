@@ -77,7 +77,13 @@
 | Decision | Rationale | Alternatives Considered | Date |
 |----------|-----------|------------------------|------|
 | | | | |
+| _shared/ is a bundled runtime, not a skill: skills may depend on _shared/, never on each other | Preserves skill independence while deduplicating deterministic helpers; update.sh syncs skills dir atomically | Per-skill script duplication; cross-skill imports | 2026-07-10 |
+| Document writers (Zone C append, DESIGN.md update) are scripts with typed-JSON input, dry-run default, --apply, atomic replace, stable-ID idempotency | Mis-writes to CLAUDE.md/DESIGN.md are the top risk of mechanized writes; structure validation + no-op/conflict semantics contain it | LLM edits documents directly from prose templates (re-interpretation risk) | 2026-07-10 |
+| Embedded SKILL.md output templates moved to per-skill references/ as content contracts, not scaffold scripts | Templates are contracts, not computation; avoids generator API/test/empty-file debt (Codex recommendation, user-approved) | Scaffolder scripts pre-filling deterministic fields; keep templates inline | 2026-07-10 |
+| codex exec invocations always append < /dev/null (and prefer timeout) | codex exec waits for stdin EOF and hangs indefinitely when stdin is left open — observed 27-minute hang in background shell | Leave stdin handling to callers (repeated hangs) | 2026-07-10 |
 
 ## TODO / Open Questions
 
 - [ ] 
+
+- [ ] update.sh rsync of SAFE_DIRS is not strictly atomic; consider stage-and-swap or post-sync self-check if interruption tolerance is needed

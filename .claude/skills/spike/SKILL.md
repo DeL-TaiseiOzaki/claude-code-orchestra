@@ -116,7 +116,7 @@ Output format:
 ## Investigation Approach
 ## Critical Path (which finding would short-circuit the spike)
 ## Risk of Inconclusive Result
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ### Step 3: Create Spike Brief
@@ -236,7 +236,7 @@ Spawn two teammates:
    ## Hard Blockers (if any)
    ## Soft Challenges
    ## Effort Estimate (if feasible)
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 2. Architecture Compatibility Analysis
    Consult Codex to evaluate fit with existing architecture:
@@ -255,7 +255,7 @@ Spawn two teammates:
    ## Alignment with Existing Patterns
    ## Required Architectural Changes
    ## Migration Complexity (LOW / MEDIUM / HIGH)
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 3. Risk and Trade-off Analysis
    Consult Codex to evaluate risks:
@@ -275,7 +275,7 @@ Spawn two teammates:
    ## Risk Matrix (likelihood x impact)
    ## Comparison with Alternatives
    ## Mitigation Strategies
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    ### 4. Prototype Validation (PROTOTYPE mode only)
    If the investigation mode is PROTOTYPE, build a minimal throwaway prototype:
@@ -295,7 +295,7 @@ Spawn two teammates:
    ## Prototype Code (with inline comments)
    ## Result (VALIDATED / INVALIDATED / INCONCLUSIVE)
    ## Evidence
-   ' 2>/dev/null
+   ' < /dev/null 2>/dev/null
 
    Save analysis to .claude/docs/research/spike-{topic}-feasibility.md
 
@@ -384,7 +384,7 @@ Output format:
 ## If GO: Recommended Next Skill (/feature — existing or greenfield mode)
 ## If NO-GO: Decisive Blocker and Alternatives
 ## If INCONCLUSIVE: What Additional Investigation Is Needed
-" 2>/dev/null
+" < /dev/null 2>/dev/null
 ```
 
 ### Step 3: Save Research Report
