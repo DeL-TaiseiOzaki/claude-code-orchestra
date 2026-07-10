@@ -31,11 +31,14 @@ SAFE_DIRS=(
     ".claude/rules"
     ".claude/agents"
     ".codex"
+    ".agents"
 )
 SAFE_FILES=(
     ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"
     ".claude/docs/libraries/_TEMPLATE.md"
+    ".claude/docs/reviews/.gitkeep"
     "scripts/update.sh"
+    "AGENTS.md"
 )
 
 # Paths that previous template versions installed but no longer ship.
