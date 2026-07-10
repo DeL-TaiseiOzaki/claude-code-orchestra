@@ -500,33 +500,43 @@ Typical fix task structure:
 
 ### Step 3: Update CLAUDE.md
 
-Add bug context to CLAUDE.md for cross-session persistence:
+Add bug context to CLAUDE.md Zone C for cross-session persistence using the
+shared writer script (zone contract per `.claude/rules/claude-md-zones.md`).
 
-```markdown
----
+**Gather these fields** from the diagnosis:
 
-## Current Bug Fix: {issue}
+- **Context**: Error summary, Root cause, Affected files
+- **Fix Approach**: Recommended approach from Root Cause Analyst
+- **Codex Validation**: Result + additional test cases
+- **Regression Risks**: Key risks from Impact Investigator + Codex assessment
+- **Decisions** with rationale
 
-### Context
-- Error: {1-2 sentence summary}
-- Root cause: {description}
-- Affected files: {list}
+**Write the input JSON** to `.claude/logs/zone-c-input.json`:
 
-### Fix Approach
-- {Recommended approach from Root Cause Analyst}
-
-### Codex Validation
-- Validation result: {PASS / NEEDS_REVISION}
-- Additional test cases: {from Codex validation}
-
-### Regression Risks
-- {Key risks from Impact Investigator}
-- {Codex risk assessment summary}
-
-### Decisions
-- {Decision 1}: {rationale}
-- {Decision 2}: {rationale}
+```json
+{
+  "title": "{issue}",
+  "sections": [
+    {"heading": "Context", "content": "- Error: ...\n- Root cause: ...\n- Affected files: ..."},
+    {"heading": "Fix Approach", "content": "- {approach}"},
+    {"heading": "Regression Risks", "content": "- {risks}"},
+    {"heading": "Decisions", "content": "- {Decision 1}: {rationale}"}
+  ]
+}
 ```
+
+**Run dry-run**, review the preview, then apply:
+
+```bash
+python3 .claude/skills/_shared/append_zone_c_block.py \
+  --type bug-fix --input .claude/logs/zone-c-input.json
+# Review the preview file path in the JSON output, then:
+python3 .claude/skills/_shared/append_zone_c_block.py \
+  --type bug-fix --input .claude/logs/zone-c-input.json --apply
+```
+
+Verify `"ok": true` and `"progress_tracker_preserved": true` in the output.
+Exit code 2 means markers are invalid — tell the user to run `./scripts/update.sh`.
 
 ### Step 4: Present to User
 

@@ -174,36 +174,40 @@ In both modes, record the feature's architecture decisions in
 Append the feature context to `CLAUDE.md` **Zone C** for cross-session
 persistence — zone contract and markers-missing rule per
 `.claude/rules/claude-md-zones.md`. This skill only appends to Zone C; it never
-touches Zone A/B.
+touches Zone A/B. Use the shared writer script for deterministic, atomic writes.
 
-```markdown
----
+**Gather these fields** from the planning phases:
 
-## Current Feature: {feature}
+- **Context**: Goal (1-2 sentences), Key files (new/modified), Dependencies, Complexity (SIMPLE / MODERATE / COMPLEX)
+- **Architecture**: Key decisions from Codex / Architect
+- **Library Constraints** (greenfield) or **Codex Validation** (existing)
+- **Integration Points** and **Decisions** with rationale
 
-### Context
-- Goal: {1-2 sentences}
-- Key files: {list of new/modified files}
-- Dependencies: {list}
-- Complexity: {SIMPLE / MODERATE / COMPLEX}
+**Write the input JSON** to `.claude/logs/zone-c-input.json`:
 
-### Architecture
-- {Key architecture decisions from Codex / Architect}
-
-### Library Constraints (greenfield)
-- {Key constraints from Researcher}
-
-### Codex Validation (existing)
-- Design validation: {PASS / NEEDS_REVISION}
-- Additional test cases: {from Codex validation}
-
-### Integration Points
-- {Integration point}: {description}
-
-### Decisions
-- {Decision 1}: {rationale}
-- {Decision 2}: {rationale}
+```json
+{
+  "title": "{feature name}",
+  "sections": [
+    {"heading": "Context", "content": "- Goal: ...\n- Key files: ...\n- Dependencies: ...\n- Complexity: MODERATE"},
+    {"heading": "Architecture", "content": "- {decisions}"},
+    {"heading": "Decisions", "content": "- {Decision 1}: {rationale}"}
+  ]
+}
 ```
+
+**Run dry-run**, review the preview, then apply:
+
+```bash
+python3 .claude/skills/_shared/append_zone_c_block.py \
+  --type feature --input .claude/logs/zone-c-input.json
+# Review the preview file path in the JSON output, then:
+python3 .claude/skills/_shared/append_zone_c_block.py \
+  --type feature --input .claude/logs/zone-c-input.json --apply
+```
+
+Verify `"ok": true` and `"progress_tracker_preserved": true` in the output.
+Exit code 2 means markers are invalid — tell the user to run `./scripts/update.sh`.
 
 Timing: MODE=greenfield writes this at plan time (Phase 3); MODE=existing may
 defer it to post-implementation. Either way it is written exactly once per feature.

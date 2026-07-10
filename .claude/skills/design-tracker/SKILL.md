@@ -34,8 +34,8 @@ Whether triggered automatically or on request, it runs the same workflow below.
 
 1. Read existing `.claude/docs/DESIGN.md`
 2. Extract the decision/information from conversation
-3. Update the appropriate section (match the fixed 要件定義書 headings below)
-4. For `Key Decisions`, append a new row with today's date (do not rewrite history)
+3. Map to the appropriate section (use the topic table below)
+4. Write the input JSON and run the shared writer script (see Mechanical Update below)
 
 ### Sections to Update
 
@@ -53,6 +53,34 @@ conversation topic to its section:
 | Hard limits (technical, org, compatibility) | `## 制約 (Constraints)` bullets |
 | Why we chose X over Y (significant) | `## Key Decisions` table (Decision / Rationale / Alternatives / Date) |
 | Things to do later, unresolved questions | `## TODO / Open Questions` |
+
+### Mechanical Update
+
+Use the shared writer script for all DESIGN.md appends. Write the input JSON
+to `.claude/logs/design-input.json`:
+
+```json
+{
+  "decisions": [
+    {"decision": "Use ReAct pattern", "rationale": "Better tool-use control", "alternatives": "Function calling only"}
+  ],
+  "section_updates": [
+    {"heading": "## TODO / Open Questions", "content": "- [ ] Evaluate streaming support"}
+  ]
+}
+```
+
+Run dry-run, review the preview, then apply:
+
+```bash
+python3 .claude/skills/_shared/update_design.py --input .claude/logs/design-input.json
+# Review the preview file path in the JSON output, then:
+python3 .claude/skills/_shared/update_design.py --input .claude/logs/design-input.json --apply
+```
+
+Verify `"ok": true` in the output. Duplicate decision rows (same text + date)
+are automatically skipped. Exit code 2 means DESIGN.md structure is invalid or
+missing — run `/init` first.
 
 ## Output Format
 

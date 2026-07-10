@@ -311,7 +311,9 @@ the design level:
 - Significant **Key Decisions** made this session
 
 If any of these changed, **invoke the design-tracker skill** to update the
-corresponding DESIGN.md section(s). If nothing design-level changed, skip this
+corresponding DESIGN.md section(s) — the design-tracker now uses
+`python3 .claude/skills/_shared/update_design.py` for mechanical appends
+(decisions and section content). If nothing design-level changed, skip this
 step. This keeps the macro requirements doc current without bloating PROGRESS.md.
 
 Ordering: …→ PROGRESS.md → **DESIGN.md update review / design-tracker** →

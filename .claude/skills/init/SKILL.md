@@ -84,6 +84,11 @@ and the leading document-map links intact):
 Do **not** fabricate requirements for a distribution-template repo: when initializing a
 real project, prefer concrete evidence; when nothing is known, leave the placeholder.
 
+Note: `/init` creates DESIGN.md content directly (the file may not exist yet).
+For **post-creation appends** (e.g. adding tech-stack rows to Key Decisions or
+section content later), use `python3 .claude/skills/_shared/update_design.py`
+instead of editing DESIGN.md by hand.
+
 ### 4. Update CLAUDE.md Zone B (thin pointer only)
 
 First verify the 3-zone markers exist. Reuse the Step 1 detector output:
