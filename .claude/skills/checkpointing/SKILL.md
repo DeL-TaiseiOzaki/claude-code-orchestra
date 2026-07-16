@@ -299,7 +299,7 @@ Full skill routing: CLAUDE.md §3 Routing Policy.
 2. **Progress Tracker link is sacred**: The `## Progress Tracker` block in Zone C (the link to `PROGRESS.md`) must remain intact. Do not rewrite or remove it.
 3. **Checkpoints & PROGRESS.md are off-limits**: Never delete, move, or rewrite files in `.claude/checkpoints/`, and never regenerate `PROGRESS.md`. They are owned by the checkpoint recording (steps 0-4).
 4. **Dry-run first**: This phase performs destructive prunes and rewrites. The default behaviour is to compute and display the plan, then request explicit approval via `AskUserQuestion`. Silent approval fallback is prohibited.
-5. **Delegate scanning**: Reading every research file and every Zone C block is large-scale investigation. `refresh_guard.py` handles the mechanical inventory; if raw-file reading is ever needed, delegate to a `general-purpose` subagent (Opus 1M context). The orchestrator only consumes a structured summary.
+5. **Delegate scanning**: Reading every research file and every Zone C block is large-scale investigation. `refresh_guard.py` handles the mechanical inventory; if raw-file reading is ever needed, delegate to `general-purpose-opus` (Opus 1M context). The orchestrator only consumes a structured summary.
 6. **No new append-only logs**: This phase must not create its own running log of any kind in Zone C. Execution traces belong in the next `/checkpointing` run.
 
 ## Compacted Zone C Layout (Output Contract)

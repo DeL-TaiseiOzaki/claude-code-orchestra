@@ -16,7 +16,8 @@ set -euo pipefail
 # =============================================================================
 # Constants
 # =============================================================================
-TEMPLATE_REPO="https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git"
+TEMPLATE_REPO="${ORCHESTRA_TEMPLATE_REPO:-https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git}"
+LOCAL_VERSION_FILE=".claude/orchestra-version"
 TEMPLATE_BOUNDARY="@orchestra:template-boundary"
 REPO_BOUNDARY="@orchestra:repo-boundary"
 LEGACY_BOUNDARY="@orchestra:local-boundary"
@@ -35,8 +36,9 @@ SAFE_DIRS=(
 )
 SAFE_FILES=(
     ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"
-    ".claude/docs/libraries/_TEMPLATE.md"
+    ".claude/docs/libraries/.gitkeep"
     ".claude/docs/reviews/.gitkeep"
+    "scripts/install.sh"
     "scripts/update.sh"
     "AGENTS.md"
 )
@@ -173,13 +175,14 @@ preflight_checks() {
         warn "There are untracked files in the repository."
     fi
 
-    # Read current VERSION
-    if [[ -f "${PROJECT_ROOT}/VERSION" ]]; then
-        OLD_VERSION="$(cat "${PROJECT_ROOT}/VERSION" | tr -d '[:space:]')"
+    # Read the installed Orchestra version. The repository's root VERSION,
+    # when present, belongs to the downstream project and is never touched.
+    if [[ -f "${PROJECT_ROOT}/${LOCAL_VERSION_FILE}" ]]; then
+        OLD_VERSION="$(tr -d '[:space:]' < "${PROJECT_ROOT}/${LOCAL_VERSION_FILE}")"
         info "Current version: ${BOLD}${OLD_VERSION}${RESET}"
     else
         OLD_VERSION="(none)"
-        warn "No VERSION file found. This may be a first-time setup."
+        warn "No ${LOCAL_VERSION_FILE} found. This may be a first-time setup."
     fi
 }
 
@@ -559,15 +562,18 @@ check_settings_files() {
 }
 
 # =============================================================================
-# Phase 6: VERSION update
+# Phase 6: Installed Orchestra version update
 # =============================================================================
 update_version() {
-    header "Updating VERSION"
+    header "Updating Orchestra Version"
 
     if [[ -f "${TEMPLATE_DIR}/VERSION" ]]; then
-        cp -f "${TEMPLATE_DIR}/VERSION" "${PROJECT_ROOT}/VERSION"
-        info "VERSION updated to ${BOLD}${NEW_VERSION}${RESET}"
-        UPDATED_FILES+=("VERSION")
+        local destination="${PROJECT_ROOT}/${LOCAL_VERSION_FILE}"
+        mkdir -p "$(dirname "${destination}")"
+        cp -f "${TEMPLATE_DIR}/VERSION" "${destination}.tmp.$$"
+        mv -f "${destination}.tmp.$$" "${destination}"
+        info "${LOCAL_VERSION_FILE} updated to ${BOLD}${NEW_VERSION}${RESET}"
+        UPDATED_FILES+=("${LOCAL_VERSION_FILE}")
     else
         warn "No VERSION file in template. Skipping version update."
     fi

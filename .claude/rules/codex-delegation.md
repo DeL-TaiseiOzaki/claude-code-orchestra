@@ -38,8 +38,11 @@ Do NOT delegate to Codex when:
 - Obvious one-file tiny edits, typo fixes
 - Tasks that simply follow explicit user instructions
 - git commit, test execution, lint
-- **Codebase analysis** → general-purpose subagent (Opus 1M context)
-- **External information retrieval / web research** → general-purpose subagent (Opus, WebSearch/WebFetch)
+- **Routine, well-scoped implementation** → `general-purpose-sonnet`
+- **Difficult implementation** (ambiguous architecture, cross-cutting invariants,
+  security/concurrency/data-integrity risk, or repeated failure) → `general-purpose-opus`
+- **Codebase analysis** → `general-purpose-opus` (Opus 1M context)
+- **External information retrieval / web research** → `general-purpose-opus` (WebSearch/WebFetch)
 
 ## Prompt Contract (Always Include)
 

@@ -1,5 +1,6 @@
 # Claude Code local settings
 .claude/settings.local.json
+.claude/settings.orchestra.json
 CLAUDE.local.md
 
 # Environment
@@ -56,6 +57,7 @@ logs/
 
 # Checkpoints (session-specific, may contain sensitive info)
 .claude/checkpoints/
+.orchestra-backup-*/
 
 # Jupyter
 .ipynb_checkpoints/

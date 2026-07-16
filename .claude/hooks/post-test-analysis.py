@@ -121,7 +121,7 @@ def main():
                     "additionalContext": (
                         f"[Codex Debug Suggestion] {reason}. "
                         "Consider consulting Codex for debugging analysis. "
-                        "**Recommended**: Use Task tool with subagent_type='general-purpose' "
+                        "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
                         "to consult Codex with full error context and preserve main context."
                     ),
                 }

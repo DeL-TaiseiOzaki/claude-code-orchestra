@@ -1,6 +1,6 @@
 ---
 name: init
-description: Analyze project structure, write the thick requirements doc (.claude/docs/DESIGN.md), populate the thin "Repository Identity" pointer in CLAUDE.md (Zone B), and mirror identity into AGENTS.md.
+description: Analyze project structure, write the thick requirements doc (.claude/docs/DESIGN.md), and populate the thin "Repository Identity" pointer in CLAUDE.md (Zone B).
 disable-model-invocation: true
 ---
 
@@ -10,22 +10,18 @@ Analyze this project and:
 
 1. Generate the **thick** 要件定義書 at `.claude/docs/DESIGN.md` (macro requirements & design — *what* this project builds and *why*).
 2. Populate the **thin** **Repository Identity (Zone B)** pointer in `CLAUDE.md` (a brief identity line + a pointer to DESIGN.md — no thick content here).
-3. Mirror the identity into the project-specific sections of `AGENTS.md`.
 
 ## Document hierarchy (where content lives)
 
 - `CLAUDE.md` = orchestrator contract. Zone B holds only a **thin identity + pointer**.
 - `.claude/docs/DESIGN.md` = 要件定義書 (thick macro requirements/design). This is where rich project content belongs.
 - `PROGRESS.md` = micro work progress (maintained by `/checkpointing`).
+- `AGENTS.md` = template-owned discovery pointer to the canonical `.agents/` contract. `/init` never modifies it.
 
 ## CLAUDE.md zones
 
 Zone contract (3-zone layout, markers, ownership, markers-missing rule): `.claude/rules/claude-md-zones.md`.
 **This skill writes ONLY Zone B** (between the two markers) — never Zone A or Zone C.
-
-## Important
-
-- For `AGENTS.md`, do NOT modify the "Extensions" section and below — only update the top project-specific sections.
 
 ## Steps
 
@@ -113,46 +109,17 @@ Macro requirements & design live in **[.claude/docs/DESIGN.md](.claude/docs/DESI
 Keep this section thin — a brief identity line + pointer. Thick content belongs in DESIGN.md.
 ```
 
-### 5. Partial Update of AGENTS.md
-
-Mirror the same information into `AGENTS.md` so Codex sees it. Update only the top section (up to the first `---`) with this format:
-
-```markdown
-# Project Overview
-
-{User's answer}
-
-## Language Settings
-
-- **Thinking/Reasoning**: English
-- **Code**: {Based on analysis - English or Japanese}
-- **User Communication**: Japanese
-
-## Tech Stack
-
-- **Language**: {Detected language}
-- **Package Manager**: {Detected tools}
-- **Dev Tools**: {Detected tools}
-- **Main Libraries**: {Detected libraries}
-
-## Common Commands
-
-```bash
-{Detected commands}
-```
-```
-
-### 6. Check Unnecessary Rules
+### 5. Check Unnecessary Rules
 
 Check rules in `.claude/rules/` and suggest removing unnecessary ones:
 
 - Non-Python project → `dev-environment.md` (uv/ruff/ty) may not be needed
 - No-test project → `testing.md` may not be needed
 
-### 7. Report Completion
+### 6. Report Completion
 
 Report to user (in Japanese):
 
 - Detected tech stack
-- Files updated (`.claude/docs/DESIGN.md`, `CLAUDE.md` Zone B, `AGENTS.md`)
+- Files updated (`.claude/docs/DESIGN.md`, `CLAUDE.md` Zone B)
 - Recommended rules to remove (if any)

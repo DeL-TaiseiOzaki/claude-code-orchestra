@@ -5,16 +5,53 @@
 Multi-Agent AI Development Environment
 
 ```
-Claude Code (Orchestrator) ─┬─ Codex CLI (Planning & Complex Code)
-                             └─ Opus Subagents (Research, Analysis, Implementation)
+Claude Code (Orchestrator) ─┬─ Sonnet Subagents (Routine Implementation)
+                             ├─ Opus Subagents (Research, Analysis, Difficult Implementation)
+                             └─ Codex CLI (Planning & Complex Code)
 ```
 
 ## Quick Start
 
-Run in the root of your existing project (ensure Codex is installed and logged in first):
+Confirm that both AI CLIs are installed and authenticated first:
 
 ```bash
-codex --version && codex login && git clone --depth 1 https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git .starter && cp -r .starter/.claude .starter/.codex .starter/CLAUDE.md . && rm -rf .starter && claude
+claude --version && codex --version
+```
+
+### New Project
+
+Create a repository with GitHub's **Use this template** button, clone it, then run:
+
+```bash
+claude
+```
+
+Run `/init` inside Claude Code to detect the project stack and populate the project
+identity and design document.
+
+### Existing Project
+
+Run this from the root of an existing Git repository:
+
+```bash
+template_dir="$(mktemp -d)"
+git clone --depth 1 https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git "$template_dir"
+bash "$template_dir/scripts/install.sh" . && rm -rf "$template_dir"
+```
+
+The installer preserves project-owned files, including `README.md`, `VERSION`, and
+existing `CLAUDE.md` content. Template-owned path conflicts stop the install before
+changes are made. After reviewing the reported paths, `--force` can be used to back
+them up under `.orchestra-backup-*/` and replace them.
+
+An existing `.claude/settings.json` is never overwritten. When a manual merge is
+needed, the installer writes `.claude/settings.orchestra.json`; merge the required
+settings and delete the candidate before starting Claude Code.
+
+Then start Claude Code and run `/init` inside it:
+
+```bash
+claude
 ```
 
 ## Prerequisites
@@ -32,6 +69,11 @@ claude login
 npm install -g @openai/codex
 codex login
 ```
+
+### System Tools
+
+The installer and updater require `git` and standard Unix shell tools. Template
+updates additionally require `rsync`.
 
 ### Codex Plugin for Claude Code (Optional)
 
@@ -71,6 +113,11 @@ claude --version && codex --version
 
 The Codex model is centralized in `.claude/settings.json` (`env.CODEX_MODEL`), which every `${CODEX_MODEL:-...}` reference resolves to. `.codex/config.toml` (`model` + `model_reasoning_effort = "xhigh"`) must be kept in sync — `.agents/check.sh` verifies coherence between the two. To always use the latest model, bump that single value (currently `gpt-5.6-sol`) — no need to edit individual skill files. The `${CODEX_MODEL:-...}` fallback is just a default for when the env var is unset. Note: `update.sh` never auto-merges `.claude/settings.json` — downstream users must bump `env.CODEX_MODEL` manually after reviewing the Phase 5 diff.
 
+Claude subagent routing is explicit in `.claude/agents/`: `general-purpose-sonnet`
+and `general-purpose-opus` pin their own model aliases in frontmatter. Unspecified
+subagents default to Sonnet through `.claude/settings.json`
+(`env.CLAUDE_CODE_SUBAGENT_MODEL`).
+
 ## Architecture
 
 ```
@@ -82,8 +129,9 @@ The Codex model is centralized in `.claude/settings.json` (`env.CODEX_MODEL`), w
 │  ┌───────────────────────┼──────────────────────────────┐   │
 │  │  Tier 1 — Default     │                              │   │
 │  │  ┌────────────────────┴─────────────────────────┐    │   │
-│  │  │ general-purpose  (Opus: research/analysis,   │    │   │
-│  │  │   Sonnet: implementation) + codex-debugger   │    │   │
+│  │  │ general-purpose-sonnet: routine impl.        │    │   │
+│  │  │ general-purpose-opus: research / hard impl.  │    │   │
+│  │  │ codex-debugger: error analysis               │    │   │
 │  │  └──────────────────────────────────────────────┘    │   │
 │  │                       │                              │   │
 │  │  ┌────────────────────┴─────────────────────────┐    │   │
@@ -110,7 +158,8 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 | Full codebase analysis | **Opus subagent** (1M context) |
 | External research & surveys | **Opus subagent** (WebSearch/WebFetch) |
 | Multimodal files (PDF/images) | Claude directly, or Opus subagent for large-scale analysis |
-| Code implementation | Via subagent (Opus) |
+| Routine, well-scoped implementation | **general-purpose-sonnet** |
+| Difficult implementation (ambiguous, cross-cutting, high-risk, repeatedly failing) | **general-purpose-opus**, with Codex as needed |
 | Design & planning consultation | Subagent → Codex |
 | Short questions & answers | Direct call OK |
 | Detailed analysis needed | Via subagent → save to file |
@@ -125,11 +174,11 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 ├── CLAUDE.md                    # Orchestrator contract (lightweight; links to DESIGN.md & PROGRESS.md)
 ├── AGENTS.md                    # Thin pointer → .agents/AGENTS.md (for CLI subagent discovery)
 ├── README.md
-├── PROGRESS.md                  # Rolling work progress — latest 5 checkpoint summaries (generated by /checkpointing)
+├── PROGRESS.md                  # Generated by the first /checkpointing run; latest 5 summaries
 ├── LICENSE
 ├── pyproject.toml               # Python project configuration
 ├── uv.lock                      # Dependency lock file
-├── VERSION                      # Template version
+├── VERSION                      # Version of this template repository; downstream projects may replace it
 │
 ├── .agents/                     # CLI subagent spec (tool-neutral: Codex, Antigravity, Grok, ...)
 │   ├── INDEX.md                 # Agent registry — lists all CLI subagents and their tiers
@@ -143,7 +192,8 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 │
 ├── .claude/
 │   ├── agents/
-│   │   ├── general-purpose.md   # Implementation, research & Codex delegation agent (Opus)
+│   │   ├── general-purpose-sonnet.md # Routine, well-scoped implementation
+│   │   ├── general-purpose-opus.md   # Research, analysis, difficult implementation, Codex delegation
 │   │   ├── codex-debugger.md    # Error analysis agent (Opus)
 │   │   └── fable-advisor.md     # Tier 3 rare advisor (Fable model, read-only)
 │   │
@@ -175,6 +225,7 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 │   │   └── ...
 │   │
 │   ├── settings.json             # Claude Code settings (hooks/permissions/env)
+│   ├── orchestra-version         # Installed Orchestra version in downstream projects
 │   │
 │   ├── docs/
 │   │   ├── DESIGN.md            # 要件定義書 (macro requirements & design)
@@ -193,7 +244,11 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 │       ├── context-loader/      # Context loading skill
 │       └── design-tracker/      # Design tracking skill
 │
+├── tests/
+│   └── test_install_script.py  # Installer and updater integration tests
+│
 └── scripts/
+    ├── install.sh              # Conflict-aware installer for existing projects
     └── update.sh               # Template update script
 ```
 
@@ -363,7 +418,7 @@ Records all session activity (user requests, git history, CLI consultations, Age
 
 #### `/init` — Project Initialization
 
-Analyzes the project structure, auto-detects tech stack, commands, and configuration. Populates `.claude/docs/DESIGN.md` (要件定義書 — macro requirements & design) and AGENTS.md, and writes a thin pointer to DESIGN.md in CLAUDE.md Zone B.
+Analyzes the project structure, auto-detects tech stack, commands, and configuration. Populates `.claude/docs/DESIGN.md` (要件定義書 — macro requirements & design) and writes a thin pointer to DESIGN.md in CLAUDE.md Zone B. The root `AGENTS.md` remains a template-owned pointer to the canonical `.agents/` contract.
 
 #### `/catchup` — Onboarding Guide
 
@@ -390,6 +445,19 @@ Safely applies template updates to your local project.
 ./scripts/update.sh --yes
 ```
 
+When upgrading an installation that still uses an updater from v0.3.0 or earlier,
+replace the updater itself before the first run. This prevents the old process from
+writing its template version to a project-owned root `VERSION`:
+
+```bash
+template_dir="$(mktemp -d)"
+git clone --depth 1 https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git "$template_dir"
+cp "$template_dir/scripts/install.sh" "$template_dir/scripts/update.sh" scripts/
+chmod +x scripts/install.sh scripts/update.sh
+rm -rf "$template_dir"
+./scripts/update.sh
+```
+
 **How it works:**
 - `CLAUDE.md` uses a 3-zone layout separated by two markers:
   - **Zone A** (above `@orchestra:template-boundary`) — orchestra concept & template base; fully replaced by the update
@@ -399,6 +467,7 @@ Safely applies template updates to your local project.
 - skills/hooks/rules/agents (and `.agents/`, `.codex/`) are fully synced
 - Local data such as `.claude/docs/research/` is preserved
 - `.claude/settings.json` only shows a diff (manual merge required)
+- The installed template version is stored in `.claude/orchestra-version`; a downstream project's root `VERSION` is never modified
 - If the update modifies `scripts/update.sh` itself (e.g. a new version adds
   template directories such as `.agents/`), **run `./scripts/update.sh` a second
   time** — the first run still uses the old script's sync list. Newer scripts

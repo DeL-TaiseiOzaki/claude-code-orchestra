@@ -79,12 +79,12 @@ the JSON `exit_code`); exit `1` means bad arguments. Read the JSON fields:
 `exit_code`, `stdout_tail`, `stderr_tail`, `traceback`, `recent_commits`, `blame`,
 `log_file`.
 
-Then hand that captured context to a `general-purpose` subagent (Opus) for the
+Then hand that captured context to `general-purpose-opus` for the
 **judgment** part — do NOT re-run the command or re-fetch git history:
 
 ```
 Task tool:
-  subagent_type: "general-purpose"
+  subagent_type: "general-purpose-opus"
   prompt: |
     Analyze this reproduced error (already captured by repro.sh):
 

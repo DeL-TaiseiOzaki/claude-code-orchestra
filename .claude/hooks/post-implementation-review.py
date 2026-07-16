@@ -126,7 +126,7 @@ def main():
                     "additionalContext": (
                         f"[Code Review Suggestion] {reason} in this session. "
                         "Consider having Codex review the implementation. "
-                        "**Recommended**: Use Task tool with subagent_type='general-purpose' "
+                        "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
                         "to consult Codex with git diff and preserve main context."
                     ),
                 }

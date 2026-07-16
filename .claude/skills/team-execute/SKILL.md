@@ -104,6 +104,17 @@ Teammate 3: Shared infrastructure
 - Too many tasks per Teammate → risk of prolonged idle time
 - Overly complex dependencies → coordination costs outweigh benefits
 
+### Model Routing
+
+- Use `general-purpose-sonnet` for implementers and the tester by default.
+- Assign `general-purpose-opus` before spawning when a workstream has ambiguous
+  architecture, broad cross-system invariants, subtle security/concurrency/data
+  integrity/performance risk, or a history of failed implementation attempts.
+- Do not route by file count alone. Mechanical multi-file work stays on Sonnet when
+  the plan and acceptance criteria are clear.
+- If a Sonnet teammate discovers an escalation condition, have it report concrete
+  evidence, stop that workstream, and reassign the remaining work to Opus.
+
 ---
 
 ## Step 1-2: Spawn Agent Team
@@ -122,6 +133,9 @@ Each teammate receives:
 Spawn teammates:
 
 1. **Implementer-{module}** for each module/workstream
+   Agent: `general-purpose-sonnet` by default; `general-purpose-opus` only when the
+   Model Routing criteria above are already met.
+
    Prompt: "You are implementing {module} for project: {feature}.
 
    Read these files for context:
@@ -141,6 +155,7 @@ Spawn teammates:
    - Write type hints on all functions
    - Run ruff check after each file change
    - Communicate with other teammates if you need interface changes
+   - If the task reveals an Opus escalation condition, stop and report the evidence
 
    When done with each task, mark it completed in the task list.
 
@@ -156,6 +171,8 @@ Spawn teammates:
    "
 
 2. **Tester** (optional but recommended)
+   Agent: `general-purpose-sonnet` by default.
+
    Prompt: "You are the Tester for project: {feature}.
 
    Read:
@@ -205,7 +222,8 @@ Wait for all teammates to complete their tasks.
 | Teammate not making progress for a long time | Send a message to check, re-instruct if needed |
 | File conflict detected | Reassign file ownership |
 | Tests keep failing | Send message to the relevant Implementer |
-| Unexpected technical issue | Consult Codex (via subagent) |
+| Sonnet exposes ambiguous or high-risk complexity | Stop that workstream and reassign it to `general-purpose-opus` with the evidence collected so far |
+| Unexpected technical issue | Consult Codex via `general-purpose-opus` |
 
 ### Quality Gates (via Hooks)
 
@@ -303,6 +321,11 @@ Exit codes: `0` normal · `1` not a git repo or base ref missing. Pass the
 ## Step 2-2: Spawn Review Team
 
 **Launch reviewers with specialized perspectives in parallel.**
+
+Reviewers use `general-purpose-sonnet` by default. Use `general-purpose-opus` for a
+review whose dominant risk is subtle security, concurrency, data integrity,
+performance, or cross-system behavior; Quality Reviewer may also consult Codex as
+specified below.
 
 ```
 Create an agent team to review implementation of: {feature}
@@ -510,6 +533,7 @@ Clean up the team
 - **Separate Tester**: Having a dedicated Tester separate from Implementers enables a TDD-like workflow
 - **Reviewer specialization**: Each reviewer focuses on a different perspective to prevent blind spots
 - **Codex utilization**: Quality Reviewer delegates complex logic analysis to Codex
+- **Model routing**: Sonnet is the default; use Opus only when ambiguity, risk, or failed attempts justify the additional capability
 - **Report persistence**: Save review results in `.claude/docs/research/` for reference during fixes
 - **Competing hypotheses mode**: Adversarial review pattern is effective for bug investigation
 - **Cost awareness**: Each Teammate is an independent Claude instance (high token consumption). 3 reviewers = 3x tokens; for small changes, a subagent-based review is sufficient

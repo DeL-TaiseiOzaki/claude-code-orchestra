@@ -97,11 +97,11 @@ Ask the user to clarify:
 ### Opus Subagent Codebase Scan
 
 Main orchestrator context is precious — large-scale codebase scanning is always
-delegated to a `general-purpose` subagent (Opus, 1M context):
+delegated to `general-purpose-opus` (Opus, 1M context):
 
 ```
 Task tool:
-  subagent_type: "general-purpose"
+  subagent_type: "general-purpose-opus"
   prompt: |
     Analyze this codebase for feature: {feature description}
 

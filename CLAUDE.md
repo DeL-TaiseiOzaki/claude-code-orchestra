@@ -19,14 +19,16 @@ The above must always be delegated.
 
 ## 3) Routing Policy
 
-- **Design, planning, complex implementation** → Codex via `general-purpose`
-- **External research, broad analysis** → `general-purpose` subagent (Opus)
-- **Multimodal input (PDF, images, etc.)** → Claude handles directly (Opus 4.7+ has strong multimodal capabilities); delegate large-scale analysis to the `general-purpose` subagent
+- **Routine, well-scoped implementation** → `general-purpose-sonnet`
+- **Difficult implementation** (ambiguous, cross-cutting, security/concurrency/data-integrity risk, repeated failure) → `general-purpose-opus`, consulting Codex as needed
+- **Design and planning** → Codex via `general-purpose-opus`
+- **External research, broad analysis** → `general-purpose-opus`
+- **Multimodal input (PDF, images, etc.)** → Claude handles directly; delegate large-scale analysis to `general-purpose-opus`
 - **Error root cause analysis** → `codex-debugger`
 - **Design arbitration, stuck problems, final review of large changes** → `fable-advisor` (rare escalation; read-only, never implements)
 - **Minor fixes (single file, small changes)** → Claude handles directly
 
-**Model tiers**: Implementation-work subagents run on Sonnet; research / large-scale analysis stays on Opus (1M context). Tier definitions: `.agents/tiers.md`.
+**Model tiers**: Sonnet is the default for well-scoped implementation. Opus handles research, large-scale analysis, and implementation whose ambiguity or risk requires deeper judgment. Tier definitions: `.agents/tiers.md`.
 
 Codex delegation detail (when to delegate, triggers, prompt contract): `.claude/rules/codex-delegation.md`.
 

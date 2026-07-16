@@ -12,11 +12,11 @@ Research $ARGUMENTS and create documentation in `.claude/docs/libraries/`.
 
 ### Primary Tool: General-Purpose Subagent (Opus)
 
-Use a general-purpose subagent (Opus) with WebSearch/WebFetch for comprehensive library research:
+Use `general-purpose-opus` with WebSearch/WebFetch for comprehensive library research:
 
 ```
 Agent tool:
-  subagent_type: "general-purpose"
+  subagent_type: "general-purpose-opus"
   prompt: |
     Research: {library}. Find latest version, official documentation,
     key features, constraints, best practices, known issues, and usage patterns.

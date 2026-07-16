@@ -4,7 +4,7 @@ description: |
   Codex CLI handles planning, design, and complex code implementation.
   Use for: architecture design, implementation planning, complex algorithms,
   debugging (root cause analysis), trade-off evaluation, code review.
-  External research is NOT Codex's job — use general-purpose subagent (Opus) instead.
+  External research is NOT Codex's job — use general-purpose-opus instead.
   Explicit triggers: "plan", "design", "architecture", "think deeper",
   "analyze", "debug", "complex", "optimize".
 metadata:
@@ -46,7 +46,7 @@ Delegation policy — when to consult, when NOT to, and trigger criteria — liv
 
 ```
 Task tool parameters:
-- subagent_type: "general-purpose"
+- subagent_type: "general-purpose-opus"
 - run_in_background: true (optional)
 - prompt: |
     Consult Codex about: {topic}
@@ -213,7 +213,7 @@ When the `openai/codex-plugin-cc` plugin is installed, these slash commands are 
 | Background work + tracking | Plugin `--background` |
 | Ad-hoc design question | `codex exec` (direct) |
 | Implementation in sandbox | `codex exec --sandbox workspace-write` |
-| Subagent delegation | `codex exec` via general-purpose |
+| Subagent delegation | `codex exec` via general-purpose-opus |
 
 ## Why Codex?
 

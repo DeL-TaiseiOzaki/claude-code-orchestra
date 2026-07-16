@@ -72,7 +72,7 @@ Top-level JSON keys:
 - `checkpoints` — newest 5 (file + first heading).
 - `cli_tools` — recent Codex consultation topics.
 
-For very large repos you may still hand this JSON to a `general-purpose` subagent
+For very large repos you may still hand this JSON to `general-purpose-opus`
 for thematic grouping, but the mechanical collection is already done.
 
 ---

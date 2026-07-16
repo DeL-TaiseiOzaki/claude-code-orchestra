@@ -270,11 +270,10 @@ def main():
                 "hookSpecificOutput": {
                     "hookEventName": "UserPromptSubmit",
                     "additionalContext": (
-                        f"[Opus Research] Detected '{trigger}' — use a general-purpose subagent (Opus) "
+                        f"[Opus Research] Detected '{trigger}' — use general-purpose-opus "
                         "for this task. Opus subagents handle research, codebase analysis, and investigation "
                         "with 1M context and WebSearch/WebFetch. "
-                        "Use via general-purpose subagent: "
-                        "Agent tool with subagent_type='general-purpose'. "
+                        "Use via Agent tool with subagent_type='general-purpose-opus'. "
                         "Save results to .claude/docs/research/."
                     ),
                 }
