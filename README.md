@@ -213,10 +213,10 @@ To conserve the main orchestrator's (Opus, 1M context) context, large-scale task
 │   │   ├── init/                # Project initialization
 │   │   └── troubleshoot/        # Error diagnosis & fix planning
 │   │
-│   ├── hooks/                   # Automation hooks (8 total)
+│   ├── hooks/                   # Automation hooks (9 total)
 │   │   ├── agent-router.py      # Agent routing
 │   │   ├── lint-on-save.py      # Auto-lint on save
-│   │   ├── error-to-codex.py    # Error detection → debugger suggestion
+│   │   ├── post-bash-check.py   # Dispatcher: runs Bash-matcher checks in-process
 │   │   └── ...
 │   │
 │   ├── rules/                   # Development guidelines
@@ -513,10 +513,11 @@ Automation hooks execute agent coordination and quality checks at the appropriat
 | `lint-on-save.py` | File save | Auto-runs lint |
 | `check-codex-before-write.py` | Before file write | Suggests consulting Codex |
 | `check-codex-after-plan.py` | After Task execution | Suggests Codex review after planning/design tasks |
-| `error-to-codex.py` | Bash error detected | Suggests codex-debugger subagent |
-| `post-test-analysis.py` | Test/build failure | Suggests debug analysis via Codex |
+| `post-bash-check.py` | Any Bash tool call | Dispatcher: runs error detection, test-failure analysis, and Codex I/O logging in one process (deduped) |
+| `error-to-codex.py` | Bash error detected | Suggests codex-debugger subagent (invoked in-process by `post-bash-check.py`) |
+| `post-test-analysis.py` | Test/build failure | Suggests debug analysis via Codex (invoked in-process by `post-bash-check.py`) |
 | `post-implementation-review.py` | After large implementation | Suggests code review via Codex |
-| `log-cli-tools.py` | Codex execution | Records I/O logs |
+| `log-cli-tools.py` | Codex execution | Records I/O logs (invoked in-process by `post-bash-check.py`; also runs standalone on `TaskCompleted`) |
 
 ## Language Rules
 

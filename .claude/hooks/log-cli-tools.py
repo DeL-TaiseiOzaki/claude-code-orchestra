@@ -52,35 +52,37 @@ def log_entry(entry: dict) -> None:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
-def main() -> None:
-    # Read hook input from stdin
-    try:
-        hook_input = json.load(sys.stdin)
-    except json.JSONDecodeError:
-        return
+def process_bash(data: dict) -> str | None:
+    """Log a Codex CLI call from a Bash tool invocation, if present.
 
+    Pure-ish function (its side effect is the JSONL append, which is the
+    whole point of this hook) so the post-bash-check.py dispatcher can
+    call it in-process. Returns a confirmation context string, or None if
+    there was nothing to log. Standalone main() below still reads stdin
+    directly for backwards-compatible direct invocation.
+    """
     # Only process Bash tool calls
-    tool_name = hook_input.get("tool_name", "")
+    tool_name = data.get("tool_name", "")
     if tool_name != "Bash":
-        return
+        return None
 
     # Get command and output
-    tool_input = hook_input.get("tool_input", {})
-    tool_response = hook_input.get("tool_response", {})
+    tool_input = data.get("tool_input", {})
+    tool_response = data.get("tool_response", {})
 
     command = tool_input.get("command", "")
     output = tool_response.get("stdout", "") or tool_response.get("content", "")
 
     # Check if this is a codex command
     if "codex" not in command.lower():
-        return
+        return None
 
     prompt = extract_codex_prompt(command)
     model = extract_model(command) or "gpt-5.6-sol"
 
     if not prompt:
         # Could not extract prompt, skip logging
-        return
+        return None
 
     # Determine success
     exit_code = tool_response.get("exit_code", 0)
@@ -99,12 +101,28 @@ def main() -> None:
 
     log_entry(entry)
 
+    return "[LOG] Codex call logged to .claude/logs/cli-tools.jsonl"
+
+
+def main() -> None:
+    # Read hook input from stdin. This also handles the TaskCompleted
+    # wiring: TaskCompleted payloads have no tool_name == "Bash", so
+    # process_bash() returns None and this hook is a no-op for them.
+    try:
+        hook_input = json.load(sys.stdin)
+    except json.JSONDecodeError:
+        return
+
+    context = process_bash(hook_input)
+    if context is None:
+        return
+
     # Output notification via hookSpecificOutput
     print(
         json.dumps(
             {
                 "hookSpecificOutput": {
-                    "additionalContext": "[LOG] Codex call logged to .claude/logs/cli-tools.jsonl",
+                    "additionalContext": context,
                 }
             }
         )

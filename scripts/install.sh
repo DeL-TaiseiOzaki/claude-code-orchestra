@@ -273,6 +273,36 @@ copy_owned_paths() {
     chmod +x "${TARGET_ROOT}/scripts/install.sh" "${TARGET_ROOT}/scripts/update.sh"
 }
 
+verify_design_tracker_symlink() {
+    # .codex/skills/design-tracker ships as a relative symlink to
+    # ../../.claude/skills/design-tracker. Some distribution paths (tarball
+    # extraction, a copy method that dereferences) can turn it into a
+    # regular file/directory or leave it dangling. Detect and repair it so
+    # the two Codex/Claude skill trees never silently diverge.
+    local link="${TARGET_ROOT}/.codex/skills/design-tracker"
+    local link_target="../../.claude/skills/design-tracker"
+    local resolved
+
+    if [[ -L "${link}" && -e "${link}" ]]; then
+        resolved="$(realpath -m -- "${link}")"
+        if [[ "${resolved}" == "${TARGET_ROOT}/.claude/skills/design-tracker" ]]; then
+            return 0
+        fi
+    fi
+
+    warn "Repairing .codex/skills/design-tracker symlink"
+    rm -rf -- "${link}"
+    mkdir -p "$(dirname "${link}")"
+    ln -s "${link_target}" "${link}"
+
+    resolved="$(realpath -m -- "${link}")"
+    if [[ ! -e "${link}" || "${resolved}" != "${TARGET_ROOT}/.claude/skills/design-tracker" ]]; then
+        error "Failed to restore .codex/skills/design-tracker symlink."
+        exit 1
+    fi
+    info "Restored .codex/skills/design-tracker -> ${link_target}"
+}
+
 copy_project_files_if_missing() {
     local path destination
     for path in "${PROJECT_FILES_IF_MISSING[@]}"; do
@@ -380,6 +410,7 @@ main() {
     confirm_install
     backup_conflicts
     copy_owned_paths
+    verify_design_tracker_symlink
     copy_project_files_if_missing
     install_claude_md
     install_settings

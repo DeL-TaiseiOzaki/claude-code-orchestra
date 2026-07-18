@@ -19,8 +19,10 @@ and referenced by workflows, skills, and configuration.
 - **Scope**: Design, planning, complex implementation, long-running tasks.
 - **Selection criteria**: Multi-file changes with behavior impact, architecture
   decisions, complex algorithms, root-cause-unknown debugging.
-- **Permission boundary**: Write access only via caller's explicit
-  `--sandbox workspace-write`; `approval_policy` stays `"never"`.
+- **Permission boundary**: Write access by default (`sandbox_mode =
+  "workspace-write"` in `.codex/config.toml`); `approval_policy` stays
+  `"never"`. Callers doing planning/review/analysis should still pass an
+  explicit `--sandbox read-only`.
 - **Inputs**: Structured prompt following the Prompt Contract
   (`.claude/rules/codex-delegation.md` section "Prompt Contract").
 - **Outputs**: Structured response (TL;DR / Analysis / Plan / Patch Strategy /
