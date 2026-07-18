@@ -91,39 +91,50 @@ def has_complex_failure(output: str) -> tuple[bool, str]:
     return False, ""
 
 
+def build_context(data: dict) -> str | None:
+    """Return the additionalContext hint for this hook, or None.
+
+    Pure function (no stdin/stdout/exit) so the post-bash-check.py
+    dispatcher can call it in-process. Standalone main() below still
+    reads stdin directly for backwards-compatible direct invocation.
+    """
+    tool_name = data.get("tool_name", "")
+    # Only process Bash tool
+    if tool_name != "Bash":
+        return None
+
+    tool_input = data.get("tool_input", {})
+    tool_response = data.get("tool_response", {})
+    command = tool_input.get("command", "")
+    tool_output = tool_response.get("stdout", "") or tool_response.get("content", "")
+
+    # Check if it's a test/build command
+    if not is_test_or_build_command(command):
+        return None
+
+    # Check for complex failures
+    has_failure, reason = has_complex_failure(tool_output)
+    if not has_failure:
+        return None
+
+    return (
+        f"[Codex Debug Suggestion] {reason}. "
+        "Consider consulting Codex for debugging analysis. "
+        "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
+        "to consult Codex with full error context and preserve main context."
+    )
+
+
 def main():
     try:
         data = json.load(sys.stdin)
-        tool_name = data.get("tool_name", "")
+        context = build_context(data)
 
-        # Only process Bash tool
-        if tool_name != "Bash":
-            sys.exit(0)
-
-        tool_input = data.get("tool_input", {})
-        tool_response = data.get("tool_response", {})
-        command = tool_input.get("command", "")
-        tool_output = tool_response.get("stdout", "") or tool_response.get(
-            "content", ""
-        )
-
-        # Check if it's a test/build command
-        if not is_test_or_build_command(command):
-            sys.exit(0)
-
-        # Check for complex failures
-        has_failure, reason = has_complex_failure(tool_output)
-
-        if has_failure:
+        if context:
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "PostToolUse",
-                    "additionalContext": (
-                        f"[Codex Debug Suggestion] {reason}. "
-                        "Consider consulting Codex for debugging analysis. "
-                        "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
-                        "to consult Codex with full error context and preserve main context."
-                    ),
+                    "additionalContext": context,
                 }
             }
             print(json.dumps(output))

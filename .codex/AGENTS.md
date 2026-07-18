@@ -20,10 +20,13 @@ Source of truth: `.codex/config.toml`
 
 ## Sandbox Discipline
 
-`approval_policy` is `"never"` -- autonomy is assumed. File writes happen
-**only** when the caller explicitly passes `--sandbox workspace-write`.
-Default to `--sandbox read-only` for all analysis, review, and planning
-tasks.
+`approval_policy` is `"never"` -- autonomy is assumed. `sandbox_mode` in
+`.codex/config.toml` defaults to `workspace-write`, so file writes are
+possible without the caller passing a sandbox flag. Callers doing
+analysis, review, or planning should still pass an explicit
+`--sandbox read-only` to avoid accidental writes during those tasks.
+Completion verification (Sol Guardrails, `.agents/AGENTS.md` section 8)
+remains mandatory regardless of sandbox mode.
 
 ## Enabled Codex Skills
 

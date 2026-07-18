@@ -96,12 +96,39 @@ AUTO_YES=false
 TARGET_REF=""
 SELF_UPDATED=false
 
+# In-flight stage-and-swap tracking (see sync_safe_dirs). At most one
+# SAFE_DIR is mid-transition at a time since the loop is sequential; the
+# trap below inspects these to roll back a crash cleanly.
+CURRENT_STAGING_DIR=""
+CURRENT_OLD_DIR=""
+CURRENT_LIVE_DIR=""
+SWAP_IN_PROGRESS=false
+
 cleanup() {
+    # Roll back a stage-and-swap that was interrupted mid-transition: the
+    # live directory has already been renamed to CURRENT_OLD_DIR but the
+    # staged replacement has not yet been moved into place. Restore the
+    # original so the target repo is never left without the directory.
+    if [[ "${SWAP_IN_PROGRESS}" == true && -n "${CURRENT_OLD_DIR}" && -d "${CURRENT_OLD_DIR}" ]]; then
+        rm -rf "${CURRENT_LIVE_DIR}"
+        mv "${CURRENT_OLD_DIR}" "${CURRENT_LIVE_DIR}"
+    fi
+    # Remove any leftover staging directory (either the swap never started,
+    # or it already completed and this is just belt-and-suspenders).
+    if [[ -n "${CURRENT_STAGING_DIR}" && -d "${CURRENT_STAGING_DIR}" ]]; then
+        rm -rf "${CURRENT_STAGING_DIR}"
+    fi
+    # Remove a leftover .orchestra-old.$$ if the swap completed but cleanup
+    # of the old copy was interrupted.
+    if [[ -n "${CURRENT_OLD_DIR}" && -d "${CURRENT_OLD_DIR}" ]]; then
+        rm -rf "${CURRENT_OLD_DIR}"
+    fi
+
     if [[ -n "${TMPDIR_UPDATE}" && -d "${TMPDIR_UPDATE}" ]]; then
         rm -rf "${TMPDIR_UPDATE}"
     fi
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 # =============================================================================
 # Parse arguments
@@ -297,20 +324,56 @@ cleanup_deprecated_paths() {
 # =============================================================================
 # Phase 3: Safe files (full overwrite)
 # =============================================================================
+# Stage-and-swap keeps a crash (Ctrl-C, power loss, rsync failure) from ever
+# leaving a SAFE_DIR half-updated. Each directory is staged and swapped
+# independently: a mid-run interruption may leave later SAFE_DIRS un-synced
+# (the update is simply incomplete and re-runnable), but it can never corrupt
+# a directory that was in flight. The staging/old siblings live inside the
+# target repo (same filesystem as the destination) so the final `mv` swaps
+# are atomic renames, not copies.
 sync_safe_dirs() {
     header "Updating Safe Directories"
 
     for dir in "${SAFE_DIRS[@]}"; do
         local src="${TEMPLATE_DIR}/${dir}/"
-        local dst="${PROJECT_ROOT}/${dir}/"
+        local dst="${PROJECT_ROOT}/${dir}"
 
         if [[ ! -d "${src}" ]]; then
             warn "Template does not contain ${dir}/, skipping."
             continue
         fi
 
-        mkdir -p "${dst}"
-        rsync -a --delete "${src}" "${dst}"
+        local staging="${dst}.orchestra-staging.$$"
+        local old="${dst}.orchestra-old.$$"
+        rm -rf "${staging}" "${old}"
+        mkdir -p "${staging}"
+
+        # Track in-flight state so the EXIT/INT/TERM trap can roll back if
+        # anything below fails or the process is interrupted.
+        CURRENT_STAGING_DIR="${staging}"
+        CURRENT_OLD_DIR="${old}"
+        CURRENT_LIVE_DIR="${dst}"
+        SWAP_IN_PROGRESS=false
+
+        rsync -a --delete "${src}" "${staging}/"
+
+        if [[ -d "${dst}" ]]; then
+            SWAP_IN_PROGRESS=true
+            mv "${dst}" "${old}"
+            mv "${staging}" "${dst}"
+            SWAP_IN_PROGRESS=false
+            rm -rf "${old}"
+        else
+            mkdir -p "$(dirname "${dst}")"
+            mv "${staging}" "${dst}"
+        fi
+
+        # Swap completed; clear in-flight tracking so the trap is a no-op
+        # for this directory.
+        CURRENT_STAGING_DIR=""
+        CURRENT_OLD_DIR=""
+        CURRENT_LIVE_DIR=""
+
         info "Synced ${dir}/"
         UPDATED_FILES+=("${dir}/")
     done
