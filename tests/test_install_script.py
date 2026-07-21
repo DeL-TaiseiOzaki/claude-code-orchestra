@@ -105,22 +105,34 @@ def test_install_adds_complete_template_without_overwriting_project_version(
         REPO_ROOT / "VERSION"
     ).read_text(encoding="utf-8")
     assert (target / ".agents/INDEX.md").is_file()
+    assert (target / ".agents/change_main.md").is_file()
+    assert "## Skill Catalog" in (target / "AGENTS.md").read_text(encoding="utf-8")
+    assert not (target / ".agents/rules/orchestration.md").exists()
+    assert (target / ".agents/rules").is_dir()
+    assert (target / ".agents/skills").is_dir()
+    assert (target / ".agents/agents").is_dir()
+    assert (target / ".agents/hooks").is_dir()
     assert (target / "AGENTS.md").is_file()
+    assert (target / "CLAUDE.md").is_symlink()
+    assert (target / "CLAUDE.md").resolve() == (target / "AGENTS.md").resolve()
+    assert {path.name for path in (target / ".claude").iterdir()} == {
+        "orchestra-version",
+        "settings.json",
+    }
+    assert {path.name for path in (target / ".codex").iterdir()} == {"config.toml"}
     assert (target / "scripts/install.sh").is_file()
     assert (target / "scripts/update.sh").is_file()
     assert (target / ".claude/settings.json").is_file()
-    assert (target / ".claude/docs/DESIGN.md").is_file()
-    assert (target / ".claude/docs/research/.gitkeep").is_file()
-    assert "@orchestra:template-boundary" in (target / "CLAUDE.md").read_text(
-        encoding="utf-8"
-    )
+    assert (target / ".agents/docs/research/.gitkeep").is_file()
+    assert (target / ".agents/STATE.md").is_file()
+    assert "@orchestra:" not in (target / "AGENTS.md").read_text(encoding="utf-8")
     gitignore = (target / ".gitignore").read_text(encoding="utf-8")
-    assert ".claude/logs/" in gitignore
-    assert ".claude/checkpoints/" in gitignore
+    assert ".agents/logs/" in gitignore
+    assert ".agents/checkpoints/" in gitignore
     assert ".orchestra-backup-*/" in gitignore
 
 
-def test_install_preserves_existing_claude_md_as_zone_c(tmp_path: Path) -> None:
+def test_install_preserves_existing_claude_md_in_agents_state(tmp_path: Path) -> None:
     target = tmp_path / "project"
     init_git_repo(target)
     existing_content = "# Existing instructions\n\nKeep this project rule.\n"
@@ -129,11 +141,12 @@ def test_install_preserves_existing_claude_md_as_zone_c(tmp_path: Path) -> None:
     result = run_install(target)
 
     assert result.returncode == 0, result.stderr
-    installed = (target / "CLAUDE.md").read_text(encoding="utf-8")
-    repo_boundary_index = installed.index("@orchestra:repo-boundary")
-    existing_index = installed.index(existing_content.strip())
-    assert existing_index > repo_boundary_index
+    assert (target / "CLAUDE.md").is_symlink()
+    installed = (target / ".agents/STATE.md").read_text(encoding="utf-8")
     assert installed.count(existing_content.strip()) == 1
+    assert existing_content.strip() not in (target / "AGENTS.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_install_refuses_template_owned_path_conflicts_by_default(
@@ -141,7 +154,7 @@ def test_install_refuses_template_owned_path_conflicts_by_default(
 ) -> None:
     target = tmp_path / "project"
     init_git_repo(target)
-    custom_file = target / ".agents/custom.md"
+    custom_file = target / ".agents/rules/custom.md"
     custom_file.parent.mkdir(parents=True)
     custom_file.write_text("custom contract\n", encoding="utf-8")
 
@@ -158,7 +171,7 @@ def test_force_install_backs_up_conflicts_before_replacing_them(
 ) -> None:
     target = tmp_path / "project"
     init_git_repo(target)
-    custom_file = target / ".agents/custom.md"
+    custom_file = target / ".agents/rules/custom.md"
     custom_file.parent.mkdir(parents=True)
     custom_file.write_text("custom contract\n", encoding="utf-8")
 
@@ -167,11 +180,11 @@ def test_force_install_backs_up_conflicts_before_replacing_them(
     assert result.returncode == 0, result.stderr
     backups = list(target.glob(".orchestra-backup-*"))
     assert len(backups) == 1
-    assert (backups[0] / ".agents/custom.md").read_text(
+    assert (backups[0] / ".agents/rules/custom.md").read_text(
         encoding="utf-8"
     ) == "custom contract\n"
     assert (target / ".agents/INDEX.md").is_file()
-    assert not (target / ".agents/custom.md").exists()
+    assert not (target / ".agents/rules/custom.md").exists()
 
 
 def test_install_preserves_existing_settings_and_writes_merge_candidate(
@@ -266,20 +279,21 @@ def test_update_uses_namespaced_version_file_and_preserves_project_version(
     ) == "0.3.1\n"
 
 
-def test_install_creates_resolving_design_tracker_symlink(tmp_path: Path) -> None:
+def test_install_keeps_native_directories_to_settings_only(tmp_path: Path) -> None:
     target = tmp_path / "project"
     init_git_repo(target)
 
     result = run_install(target)
 
     assert result.returncode == 0, result.stderr
-    link = target / ".codex/skills/design-tracker"
-    assert link.is_symlink()
-    assert link.is_dir()
-    assert link.resolve() == (target / ".claude/skills/design-tracker").resolve()
+    assert not any(path.is_symlink() for path in (target / ".claude").iterdir())
+    assert not any(path.is_symlink() for path in (target / ".codex").iterdir())
+    assert ".agents/hooks/" in (target / ".claude/settings.json").read_text(
+        encoding="utf-8"
+    )
 
 
-def test_install_repairs_design_tracker_symlink_via_update(tmp_path: Path) -> None:
+def test_update_removes_legacy_native_runtime_paths(tmp_path: Path) -> None:
     template = build_template_repo(tmp_path)
 
     target = tmp_path / "project"
@@ -298,15 +312,83 @@ def test_install_repairs_design_tracker_symlink_via_update(tmp_path: Path) -> No
         ["git", "-C", str(target), "commit", "-qm", "initial install"], check=True
     )
 
-    link = target / ".codex/skills/design-tracker"
-    link.unlink()
+    link = target / ".claude/skills"
+    if link.is_symlink():
+        link.unlink()
     link.write_text("not a symlink anymore\n", encoding="utf-8")
+    codex_skills = target / ".codex/skills"
+    if codex_skills.is_symlink():
+        codex_skills.unlink()
+    codex_skills.mkdir()
+    (codex_skills / "legacy.md").write_text("legacy\n", encoding="utf-8")
+    legacy_project_files = {
+        "docs/DESIGN.md": "# Legacy design\n",
+        "logs/session.log": "legacy log\n",
+        "checkpoints/session.md": "legacy checkpoint\n",
+    }
+    for relative_path, content in legacy_project_files.items():
+        legacy_path = target / ".claude" / relative_path
+        legacy_path.parent.mkdir(parents=True, exist_ok=True)
+        legacy_path.write_text(content, encoding="utf-8")
+    claude_settings = target / ".claude/settings.json"
+    claude_settings.write_text(
+        claude_settings.read_text(encoding="utf-8").replace(
+            ".agents/hooks/", ".claude/hooks/"
+        ),
+        encoding="utf-8",
+    )
 
     update_result = run_update(target, template)
 
     assert update_result.returncode == 0, update_result.stderr
-    assert link.is_symlink()
-    assert link.resolve() == (target / ".claude/skills/design-tracker").resolve()
+    assert not link.exists()
+    assert not codex_skills.exists()
+    assert {path.name for path in (target / ".codex").iterdir()} == {"config.toml"}
+    migrated_settings = claude_settings.read_text(encoding="utf-8")
+    assert ".agents/hooks/" in migrated_settings
+    assert ".claude/hooks/" not in migrated_settings
+    for relative_path in ("logs/session.log", "checkpoints/session.md"):
+        assert (target / ".agents" / relative_path).read_text(encoding="utf-8") == (
+            legacy_project_files[relative_path]
+        )
+    migration_backups = list(target.glob(".orchestra-backup-native-migration-*"))
+    assert len(migration_backups) == 1
+    assert (migration_backups[0] / ".claude/docs/DESIGN.md").read_text(
+        encoding="utf-8"
+    ) == legacy_project_files["docs/DESIGN.md"]
+
+
+def test_update_migrates_legacy_claude_zones_into_agents_state(tmp_path: Path) -> None:
+    template = build_template_repo(tmp_path)
+    target = tmp_path / "project"
+    init_git_repo(target)
+    install_result = run_install(target, script=template / "scripts/install.sh")
+    assert install_result.returncode == 0, install_result.stderr
+
+    (target / "CLAUDE.md").unlink()
+    legacy_state = "## Current Project\n\nKeep this migrated state.\n"
+    (target / "CLAUDE.md").write_text(
+        "# Old Claude adapter\n\n"
+        "# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "# @orchestra:template-boundary\n"
+        "# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "## Repository Identity\n\nLegacy project.\n\n"
+        "# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "# @orchestra:repo-boundary\n"
+        "# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" + legacy_state,
+        encoding="utf-8",
+    )
+    (target / "AGENTS.md").write_text("# Old CLI bootstrap\n", encoding="utf-8")
+
+    update_result = run_update(target, template)
+
+    assert update_result.returncode == 0, update_result.stderr
+    assert (target / "CLAUDE.md").is_symlink()
+    assert (target / "CLAUDE.md").resolve() == (target / "AGENTS.md").resolve()
+    migrated = (target / ".agents/STATE.md").read_text(encoding="utf-8")
+    assert "Legacy project." in migrated
+    assert legacy_state.strip() in migrated
+    assert "Legacy project." not in (target / "AGENTS.md").read_text(encoding="utf-8")
 
 
 def test_update_leaves_no_stage_and_swap_debris_and_syncs_safe_dirs(
@@ -364,7 +446,7 @@ def test_update_rolls_back_safe_dir_on_mid_swap_failure(tmp_path: Path) -> None:
     )
 
     # Shim `mv` on PATH to fail specifically on the second (staging -> live)
-    # rename of the .agents swap, simulating a crash between the two mv
+    # rename of the .agents/rules swap, simulating a crash between the two mv
     # calls in sync_safe_dirs(). Every other invocation delegates to the
     # real mv so the rest of the update proceeds normally.
     shim_dir = tmp_path / "fake-bin"
@@ -373,7 +455,7 @@ def test_update_rolls_back_safe_dir_on_mid_swap_failure(tmp_path: Path) -> None:
     mv_shim.write_text(
         "#!/usr/bin/env bash\n"
         'for arg in "$@"; do\n'
-        '    if [[ "${arg}" == *".agents.orchestra-staging."* ]]; then\n'
+        '    if [[ "${arg}" == *".agents/rules.orchestra-staging."* ]]; then\n'
         '        echo "shim: simulated mid-swap mv failure" >&2\n'
         "        exit 1\n"
         "    fi\n"

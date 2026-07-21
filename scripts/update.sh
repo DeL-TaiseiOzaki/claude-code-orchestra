@@ -3,8 +3,8 @@
 # scripts/update.sh — Claude Code Orchestra Template Updater
 #
 # Fetches the latest version of the claude-code-orchestra template and safely
-# updates local files. Template-owned directories are fully overwritten, while
-# hybrid files (CLAUDE.md) use a boundary marker to preserve local customizations.
+# updates local files. Template-owned content is centralized under .agents/;
+# mutable project context is preserved in .agents/STATE.md and .agents/docs/.
 #
 # Usage:
 #   ./scripts/update.sh            # Update to latest main
@@ -27,20 +27,23 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Directories/files to overwrite entirely from template
 SAFE_DIRS=(
-    ".claude/skills"
-    ".claude/hooks"
-    ".claude/rules"
-    ".claude/agents"
     ".codex"
-    ".agents"
+    ".agents/rules"
+    ".agents/skills"
+    ".agents/agents"
+    ".agents/hooks"
+    ".agents/workflows"
 )
 SAFE_FILES=(
-    ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"
-    ".claude/docs/libraries/.gitkeep"
-    ".claude/docs/reviews/.gitkeep"
+    "AGENTS.md"
+    ".agents/INDEX.md"
+    ".agents/check.sh"
+    ".agents/change_main.md"
+    ".agents/docs/CODEX_HANDOFF_PLAYBOOK.md"
+    ".agents/docs/libraries/.gitkeep"
+    ".agents/docs/reviews/.gitkeep"
     "scripts/install.sh"
     "scripts/update.sh"
-    "AGENTS.md"
 )
 
 # Paths that previous template versions installed but no longer ship.
@@ -53,11 +56,20 @@ SAFE_FILES=(
 # radius scoped to template-owned locations.
 DEPRECATED_PATHS=(
     ".gemini"
+    ".claude/agents"
+    ".claude/checkpoints"
+    ".claude/docs"
+    ".claude/hooks"
+    ".claude/logs"
+    ".claude/rules"
+    ".claude/skills"
+    ".codex/skills"
 )
 
-# Hybrid files that use boundary-based merging
-HYBRID_FILES=(
-    "CLAUDE.md"
+LEGACY_PROJECT_DIRS=(
+    "docs"
+    "logs"
+    "checkpoints"
 )
 
 # Settings files shown as diff only
@@ -321,6 +333,40 @@ cleanup_deprecated_paths() {
     done
 }
 
+migrate_legacy_native_data() {
+    header "Migrating Legacy Native Data"
+
+    local name legacy canonical backup_root=""
+    for name in "${LEGACY_PROJECT_DIRS[@]}"; do
+        legacy="${PROJECT_ROOT}/.claude/${name}"
+        canonical="${PROJECT_ROOT}/.agents/${name}"
+        if [[ ! -d "${legacy}" || -L "${legacy}" ]]; then
+            continue
+        fi
+
+        if [[ ! -e "${canonical}" ]] ||
+            [[ -d "${canonical}" && -z "$(find "${canonical}" -mindepth 1 -print -quit)" ]]; then
+            rm -rf -- "${canonical}"
+            mkdir -p "$(dirname "${canonical}")"
+            mv -- "${legacy}" "${canonical}"
+            UPDATED_FILES+=(".agents/${name} (migrated from .claude/${name})")
+            continue
+        fi
+
+        if [[ -z "${backup_root}" ]]; then
+            backup_root="${PROJECT_ROOT}/.orchestra-backup-native-migration-$(date +%Y%m%d%H%M%S)-$$"
+        fi
+        mkdir -p "${backup_root}/.claude" "${canonical}"
+        cp -a -- "${legacy}" "${backup_root}/.claude/${name}"
+        cp -an -- "${legacy}/." "${canonical}/"
+        UPDATED_FILES+=(".agents/${name} (merged from .claude/${name})")
+    done
+
+    if [[ -n "${backup_root}" ]]; then
+        warn "Legacy native data was backed up before merging: ${backup_root}"
+    fi
+}
+
 # =============================================================================
 # Phase 3: Safe files (full overwrite)
 # =============================================================================
@@ -412,20 +458,12 @@ sync_safe_files() {
 }
 
 # =============================================================================
-# Phase 4: Hybrid files (3-zone merge: template | repo-identity | working-state)
+# Phase 4: Legacy state migration
 # =============================================================================
 #
-# CLAUDE.md layout:
-#   Zone A — Orchestra concept & template base (replaced from new template)
-#   @orchestra:template-boundary
-#   Zone B — Repository identity (managed by /init, preserved across updates)
-#   @orchestra:repo-boundary
-#   Zone C — Working state (appended by skills, preserved across updates)
-#
-# Migration: files using the legacy @orchestra:local-boundary marker are
-# auto-migrated — their content below the legacy marker becomes Zone C,
-# and Zone B is reset to the template placeholder so /init can populate it.
-# Re-running on an already-migrated file is a no-op (idempotent).
+# Current releases keep AGENTS.md immutable and store mutable context in
+# .agents/STATE.md. Boundary helpers remain only to migrate older 2/3-zone
+# AGENTS.md or CLAUDE.md files before the minimal bootstrap overwrites them.
 
 # Strip leading blank or ━ separator lines from stdin
 _strip_leading_frame() {
@@ -474,7 +512,7 @@ _extract_zone_below() {
     awk -v m="${marker}" 'found { print } index($0, m) { found = 1 }' "${file}" | _strip_leading_frame
 }
 
-# Detect local CLAUDE.md format: "new" | "legacy" | "none"
+# Detect a local agent-contract format: "new" | "legacy" | "none"
 _detect_format() {
     local file="$1"
     local has_template=false has_repo=false has_legacy=false
@@ -499,99 +537,86 @@ _emit_boundary_block() {
     echo "${BOUNDARY_LINE}"
 }
 
-merge_hybrid_files() {
-    header "Merging Hybrid Files"
+migrate_legacy_agent_state() {
+    header "Preserving Agent State"
 
-    for file in "${HYBRID_FILES[@]}"; do
-        local src="${TEMPLATE_DIR}/${file}"
-        local dst="${PROJECT_ROOT}/${file}"
+    local state="${PROJECT_ROOT}/.agents/STATE.md"
+    mkdir -p "${PROJECT_ROOT}/.agents/docs/research" \
+        "${PROJECT_ROOT}/.agents/logs" "${PROJECT_ROOT}/.agents/checkpoints"
+    if [[ ! -f "${state}" ]]; then
+        cp -f "${TEMPLATE_DIR}/.agents/STATE.md" "${state}"
+        UPDATED_FILES+=(".agents/STATE.md")
+    fi
+    if [[ ! -f "${PROJECT_ROOT}/.agents/docs/DESIGN.md" ]]; then
+        cp -f "${TEMPLATE_DIR}/.agents/docs/DESIGN.md" \
+            "${PROJECT_ROOT}/.agents/docs/DESIGN.md"
+        UPDATED_FILES+=(".agents/docs/DESIGN.md")
+    fi
 
-        if [[ ! -f "${src}" ]]; then
-            warn "Template does not contain ${file}, skipping."
-            continue
+    local source="" fmt="none" label=""
+    for label in CLAUDE.md AGENTS.md; do
+        local candidate="${PROJECT_ROOT}/${label}"
+        [[ -f "${candidate}" && ! -L "${candidate}" ]] || continue
+        fmt="$(_detect_format "${candidate}")"
+        if [[ "${fmt}" != "none" ]]; then
+            source="${candidate}"
+            break
         fi
-
-        if [[ ! -f "${dst}" ]]; then
-            info "Local ${file} does not exist. Copying from template."
-            cp -f "${src}" "${dst}"
-            UPDATED_FILES+=("${file}")
-            continue
-        fi
-
-        local zone_a zone_b zone_c fmt
-        zone_a="$(_extract_zone_above "${src}" "${TEMPLATE_BOUNDARY}")"
-        fmt="$(_detect_format "${dst}")"
-
-        case "${fmt}" in
-            new)
-                zone_b="$(_extract_zone_between "${dst}" "${TEMPLATE_BOUNDARY}" "${REPO_BOUNDARY}")"
-                zone_c="$(_extract_zone_below "${dst}" "${REPO_BOUNDARY}")"
-                ;;
-            legacy)
-                # Legacy 2-zone layout: below the old marker becomes Zone C.
-                # Zone B is reset to the template placeholder so /init can fill it.
-                zone_b="$(_extract_zone_between "${src}" "${TEMPLATE_BOUNDARY}" "${REPO_BOUNDARY}")"
-                zone_c="$(_extract_zone_below "${dst}" "${LEGACY_BOUNDARY}")"
-                warn "Migrated ${file} from legacy @orchestra:local-boundary layout to 3-zone layout."
-                warn "  → Re-run /init to populate the new 'Repository Identity' section."
-                ;;
-            none)
-                # No recognizable markers — treat the whole local file as Zone C
-                # and add the template's Zone A and Zone B placeholder around it.
-                zone_b="$(_extract_zone_between "${src}" "${TEMPLATE_BOUNDARY}" "${REPO_BOUNDARY}")"
-                zone_c="$(cat "${dst}")"
-                warn "${file} has no recognized boundary markers; wrapping existing content as Zone C."
-                warn "  → Re-run /init to populate the new 'Repository Identity' section."
-                ;;
-        esac
-
-        # Capture the old Zone A for diff reporting (best-effort)
-        local old_zone_a=""
-        case "${fmt}" in
-            new)     old_zone_a="$(_extract_zone_above "${dst}" "${TEMPLATE_BOUNDARY}")" ;;
-            legacy)  old_zone_a="$(_extract_zone_above "${dst}" "${LEGACY_BOUNDARY}")" ;;
-            none)    old_zone_a="" ;;
-        esac
-
-        # Build the merged file
-        local merged_file="${TMPDIR_UPDATE}/merged_${file//\//_}"
-        {
-            printf '%s\n' "${zone_a}"
-            echo ""
-            _emit_boundary_block "${TEMPLATE_BOUNDARY}"
-            echo ""
-            printf '%s\n' "${zone_b}"
-            echo ""
-            _emit_boundary_block "${REPO_BOUNDARY}"
-            echo ""
-            printf '%s\n' "${zone_c}"
-        } > "${merged_file}"
-
-        # Diff the template portion (Zone A) only
-        local old_file="${TMPDIR_UPDATE}/old_zone_a"
-        local new_file="${TMPDIR_UPDATE}/new_zone_a"
-        printf '%s\n' "${old_zone_a}" > "${old_file}"
-        printf '%s\n' "${zone_a}" > "${new_file}"
-
-        local zone_a_diff
-        zone_a_diff="$(diff -u "${old_file}" "${new_file}" --label "local (Zone A)" --label "new template (Zone A)" 2>/dev/null || true)"
-
-        if [[ -n "${zone_a_diff}" ]]; then
-            info "Zone A of ${file} has changed:"
-            echo "${zone_a_diff}"
-        else
-            info "Zone A of ${file} is unchanged."
-        fi
-
-        cp -f "${merged_file}" "${dst}"
-        UPDATED_FILES+=("${file}")
-        info "Merged ${file} (format: ${fmt})"
     done
+    [[ -n "${source}" ]] || return 0
+
+    local migration_marker="<!-- Migrated from legacy ${label} by scripts/update.sh. -->"
+    if grep -Fqx "${migration_marker}" "${state}"; then
+        info "Legacy state from ${label} was already migrated."
+        return 0
+    fi
+
+    local identity="" working=""
+    if [[ "${fmt}" == "new" ]]; then
+        identity="$(_extract_zone_between "${source}" "${TEMPLATE_BOUNDARY}" "${REPO_BOUNDARY}")"
+        working="$(_extract_zone_below "${source}" "${REPO_BOUNDARY}")"
+    else
+        working="$(_extract_zone_below "${source}" "${LEGACY_BOUNDARY}")"
+    fi
+    {
+        echo ""
+        echo "${migration_marker}"
+        [[ -z "${identity}" ]] || printf '\n%s\n' "${identity}"
+        [[ -z "${working}" ]] || printf '\n%s\n' "${working}"
+    } >> "${state}"
+    warn "Migrated legacy agent state from ${label} to .agents/STATE.md."
+}
+
+repair_claude_entrypoint() {
+    header "Repairing Claude Entry Point"
+
+    local link="${PROJECT_ROOT}/CLAUDE.md"
+    local canonical="${PROJECT_ROOT}/AGENTS.md"
+    if [[ -L "${link}" ]] \
+        && [[ "$(realpath -m -- "${link}")" == "$(realpath -m -- "${canonical}")" ]]; then
+        info "Verified CLAUDE.md -> AGENTS.md"
+        return 0
+    fi
+    rm -rf -- "${link}"
+    ln -s "AGENTS.md" "${link}"
+    UPDATED_FILES+=("CLAUDE.md -> AGENTS.md")
 }
 
 # =============================================================================
-# Phase 5: Settings files (diff only, no auto-merge)
+# Phase 5: Native settings migration and diff
 # =============================================================================
+migrate_native_settings_paths() {
+    local settings="${PROJECT_ROOT}/.claude/settings.json"
+    [[ -f "${settings}" ]] || return 0
+    if ! grep -Fq '.claude/hooks/' "${settings}"; then
+        return 0
+    fi
+
+    sed -i 's#\.claude/hooks/#.agents/hooks/#g' "${settings}"
+    UPDATED_FILES+=(".claude/settings.json (migrated hook paths)")
+    info "Migrated .claude hook paths to canonical .agents/hooks paths."
+}
+
 check_settings_files() {
     header "Checking Settings Files"
 
@@ -702,10 +727,13 @@ main() {
     parse_args "$@"
     preflight_checks
     fetch_template
+    migrate_legacy_native_data
     cleanup_deprecated_paths
+    migrate_legacy_agent_state
     sync_safe_dirs
     sync_safe_files
-    merge_hybrid_files
+    repair_claude_entrypoint
+    migrate_native_settings_paths
     check_settings_files
     update_version
     print_summary
