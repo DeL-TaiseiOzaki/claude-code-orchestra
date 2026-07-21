@@ -4,36 +4,44 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
-TEMPLATE_BOUNDARY="@orchestra:template-boundary"
-REPO_BOUNDARY="@orchestra:repo-boundary"
-LEGACY_BOUNDARY="@orchestra:local-boundary"
-
 TEMPLATE_OWNED_DIRS=(
-    ".claude/skills"
-    ".claude/hooks"
-    ".claude/rules"
-    ".claude/agents"
     ".codex"
-    ".agents"
+    ".agents/rules"
+    ".agents/skills"
+    ".agents/agents"
+    ".agents/hooks"
+    ".agents/workflows"
+)
+LEGACY_NATIVE_PATHS=(
+    ".claude/agents"
+    ".claude/checkpoints"
+    ".claude/docs"
+    ".claude/hooks"
+    ".claude/logs"
+    ".claude/rules"
+    ".claude/skills"
 )
 TEMPLATE_OWNED_FILES=(
-    ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"
-    ".claude/docs/libraries/.gitkeep"
-    ".claude/docs/reviews/.gitkeep"
+    ".agents/INDEX.md"
+    ".agents/check.sh"
+    ".agents/change_main.md"
+    ".agents/docs/CODEX_HANDOFF_PLAYBOOK.md"
+    ".agents/docs/libraries/.gitkeep"
+    ".agents/docs/reviews/.gitkeep"
     "scripts/install.sh"
     "scripts/update.sh"
-    "AGENTS.md"
 )
 PROJECT_FILES_IF_MISSING=(
-    ".claude/docs/DESIGN.md"
-    ".claude/docs/research/.gitkeep"
+    ".agents/STATE.md"
+    ".agents/docs/DESIGN.md"
+    ".agents/docs/research/.gitkeep"
 )
 GITIGNORE_ENTRIES=(
     ".claude/settings.local.json"
     ".claude/settings.orchestra.json"
     "CLAUDE.local.md"
-    ".claude/logs/"
-    ".claude/checkpoints/"
+    ".agents/logs/"
+    ".agents/checkpoints/"
     ".orchestra-backup-*/"
 )
 
@@ -60,7 +68,9 @@ Options:
   -f, --force  Back up and replace conflicting template-owned paths
   -h, --help   Show this help message
 
-Existing CLAUDE.md content is preserved in Zone C. Existing
+Existing AGENTS.md and CLAUDE.md content is preserved in .agents/STATE.md.
+The template installs the shared AGENTS.md contract and makes CLAUDE.md a relative
+symlink to it. Existing
 .claude/settings.json is never overwritten; a merge candidate is written to
 .claude/settings.orchestra.json when the files differ.
 EOF
@@ -101,10 +111,11 @@ parse_args() {
 
 require_source_paths() {
     local path
-    for path in "${TEMPLATE_OWNED_DIRS[@]}" "${TEMPLATE_OWNED_FILES[@]}" \
-        "${PROJECT_FILES_IF_MISSING[@]}" "CLAUDE.md" ".claude/settings.json" \
+    for path in "${TEMPLATE_OWNED_DIRS[@]}" \
+        "${TEMPLATE_OWNED_FILES[@]}" "${PROJECT_FILES_IF_MISSING[@]}" \
+        "AGENTS.md" "CLAUDE.md" ".claude/settings.json" \
         "VERSION"; do
-        if [[ ! -e "${SOURCE_ROOT}/${path}" ]]; then
+        if [[ ! -e "${SOURCE_ROOT}/${path}" && ! -L "${SOURCE_ROOT}/${path}" ]]; then
             error "Template source is incomplete: ${path} is missing."
             exit 1
         fi
@@ -132,8 +143,10 @@ validate_destination_paths() {
     local path resolved parent component current
     local paths=(
         "${TEMPLATE_OWNED_DIRS[@]}"
+        "${LEGACY_NATIVE_PATHS[@]}"
         "${TEMPLATE_OWNED_FILES[@]}"
         "${PROJECT_FILES_IF_MISSING[@]}"
+        "AGENTS.md"
         "CLAUDE.md"
         ".claude/settings.json"
         ".claude/settings.orchestra.json"
@@ -164,9 +177,11 @@ validate_destination_paths() {
 validate_project_files() {
     local path destination
     local project_files=(
+        "AGENTS.md"
         "CLAUDE.md"
         ".claude/settings.json"
-        ".claude/docs/DESIGN.md"
+        ".agents/STATE.md"
+        ".agents/docs/DESIGN.md"
         ".gitignore"
     )
     for path in "${project_files[@]}"; do
@@ -186,21 +201,10 @@ validate_project_files() {
     done
 }
 
-check_claude_md_format() {
-    local claude_md="${TARGET_ROOT}/CLAUDE.md"
-    [[ -f "${claude_md}" ]] || return 0
-
-    if grep -q "${TEMPLATE_BOUNDARY}\|${REPO_BOUNDARY}\|${LEGACY_BOUNDARY}" \
-        "${claude_md}"; then
-        error "CLAUDE.md already contains Orchestra boundary markers."
-        error "Use the existing scripts/update.sh instead of the installer."
-        exit 2
-    fi
-}
-
 collect_conflicts() {
     local path
-    for path in "${TEMPLATE_OWNED_DIRS[@]}" "${TEMPLATE_OWNED_FILES[@]}"; do
+    for path in "${TEMPLATE_OWNED_DIRS[@]}" "${LEGACY_NATIVE_PATHS[@]}" \
+        "${TEMPLATE_OWNED_FILES[@]}"; do
         if [[ -e "${TARGET_ROOT}/${path}" || -L "${TARGET_ROOT}/${path}" ]]; then
             CONFLICTS+=("${path}")
         fi
@@ -273,34 +277,26 @@ copy_owned_paths() {
     chmod +x "${TARGET_ROOT}/scripts/install.sh" "${TARGET_ROOT}/scripts/update.sh"
 }
 
-verify_design_tracker_symlink() {
-    # .codex/skills/design-tracker ships as a relative symlink to
-    # ../../.claude/skills/design-tracker. Some distribution paths (tarball
-    # extraction, a copy method that dereferences) can turn it into a
-    # regular file/directory or leave it dangling. Detect and repair it so
-    # the two Codex/Claude skill trees never silently diverge.
-    local link="${TARGET_ROOT}/.codex/skills/design-tracker"
-    local link_target="../../.claude/skills/design-tracker"
-    local resolved
-
-    if [[ -L "${link}" && -e "${link}" ]]; then
-        resolved="$(realpath -m -- "${link}")"
-        if [[ "${resolved}" == "${TARGET_ROOT}/.claude/skills/design-tracker" ]]; then
-            return 0
+remove_legacy_native_paths() {
+    local path
+    for path in "${LEGACY_NATIVE_PATHS[@]}"; do
+        if [[ -e "${TARGET_ROOT}/${path}" || -L "${TARGET_ROOT}/${path}" ]]; then
+            rm -rf -- "${TARGET_ROOT:?}/${path}"
+            info "Removed legacy native path ${path}"
         fi
-    fi
+    done
+}
 
-    warn "Repairing .codex/skills/design-tracker symlink"
+repair_claude_entrypoint() {
+    local link="${TARGET_ROOT}/CLAUDE.md"
+    local canonical="${TARGET_ROOT}/AGENTS.md"
+    if [[ -L "${link}" ]] \
+        && [[ "$(realpath -m -- "${link}")" == "$(realpath -m -- "${canonical}")" ]]; then
+        return 0
+    fi
     rm -rf -- "${link}"
-    mkdir -p "$(dirname "${link}")"
-    ln -s "${link_target}" "${link}"
-
-    resolved="$(realpath -m -- "${link}")"
-    if [[ ! -e "${link}" || "${resolved}" != "${TARGET_ROOT}/.claude/skills/design-tracker" ]]; then
-        error "Failed to restore .codex/skills/design-tracker symlink."
-        exit 1
-    fi
-    info "Restored .codex/skills/design-tracker -> ${link_target}"
+    ln -s "AGENTS.md" "${link}"
+    info "Restored CLAUDE.md -> AGENTS.md"
 }
 
 copy_project_files_if_missing() {
@@ -317,26 +313,35 @@ copy_project_files_if_missing() {
     done
 }
 
-install_claude_md() {
-    local source="${SOURCE_ROOT}/CLAUDE.md"
-    local destination="${TARGET_ROOT}/CLAUDE.md"
-    local temporary="${TARGET_ROOT}/.CLAUDE.md.tmp.$$"
+install_agent_files() {
+    local source="${SOURCE_ROOT}/AGENTS.md"
+    local destination="${TARGET_ROOT}/AGENTS.md"
+    local existing_agents="${TARGET_ROOT}/AGENTS.md"
+    local existing_claude="${TARGET_ROOT}/CLAUDE.md"
+    local state="${TARGET_ROOT}/.agents/STATE.md"
+    local temporary="${TARGET_ROOT}/.AGENTS.md.tmp.$$"
+    mkdir -p "${TARGET_ROOT}/.agents/logs" "${TARGET_ROOT}/.agents/checkpoints"
 
-    if [[ ! -f "${destination}" ]]; then
-        cp -a "${source}" "${destination}"
-        info "Installed CLAUDE.md"
-        return 0
+    if [[ -f "${existing_agents}" ]]; then
+        {
+            echo ""
+            echo "<!-- Existing AGENTS.md content preserved by scripts/install.sh. -->"
+            echo ""
+            cat "${existing_agents}"
+        } >> "${state}"
     fi
-
+    if [[ -f "${existing_claude}" ]] \
+        && { [[ ! -f "${existing_agents}" ]] || ! cmp -s "${existing_agents}" "${existing_claude}"; }; then
+        {
+            echo ""
+            echo "<!-- Existing CLAUDE.md content preserved by scripts/install.sh. -->"
+            echo ""
+            cat "${existing_claude}"
+        } >> "${state}"
+    fi
     cp -a "${source}" "${temporary}"
-    {
-        echo ""
-        echo "<!-- Existing CLAUDE.md content preserved by scripts/install.sh. -->"
-        echo ""
-        cat "${destination}"
-    } >> "${temporary}"
     mv -f "${temporary}" "${destination}"
-    info "Installed CLAUDE.md and preserved existing content in Zone C"
+    info "Installed shared AGENTS.md and preserved existing instructions in .agents/STATE.md"
 }
 
 install_settings() {
@@ -405,14 +410,14 @@ main() {
     resolve_target
     validate_destination_paths
     validate_project_files
-    check_claude_md_format
     collect_conflicts
     confirm_install
     backup_conflicts
+    remove_legacy_native_paths
     copy_owned_paths
-    verify_design_tracker_symlink
     copy_project_files_if_missing
-    install_claude_md
+    install_agent_files
+    repair_claude_entrypoint
     install_settings
     install_version_marker
     ensure_gitignore_entries

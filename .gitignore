@@ -53,10 +53,13 @@ Thumbs.db
 # Logs
 *.log
 logs/
-.claude/logs/
+!.agents/logs/
+.agents/logs/*
+!.agents/logs/.gitkeep
 
 # Checkpoints (session-specific, may contain sensitive info)
-.claude/checkpoints/
+.agents/checkpoints/*
+!.agents/checkpoints/.gitkeep
 .orchestra-backup-*/
 
 # Jupyter

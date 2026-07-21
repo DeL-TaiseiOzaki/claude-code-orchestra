@@ -5,12 +5,12 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-AGENTS_DIR = REPO_ROOT / ".claude/agents"
+AGENTS_DIR = REPO_ROOT / ".agents/agents"
 ROUTING_FILES = (
-    REPO_ROOT / "CLAUDE.md",
+    REPO_ROOT / "AGENTS.md",
     REPO_ROOT / "README.md",
-    *sorted((REPO_ROOT / ".claude").rglob("*.md")),
-    *sorted((REPO_ROOT / ".claude/hooks").glob("*.py")),
+    *sorted((REPO_ROOT / ".agents").rglob("*.md")),
+    *sorted((REPO_ROOT / ".agents/hooks").glob("*.py")),
 )
 BARE_GENERAL_PURPOSE = re.compile(
     r"(?<![A-Za-z0-9-])general-purpose(?!-(?:opus|sonnet)|[A-Za-z0-9-])"
@@ -67,7 +67,7 @@ def test_routing_docs_do_not_reference_removed_general_purpose_agent() -> None:
 
 
 def test_team_execution_defaults_to_sonnet_with_opus_escalation() -> None:
-    team_execute = (REPO_ROOT / ".claude/skills/team-execute/SKILL.md").read_text(
+    team_execute = (REPO_ROOT / ".agents/skills/team-execute/SKILL.md").read_text(
         encoding="utf-8"
     )
 

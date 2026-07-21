@@ -6,12 +6,12 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-HOOKS_SOURCE_DIR = REPO_ROOT / ".claude" / "hooks"
+HOOKS_SOURCE_DIR = REPO_ROOT / ".agents" / "hooks"
 DISPATCHER_NAME = "post-bash-check.py"
 
 
 def build_isolated_hooks_dir(tmp_path: Path) -> Path:
-    """Copy .claude/hooks/ into an isolated tmp project so log-cli-tools.py's
+    """Copy canonical hooks into an isolated tmp project so log-cli-tools.py's
     LOG_DIR (Path(__file__).parent.parent / "logs") resolves under tmp_path
     instead of writing into the real repo's .claude/logs/."""
     hooks_dir = tmp_path / ".claude" / "hooks"
