@@ -53,6 +53,16 @@ Phase 3: FIX PLAN & APPROVE (Codex Validation + Claude Lead + User)
 > Main orchestrator context is precious. Large-scale error context analysis is delegated to Opus subagent (1M context).
 > Codex is consulted early for pattern recognition and hypothesis generation.
 
+### Step 0: Resolve Workspace
+
+Resolve this bug's deterministic workspace once. The title becomes file and directory names, so give it a short English descriptor of the bug -- not the user's raw wording, which the Language Protocol keeps out of paths:
+
+```bash
+python3 .agents/skills/_shared/workspace.py --skill troubleshoot --title "{short English title}" --create
+```
+
+This prints one JSON object: `slug`, `team_name`, and `paths` (`context`, `root_cause`, `impact`, `state_input`, `team_dir`). Exit 0 resolved/created; 1 bad args; 2 applies only to `--verify` (used later in Phase 3). Use `{slug}`, `{team_name}`, and every `paths.*` value from this JSON verbatim for the rest of this skill -- do not re-derive them by hand in a later phase.
+
 ### Step 1: Gather Error Details from User
 
 Ask the user to provide:
@@ -99,16 +109,15 @@ Task tool:
 
     Use Glob, Grep, and Read tools to investigate thoroughly.
 
-    Save analysis to .agents/docs/research/troubleshoot-{issue}-context.md
+    Save analysis to `{paths.context}` (from Phase 1 Step 0).
     Return concise summary (5-7 key findings).
 ```
 
 ### Step 2.5: Codex Initial Error Pattern Analysis
 
-Consult Codex for initial hypothesis generation before creating the Bug Report:
+Consult Codex for initial hypothesis generation before creating the Bug Report. Write the prompt to a file, then invoke the wrapper:
 
-```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
+```text
 Objective: Analyze this error and generate initial hypotheses for root cause.
 Context:
 - Error: {error message / stack trace}
@@ -123,14 +132,25 @@ Output format:
 ## Hypotheses (ranked by likelihood)
 ## Investigation Plan (per hypothesis)
 ## Known Similar Patterns
-" < /dev/null 2>/dev/null
 ```
+
+```bash
+python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-troubleshoot-initial.md --label troubleshoot-initial
+```
+
+`.agents/skills/_shared/codex_consult.py` exits 0 when Codex answered normally, 2 if the Codex CLI is not installed, 3 if Codex failed or timed out -- check the JSON `ok` field and read `response_file` for the answer (`error`/`stderr_file` explain a failure). Every later Codex consultation in this skill follows this same write-prompt-then-invoke pattern without repeating these exit codes.
 
 Use Codex's analysis to strengthen the Initial Hypotheses section of the Bug Report.
 
 ### Step 3: Create Bug Report
 
-Combine error details + codebase analysis + Codex initial hypotheses into a Bug Report following the template contract in `references/bug-report-template.md`.
+Combine error details + codebase analysis + Codex initial hypotheses into a Bug Report following the template contract in `references/bug-report-template.md`. Save it to `.agents/docs/research/troubleshoot-{slug}-bug-report.md`, then validate it:
+
+```bash
+python3 .agents/skills/_shared/validate_doc.py --contract bug-report --file .agents/docs/research/troubleshoot-{slug}-bug-report.md
+```
+
+Exit 0 means every required section (`Summary`, `Reproduction`, `Expected vs Actual`, `Initial Hypotheses`) is present; exit 2 means one is missing -- fill the gap before proceeding.
 
 This bug report is passed to Phase 2 teammates as shared context.
 
@@ -146,12 +166,12 @@ This bug report is passed to Phase 2 teammates as shared context.
 ### Team Setup
 
 ```
-Create an agent team for troubleshooting: {issue}
+Create an agent team named `{team_name}` for troubleshooting: {slug}
 
 Spawn two teammates:
 
 1. **Root Cause Analyst** — Uses Codex CLI as PRIMARY analysis engine for deep code reasoning
-   Prompt: "You are the Root Cause Analyst for bug: {issue}.
+   Prompt: "You are the Root Cause Analyst for bug: {slug}.
 
    Your job: Identify the definitive root cause of this error through deep code analysis.
    Codex CLI is your PRIMARY tool for reasoning about code behavior.
@@ -177,10 +197,13 @@ Spawn two teammates:
 
    You MUST consult Codex for EACH of the following analysis tasks.
    Do NOT skip Codex consultation — it is the primary reasoning engine for this role.
+   Each consultation below follows the same shape: write the prompt to a file,
+   then run `python3 .agents/skills/_shared/codex_consult.py --prompt-file <path> --label <label>`
+   and read the JSON `response_file`.
 
    ### 1. Execution Flow Tracing
-   For complex control flow, consult Codex:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
+   For complex control flow, write the prompt below to a file, then consult Codex:
+
    Objective: Trace the execution flow from {entry point} to {error location}.
    Context:
    - Entry point: {file:function}
@@ -194,12 +217,13 @@ Spawn two teammates:
    ## State Transformations
    ## Assumption Violations
    ## Critical Decision Points
-   ' < /dev/null 2>/dev/null
+
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-troubleshoot-flow.md --label troubleshoot-flow
 
    ### 2. Hypothesis Evaluation
-   For each hypothesis, consult Codex to evaluate evidence:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
-   Objective: Evaluate hypothesis \"{hypothesis}\" against collected evidence.
+   For each hypothesis, write the prompt below to a file, then consult Codex to evaluate evidence:
+
+   Objective: Evaluate hypothesis "{hypothesis}" against collected evidence.
    Context:
    - Hypothesis: {description}
    - Evidence FOR: {list}
@@ -212,11 +236,12 @@ Spawn two teammates:
    ## Verdict (CONFIRMED / ELIMINATED / INCONCLUSIVE)
    ## Reasoning
    ## Remaining Unknowns
-   ' < /dev/null 2>/dev/null
+
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-troubleshoot-hypothesis.md --label troubleshoot-hypothesis
 
    ### 3. Fix Approach Design
-   Consult Codex for trade-off analysis of fix alternatives:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
+   Write the prompt below to a file, then consult Codex for trade-off analysis of fix alternatives:
+
    Objective: Design and compare fix approaches for root cause: {root cause description}.
    Context:
    - Root cause: {description}
@@ -232,11 +257,12 @@ Spawn two teammates:
    ## Approach B: {name}
    ## Comparison Matrix
    ## Recommendation with Rationale
-   ' < /dev/null 2>/dev/null
+
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-troubleshoot-fix-design.md --label troubleshoot-fix-design
 
    ### 4. Fix Correctness Verification
-   Before finalizing, consult Codex to verify the proposed fix:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
+   Before finalizing, write the prompt below to a file, then consult Codex to verify the proposed fix:
+
    Objective: Verify that the proposed fix correctly resolves the root cause.
    Context:
    - Root cause: {description}
@@ -251,9 +277,10 @@ Spawn two teammates:
    ## Edge Case Coverage
    ## New Failure Modes (if any)
    ## Confidence Level
-   ' < /dev/null 2>/dev/null
 
-   Save analysis to .agents/docs/research/troubleshoot-{issue}-root-cause.md
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-troubleshoot-fix-verify.md --label troubleshoot-fix-verify
+
+   Save analysis to `{paths.root_cause}` (from Phase 1 Step 0).
 
    Communicate with Impact Investigator teammate:
    - Share root cause findings that expand the affected scope
@@ -262,7 +289,7 @@ Spawn two teammates:
 
    IMPORTANT — Work Log:
    When ALL your tasks are complete, write your work log to
-   .agents/logs/agent-teams/{team-name}/root-cause-analyst.md per the shared
+   {paths.team_dir}root-cause-analyst.md per the shared
    format: .agents/skills/_shared/work-log-format.md
    Role-specific sections replacing Tasks Completed for this role:
    ## Hypotheses Evaluated
@@ -280,7 +307,7 @@ Spawn two teammates:
    "
 
 2. **Impact Investigator** — Uses Opus with Git history, codebase search, WebSearch, and Codex for risk analysis
-   Prompt: "You are the Impact Investigator for bug: {issue}.
+   Prompt: "You are the Impact Investigator for bug: {slug}.
 
    Your job: Determine the full scope and impact of this bug, and gather context for the fix.
    Consult Codex for regression risk reasoning and fix safety analysis.
@@ -314,10 +341,13 @@ Spawn two teammates:
    ## Codex Risk Analysis Protocol (MANDATORY)
 
    You MUST consult Codex for regression risk reasoning and fix safety analysis.
+   Each consultation below follows the same shape: write the prompt to a file,
+   then run `python3 .agents/skills/_shared/codex_consult.py --prompt-file <path> --label <label>`
+   and read the JSON `response_file`.
 
    ### Regression Risk Reasoning
-   Consult Codex to evaluate what could break if the proposed change is applied:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
+   Write the prompt below to a file, then consult Codex to evaluate what could break if the proposed change is applied:
+
    Objective: Evaluate regression risk if {proposed change} is applied to {file:line}.
    Context:
    - Current behavior: {description}
@@ -333,11 +363,12 @@ Spawn two teammates:
    ## Affected Code Paths
    ## Implicit Contracts at Risk
    ## Recommended Safeguards
-   ' < /dev/null 2>/dev/null
+
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-troubleshoot-regression.md --label troubleshoot-regression
 
    ### Fix Safety Analysis
-   Consult Codex to verify the proposed fix does not introduce new issues:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
+   Write the prompt below to a file, then consult Codex to verify the proposed fix does not introduce new issues:
+
    Objective: Analyze whether the proposed fix introduces new issues or side effects.
    Context:
    - Root cause: {from Root Cause Analyst}
@@ -353,9 +384,10 @@ Spawn two teammates:
    ## New Issues Identified
    ## Side Effects
    ## Mitigation Recommendations
-   ' < /dev/null 2>/dev/null
 
-   Save findings to .agents/docs/research/troubleshoot-{issue}-impact.md
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-troubleshoot-fix-safety.md --label troubleshoot-fix-safety
+
+   Save findings to `{paths.impact}` (from Phase 1 Step 0).
 
    Communicate with Root Cause Analyst teammate:
    - Share git history context that informs root cause
@@ -364,7 +396,7 @@ Spawn two teammates:
 
    IMPORTANT — Work Log:
    When ALL your tasks are complete, write your work log to
-   .agents/logs/agent-teams/{team-name}/impact-investigator.md per the shared
+   {paths.team_dir}impact-investigator.md per the shared
    format: .agents/skills/_shared/work-log-format.md
    Role-specific sections replacing Tasks Completed for this role:
    ## Git History
@@ -410,16 +442,23 @@ Without Agent Teams, this discovery loop would require multiple sequential subag
 
 ### Step 1: Synthesize Diagnosis
 
+Gate Phase 3 on the Phase 1/2 artifacts before synthesizing:
+
+```bash
+python3 .agents/skills/_shared/workspace.py --skill troubleshoot --slug {slug} --verify
+```
+
+Exit 0 means `context`, `root_cause`, and `impact` are all present and non-trivial; exit 2 means one is missing or empty -- resolve the gap before continuing.
+
 Read outputs from Phase 2:
-- `.agents/docs/research/troubleshoot-{issue}-root-cause.md` -- Root cause analysis
-- `.agents/docs/research/troubleshoot-{issue}-impact.md` -- Impact assessment
+- `{paths.root_cause}` -- Root cause analysis
+- `{paths.impact}` -- Impact assessment
 
 ### Step 1.5: Codex Fix Plan Validation
 
-Before presenting to the user, validate the fix plan with Codex:
+Before presenting to the user, validate the fix plan with Codex. Write the prompt to a file, then invoke the wrapper:
 
-```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
+```text
 Objective: Validate this fix plan for completeness and correctness.
 Context:
 - Root cause: {from Root Cause Analyst}
@@ -437,7 +476,10 @@ Output format:
 ## Potential New Issues
 ## Additional Test Cases Recommended
 ## Revised Task List (if needed)
-" < /dev/null 2>/dev/null
+```
+
+```bash
+python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-troubleshoot-plan-validation.md --label troubleshoot-plan-validation
 ```
 
 If Codex returns NEEDS_REVISION, update the fix plan before presenting to user.
@@ -484,11 +526,11 @@ shared writer script and `.agents/rules/agent-state.md`.
 - **Regression Risks**: Key risks from Impact Investigator + Codex assessment
 - **Decisions** with rationale
 
-**Write the input JSON** to `.agents/logs/zone-c-input.json`:
+**Write the input JSON** to `{paths.state_input}` (from Phase 1 Step 0):
 
 ```json
 {
-  "title": "{issue}",
+  "title": "{slug}",
   "sections": [
     {"heading": "Context", "content": "- Error: ...\n- Root cause: ...\n- Affected files: ..."},
     {"heading": "Fix Approach", "content": "- {approach}"},
@@ -502,10 +544,10 @@ shared writer script and `.agents/rules/agent-state.md`.
 
 ```bash
 python3 .agents/skills/_shared/append_state_block.py \
-  --type bug-fix --input .agents/logs/zone-c-input.json
+  --type bug-fix --input {paths.state_input}
 # Review the preview file path in the JSON output, then:
 python3 .agents/skills/_shared/append_state_block.py \
-  --type bug-fix --input .agents/logs/zone-c-input.json --apply
+  --type bug-fix --input {paths.state_input} --apply
 ```
 
 Verify `"ok": true` and `"progress_tracker_preserved": true` in the output.
@@ -519,11 +561,14 @@ Present the diagnosis and fix plan to the user following the template contract i
 
 ## Output Files
 
+Paths resolved once in Phase 1 Step 0 (`.agents/skills/_shared/workspace.py --skill troubleshoot`):
+
 | File | Author | Purpose |
 |------|--------|---------|
-| `.agents/docs/research/troubleshoot-{issue}-context.md` | Opus Subagent | Initial error context analysis |
-| `.agents/docs/research/troubleshoot-{issue}-root-cause.md` | Root Cause Analyst | Root cause analysis (Codex-driven) |
-| `.agents/docs/research/troubleshoot-{issue}-impact.md` | Impact Investigator | Impact assessment (with Codex risk analysis) |
+| `{paths.context}` | Opus Subagent | Initial error context analysis |
+| `.agents/docs/research/troubleshoot-{slug}-bug-report.md` | Lead | Bug Report (Phase 1 synthesis) |
+| `{paths.root_cause}` | Root Cause Analyst | Root cause analysis (Codex-driven) |
+| `{paths.impact}` | Impact Investigator | Impact assessment (with Codex risk analysis) |
 | `.agents/STATE.md` (updated) | Lead | Cross-session bug fix context |
 | Task list (internal) | Lead | Fix implementation tracking |
 

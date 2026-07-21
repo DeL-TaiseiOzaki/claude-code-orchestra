@@ -3,6 +3,16 @@
 
 The guard never moves research notes. ``compose`` writes a draft under
 ``.agents/logs/``; all other modes are read-only.
+
+Usage:
+    python3 refresh_guard.py --mode check
+    python3 refresh_guard.py --mode compose --project-root /path/to/repo
+
+Exit codes:
+    0  ok
+    1  bad arguments
+    2  .agents/STATE.md structure invalid (missing/duplicate required heading)
+    3  .agents/STATE.md cannot be read
 """
 
 import argparse
@@ -11,6 +21,7 @@ import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import NoReturn
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 STATE_MD = PROJECT_ROOT / ".agents" / "STATE.md"
@@ -26,8 +37,27 @@ LEGACY_HEADINGS = (
     "## Session Log",
 )
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+EXIT_BAD_INPUT = 1
 EXIT_STRUCTURE_INVALID = 2
 EXIT_PARSE_ERROR = 3
+
+
+def _emit(obj: dict) -> None:
+    """Print a single JSON object to stdout."""
+    print(json.dumps(obj, ensure_ascii=False))
+
+
+class JsonArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that reports usage errors through this tool's own
+    JSON-on-stdout / exit-1 contract instead of argparse's default stderr
+    text + exit(2) — so even an argparse-level failure (an unknown flag, or a
+    value that looks like an option) stays machine-readable and never
+    masquerades as this tool's own exit code 2 (STATE.md structure
+    invalid)."""
+
+    def error(self, message: str) -> NoReturn:
+        _emit({"ok": False, "error": message})
+        sys.exit(EXIT_BAD_INPUT)
 
 
 def _block_text(lines: list[str], heading_idx: int) -> str:
@@ -126,7 +156,7 @@ def compose_state(lines: list[str], blocks: list[dict]) -> tuple[str, list[str]]
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Guard .agents/STATE.md compaction")
+    parser = JsonArgumentParser(description="Guard .agents/STATE.md compaction")
     parser.add_argument(
         "--mode", choices=["check", "plan", "verify", "compose"], default="check"
     )

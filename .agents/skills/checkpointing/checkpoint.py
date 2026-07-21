@@ -6,6 +6,7 @@ Usage:
     python checkpoint.py                          # Full checkpoint (everything)
     python checkpoint.py --since YYYY-MM-DD       # Only recent activity
     python checkpoint.py --summary-file PATH      # Embed a pre-written summary block
+    python checkpoint.py --project-root /path/to/repo
 
 Every run does everything:
 1. Collect git history, CLI logs, Agent Teams activity, design decisions
@@ -14,25 +15,26 @@ Every run does everything:
 3. Regenerate the rolling PROGRESS.md (latest 5 checkpoints, newest first)
 4. Ensure a Zone-C-safe PROGRESS.md link exists in AGENTS.md
 5. Output skill analysis prompt for subagent pattern discovery
+
+Exit codes:
+    0  checkpoint generated
+    1  bad arguments
 """
 
 import argparse
 import json
 import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import NoReturn
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-LOG_FILE = PROJECT_ROOT / ".agents" / "logs" / "cli-tools.jsonl"
-CHECKPOINTS_DIR = PROJECT_ROOT / ".agents" / "checkpoints"
-DESIGN_FILE = PROJECT_ROOT / ".agents" / "docs" / "DESIGN.md"
-AGENTS_MD = PROJECT_ROOT / ".agents" / "STATE.md"
-PROGRESS_MD = PROJECT_ROOT / "PROGRESS.md"
 
-# Agent Teams data locations
+# Agent Teams data locations (keyed by the invoking user's home directory,
+# not the repository root, so these are unaffected by --project-root).
 TEAMS_DIR = Path.home() / ".claude" / "teams"
 TASKS_DIR = Path.home() / ".claude" / "tasks"
-WORK_LOGS_DIR = PROJECT_ROOT / ".agents" / "logs" / "agent-teams"
 
 # PROGRESS-SUMMARY block markers (delimit the user-facing summary at the top
 # of each checkpoint; PROGRESS.md is rebuilt from the content between them).
@@ -51,18 +53,38 @@ SUMMARY_SUBSECTIONS = [
     "### 将来のアクション",
 ]
 
+EXIT_BAD_ARGS = 1
+
+
+def _emit(obj: dict) -> None:
+    """Print a single JSON object to stdout."""
+    print(json.dumps(obj, ensure_ascii=False))
+
+
+class JsonArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that reports usage errors through this tool's own
+    JSON-on-stdout / exit-1 contract instead of argparse's default stderr
+    text + exit(2) — so even an argparse-level failure (an unknown flag, or a
+    value that looks like an option) stays machine-readable rather than
+    plain usage text on stderr, matching the shared script contract even
+    though this script's normal output is human-readable progress text."""
+
+    def error(self, message: str) -> NoReturn:
+        _emit({"ok": False, "error": message})
+        sys.exit(EXIT_BAD_ARGS)
+
 
 # ---------------------------------------------------------------------------
 # Data collection
 # ---------------------------------------------------------------------------
 
 
-def run_git_command(args: list[str]) -> str | None:
+def run_git_command(args: list[str], project_root: Path) -> str | None:
     """Run a git command and return output, or None if failed."""
     try:
         result = subprocess.run(
             ["git", *args],
-            cwd=PROJECT_ROOT,
+            cwd=project_root,
             capture_output=True,
             text=True,
             timeout=30,
@@ -74,9 +96,10 @@ def run_git_command(args: list[str]) -> str | None:
         return None
 
 
-def parse_cli_logs(since: str | None = None) -> list[dict]:
+def parse_cli_logs(project_root: Path, since: str | None = None) -> list[dict]:
     """Parse JSONL log file and return entries."""
-    if not LOG_FILE.exists():
+    log_file = project_root / ".agents" / "logs" / "cli-tools.jsonl"
+    if not log_file.exists():
         return []
 
     entries = []
@@ -84,7 +107,7 @@ def parse_cli_logs(since: str | None = None) -> list[dict]:
     if since:
         since_dt = datetime.fromisoformat(since).replace(tzinfo=UTC)
 
-    with open(LOG_FILE, encoding="utf-8") as f:
+    with open(log_file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -104,13 +127,13 @@ def parse_cli_logs(since: str | None = None) -> list[dict]:
     return entries
 
 
-def get_git_commits(since: str | None = None) -> list[dict]:
+def get_git_commits(project_root: Path, since: str | None = None) -> list[dict]:
     """Get git commits since the specified date."""
     args = ["log", "--pretty=format:%H|%ai|%s", "-n", "100"]
     if since:
         args.extend(["--since", since])
 
-    output = run_git_command(args)
+    output = run_git_command(args, project_root)
     if not output:
         return []
 
@@ -130,12 +153,14 @@ def get_git_commits(since: str | None = None) -> list[dict]:
     return commits
 
 
-def get_git_branch() -> str:
+def get_git_branch(project_root: Path) -> str:
     """Get current git branch name."""
-    return run_git_command(["branch", "--show-current"]) or "unknown"
+    return run_git_command(["branch", "--show-current"], project_root) or "unknown"
 
 
-def get_file_changes(since: str | None = None) -> dict[str, list[str]]:
+def get_file_changes(
+    project_root: Path, since: str | None = None
+) -> dict[str, list[str]]:
     """Get file changes (created, modified, deleted) since the specified date."""
     changes: dict[str, list[str]] = {"created": [], "modified": [], "deleted": []}
 
@@ -144,7 +169,7 @@ def get_file_changes(since: str | None = None) -> dict[str, list[str]]:
     else:
         args = ["diff", "--name-status", "HEAD~10", "HEAD"]
 
-    output = run_git_command(args)
+    output = run_git_command(args, project_root)
     if not output:
         return changes
 
@@ -173,14 +198,16 @@ def get_file_changes(since: str | None = None) -> dict[str, list[str]]:
     return changes
 
 
-def get_file_stats(since: str | None = None) -> dict[str, tuple[int, int]]:
+def get_file_stats(
+    project_root: Path, since: str | None = None
+) -> dict[str, tuple[int, int]]:
     """Get line additions/deletions per file."""
     if since:
         args = ["log", "--since", since, "--numstat", "--pretty=format:"]
     else:
         args = ["diff", "--numstat", "HEAD~10", "HEAD"]
 
-    output = run_git_command(args)
+    output = run_git_command(args, project_root)
     if not output:
         return {}
 
@@ -246,14 +273,15 @@ def collect_agent_teams_data() -> list[dict]:
     return teams
 
 
-def collect_work_logs() -> dict[str, list[dict]]:
+def collect_work_logs(project_root: Path) -> dict[str, list[dict]]:
     """Collect Teammate work logs from .agents/logs/agent-teams/{team}/."""
     logs_by_team: dict[str, list[dict]] = {}
+    work_logs_dir = project_root / ".agents" / "logs" / "agent-teams"
 
-    if not WORK_LOGS_DIR.exists():
+    if not work_logs_dir.exists():
         return logs_by_team
 
-    for team_dir in WORK_LOGS_DIR.iterdir():
+    for team_dir in work_logs_dir.iterdir():
         if not team_dir.is_dir():
             continue
 
@@ -264,7 +292,7 @@ def collect_work_logs() -> dict[str, list[dict]]:
                 team_logs.append(
                     {
                         "teammate": log_file.stem,
-                        "file": str(log_file.relative_to(PROJECT_ROOT)),
+                        "file": str(log_file.relative_to(project_root)),
                         "content": content,
                     }
                 )
@@ -277,9 +305,12 @@ def collect_work_logs() -> dict[str, list[dict]]:
     return logs_by_team
 
 
-def get_design_decisions_diff(since: str | None = None) -> str | None:
+def get_design_decisions_diff(
+    project_root: Path, since: str | None = None
+) -> str | None:
     """Get changes to DESIGN.md since last checkpoint or date."""
-    if not DESIGN_FILE.exists():
+    design_file = project_root / ".agents" / "docs" / "DESIGN.md"
+    if not design_file.exists():
         return None
 
     if since:
@@ -289,7 +320,7 @@ def get_design_decisions_diff(since: str | None = None) -> str | None:
             since,
             "-p",
             "--",
-            str(DESIGN_FILE.relative_to(PROJECT_ROOT)),
+            str(design_file.relative_to(project_root)),
         ]
     else:
         args = [
@@ -297,10 +328,10 @@ def get_design_decisions_diff(since: str | None = None) -> str | None:
             "HEAD~10",
             "HEAD",
             "--",
-            str(DESIGN_FILE.relative_to(PROJECT_ROOT)),
+            str(design_file.relative_to(project_root)),
         ]
 
-    return run_git_command(args)
+    return run_git_command(args, project_root)
 
 
 # ---------------------------------------------------------------------------
@@ -627,29 +658,30 @@ def _strip_summary_heading(summary_body: str) -> str:
     return "\n".join(out_lines).strip()
 
 
-def get_checkpoint_files() -> list[Path]:
+def get_checkpoint_files(project_root: Path) -> list[Path]:
     """Return checkpoint .md files (excluding .analyze-prompt.md), newest first.
 
     Sort is by filename timestamp (YYYY-MM-DD-HHMMSS) which is lexicographically
     ordered, so descending name sort == newest first.
     """
-    if not CHECKPOINTS_DIR.exists():
+    checkpoints_dir = project_root / ".agents" / "checkpoints"
+    if not checkpoints_dir.exists():
         return []
     files = [
         p
-        for p in CHECKPOINTS_DIR.glob("*.md")
+        for p in checkpoints_dir.glob("*.md")
         if not p.name.endswith(".analyze-prompt.md")
     ]
     return sorted(files, key=lambda p: p.stem, reverse=True)
 
 
-def regenerate_progress_md() -> bool:
+def regenerate_progress_md(project_root: Path) -> bool:
     """Rebuild PROGRESS.md from the latest checkpoints (newest first, max 5).
 
     Fully overwrites PROGRESS.md every run. Each entry links to its checkpoint
     file and reproduces that checkpoint's PROGRESS-SUMMARY subsections.
     """
-    checkpoint_files = get_checkpoint_files()[:MAX_PROGRESS_ENTRIES]
+    checkpoint_files = get_checkpoint_files(project_root)[:MAX_PROGRESS_ENTRIES]
 
     lines: list[str] = [
         "# PROGRESS",
@@ -674,16 +706,18 @@ def regenerate_progress_md() -> bool:
         lines.append(_strip_summary_heading(summary))
         lines.append("")
 
-    PROGRESS_MD.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    progress_md = project_root / "PROGRESS.md"
+    progress_md.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     return True
 
 
-def ensure_progress_link() -> bool:
+def ensure_progress_link(project_root: Path) -> bool:
     """Idempotently ensure a PROGRESS.md link exists in .agents/STATE.md."""
-    if not AGENTS_MD.exists():
+    agents_md = project_root / ".agents" / "STATE.md"
+    if not agents_md.exists():
         return False
 
-    content = AGENTS_MD.read_text(encoding="utf-8")
+    content = agents_md.read_text(encoding="utf-8")
 
     if "## Progress Tracker" in content:
         return True  # Already present; idempotent no-op.
@@ -693,7 +727,7 @@ def ensure_progress_link() -> bool:
         "",
         "Rolling progress summary (latest 5 checkpoints): [PROGRESS.md](../PROGRESS.md)",
     ]
-    AGENTS_MD.write_text(
+    agents_md.write_text(
         content.rstrip() + "\n\n" + "\n".join(block) + "\n", encoding="utf-8"
     )
     return True
@@ -745,8 +779,8 @@ Provide your analysis:"""
 # ---------------------------------------------------------------------------
 
 
-def main():
-    parser = argparse.ArgumentParser(
+def main() -> int:
+    parser = JsonArgumentParser(
         description="Full session checkpoint with skill pattern discovery",
     )
     parser.add_argument(
@@ -760,13 +794,15 @@ def main():
             "When omitted, the summary is auto-generated from collected data."
         ),
     )
+    parser.add_argument("--project-root", type=Path, default=PROJECT_ROOT)
     args = parser.parse_args()
+    project_root = args.project_root
 
     summary_body = ""
     if args.summary_file:
         summary_path = Path(args.summary_file)
         if not summary_path.is_absolute():
-            summary_path = PROJECT_ROOT / summary_path
+            summary_path = project_root / summary_path
         if summary_path.exists():
             summary_body = summary_path.read_text(encoding="utf-8").strip()
         else:
@@ -775,14 +811,14 @@ def main():
     print("Collecting session data...")
 
     # 1. Collect everything
-    branch = get_git_branch()
-    commits = get_git_commits(args.since)
-    file_changes = get_file_changes(args.since)
-    file_stats = get_file_stats(args.since)
-    cli_entries = parse_cli_logs(args.since)
+    branch = get_git_branch(project_root)
+    commits = get_git_commits(project_root, args.since)
+    file_changes = get_file_changes(project_root, args.since)
+    file_stats = get_file_stats(project_root, args.since)
+    cli_entries = parse_cli_logs(project_root, args.since)
     teams_data = collect_agent_teams_data()
-    work_logs = collect_work_logs()
-    design_diff = get_design_decisions_diff(args.since)
+    work_logs = collect_work_logs(project_root)
+    design_diff = get_design_decisions_diff(project_root, args.since)
 
     total_logs = sum(len(logs) for logs in work_logs.values())
     print(
@@ -793,9 +829,10 @@ def main():
     print(f"  Work logs: {total_logs} teammate logs")
 
     # 2. Generate checkpoint
-    CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
+    checkpoints_dir = project_root / ".agents" / "checkpoints"
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(UTC).strftime("%Y-%m-%d-%H%M%S")
-    checkpoint_file = CHECKPOINTS_DIR / f"{timestamp}.md"
+    checkpoint_file = checkpoints_dir / f"{timestamp}.md"
 
     checkpoint_content = generate_checkpoint(
         commits=commits,
@@ -819,15 +856,18 @@ def main():
     print(f"Analysis prompt: {prompt_file}")
 
     # 4. Regenerate rolling PROGRESS.md (latest 5 checkpoints, newest first).
-    if regenerate_progress_md():
-        print(f"Progress summary: {PROGRESS_MD}")
+    progress_md = project_root / "PROGRESS.md"
+    if regenerate_progress_md(project_root):
+        print(f"Progress summary: {progress_md}")
 
     # 5. Ensure AGENTS.md has a Zone-C-safe PROGRESS.md link.
-    if ensure_progress_link():
-        print(f"Progress link ensured in: {AGENTS_MD}")
+    agents_md = project_root / ".agents" / "STATE.md"
+    if ensure_progress_link(project_root):
+        print(f"Progress link ensured in: {agents_md}")
 
     print("\nDone. Next: spawn subagent to analyze the prompt file for skill patterns.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,5 +1,9 @@
 # Agent Prompts — Template Collection
 
+Each template below is a prompt body: write the filled-in template to a file and pass
+it to `.agents/skills/_shared/codex_consult.py --prompt-file` (invocation mechanics
+documented in `../SKILL.md`).
+
 ## Architect Agent
 
 ### Template

@@ -126,6 +126,22 @@ print(d.get('env', {}).get('CODEX_MODEL', ''))
         fi
     done <<< "${fallbacks}"
 
+    # The shared Codex wrapper carries the same fallback in Python, so it has
+    # to move with the single centralized model value too.
+    local consult="${ROOT}/.agents/skills/_shared/codex_consult.py"
+    if [[ -f "${consult}" ]]; then
+        local consult_model
+        consult_model=$(grep -E '^DEFAULT_MODEL\s*=' "${consult}" \
+            | head -1 | sed 's/.*=\s*"\(.*\)"/\1/')
+        if [[ -z "${consult_model}" ]]; then
+            echo "  Could not read DEFAULT_MODEL from codex_consult.py"
+            ok=false
+        elif [[ "${consult_model}" != "${settings_model}" ]]; then
+            echo "  Mismatch: codex_consult.py DEFAULT_MODEL=${consult_model} != CODEX_MODEL ${settings_model}"
+            ok=false
+        fi
+    fi
+
     ${ok}
 }
 check "Model coherence" check_model_coherence
@@ -326,6 +342,56 @@ check_native_boundaries() {
     ${ok}
 }
 check "Native runtime boundaries" check_native_boundaries
+
+# --------------------------------------------------------------------------
+# 8) Bundled skill scripts and the docs that invoke them stay in sync:
+#    every script path named in shared markdown exists, and every bundled
+#    script is reachable from at least one document.
+# --------------------------------------------------------------------------
+check_skill_scripts() {
+    local ok=true
+    # Generated content is not documentation: run logs, checkpoints, and
+    # project research can quote any path and must not drive this check.
+    local -a doc_scope=(
+        --include='*.md'
+        --exclude-dir=logs
+        --exclude-dir=checkpoints
+        --exclude-dir=research
+    )
+
+    # 8a) Every .agents/skills/**.py|.sh path mentioned in shared markdown resolves.
+    local referenced
+    referenced=$(grep -rhoE "${doc_scope[@]}" '\.agents/skills/[A-Za-z0-9_/-]+\.(py|sh)' \
+        "${ROOT}/.agents" 2>/dev/null | sort -u || true)
+    referenced+=$'\n'
+    referenced+=$(grep -rhoE '\.agents/skills/[A-Za-z0-9_/-]+\.(py|sh)' \
+        "${ROOT}/AGENTS.md" "${ROOT}/README.md" 2>/dev/null | sort -u || true)
+    local ref
+    while IFS= read -r ref; do
+        [[ -z "${ref}" ]] && continue
+        if [[ ! -f "${ROOT}/${ref}" ]]; then
+            echo "  Documented script does not exist: ${ref}"
+            ok=false
+        fi
+    done <<< "$(echo "${referenced}" | sort -u)"
+
+    # 8b) Every bundled script is documented somewhere, so orphans surface.
+    #     Matching on the bare filename is enough: a script's own directory
+    #     README refers to it by name, while callers use the full path.
+    local script
+    while IFS= read -r script; do
+        [[ -z "${script}" ]] && continue
+        local rel="${script#"${ROOT}/"}"
+        if ! grep -rqF "${doc_scope[@]}" "$(basename "${rel}")" \
+            "${ROOT}/.agents" "${ROOT}/README.md" 2>/dev/null; then
+            echo "  Bundled script is not documented in any markdown: ${rel}"
+            ok=false
+        fi
+    done < <(find "${ROOT}/.agents/skills" -type f \( -name '*.py' -o -name '*.sh' \) | sort)
+
+    ${ok}
+}
+check "Skill scripts and docs in sync" check_skill_scripts
 
 # --------------------------------------------------------------------------
 # Summary

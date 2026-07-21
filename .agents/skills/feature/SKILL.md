@@ -83,6 +83,24 @@ and the "将来のアクション" (next actions) from prior sessions. Use it to
 the new feature in what already happened and to avoid re-deciding settled
 questions. If it is absent (fresh repo), skip this step.
 
+### Step 0-b: Resolve the Workspace
+
+Resolve this feature's paths once. The title becomes file and directory names,
+so give it a short English descriptor of the feature — not the user's raw
+wording, which the Language Protocol keeps out of paths:
+
+```bash
+python3 .agents/skills/_shared/workspace.py \
+  --skill feature --title "<short English title>" --create
+```
+
+The JSON on stdout carries `slug`, `team_name`, and `paths` (`codebase_scan`,
+`research`, `state_input`, `team_dir`). From here on, every `{slug}` /
+`{team-name}` / output path in this skill — and the `/team-execute` handoff in
+Route C — MUST come from this JSON verbatim, never be re-derived by hand: two
+independently hand-derived slugs are exactly how cross-phase artifacts drift
+out of sync.
+
 ### Requirements Gathering
 
 Ask the user to clarify:
@@ -128,7 +146,7 @@ Task tool:
 
     Use Glob, Grep, and Read tools to investigate thoroughly.
 
-    Save analysis to .agents/docs/research/feature-{feature}-codebase.md
+    Save analysis to the `codebase_scan` path from Step 0-b (`.agents/docs/research/feature-{slug}-codebase.md`).
     Return concise summary (5-7 key findings).
 ```
 
@@ -136,17 +154,31 @@ Claude may supplement the subagent's analysis with targeted Glob/Grep/Read on sp
 
 ### Codex Consult Protocol
 
-Every Codex consultation in this skill uses the same wrapper (read-only for
-analysis/design; danger-full-access only for implementation in Phase 3):
+Every Codex consultation in this skill goes through the shared wrapper instead
+of a raw `codex exec` call, so a crashed CLI is never silently mistaken for an
+empty answer. Write the prompt body to a file under the workspace
+(`.agents/logs/codex/prompt-{label}.md`, beside where the wrapper writes
+the response), then invoke:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "{prompt}" < /dev/null 2>/dev/null
+python3 .agents/skills/_shared/codex_consult.py \
+  --prompt-file .agents/logs/codex/prompt-{label}.md --label {label} --sandbox read-only
 ```
 
+Read the answer from the JSON output's `response_file` path. Exit codes: `0`
+the call succeeded — read `response_file`; `1` bad args; `2` codex CLI not on
+PATH; `3` codex exited non-zero or timed out — inspect `error` and
+`stderr_file` before retrying or escalating.
+
+Sandbox: `read-only` for every analysis/design/validation consult below;
+Phase 3 implementation (Route A/B) uses `--sandbox danger-full-access`
+instead — called out again at that call site.
+
 Prompts below show only the prompt body (Objective / Context / Constraints /
-Output format). MODE=existing consultations are **MANDATORY** — do not skip them.
-The most important input to every Codex prompt is the existing codebase patterns
-from the Opus subagent scan — always include them.
+Output format) — that is the file content for `--prompt-file`. MODE=existing
+consultations are **MANDATORY** — do not skip them. The most important input to
+every Codex prompt is the existing codebase patterns from the Opus subagent
+scan — always include them.
 
 ### DESIGN.md Update
 
@@ -182,7 +214,8 @@ deterministic, atomic update; never edit root `AGENTS.md`.
 - **Library Constraints** (greenfield) or **Codex Validation** (existing)
 - **Integration Points** and **Decisions** with rationale
 
-**Write the input JSON** to `.agents/logs/zone-c-input.json`:
+**Write the input JSON** to the `state_input` path from Step 0-b
+(`.agents/logs/state-input-{slug}.json`):
 
 ```json
 {
@@ -199,10 +232,10 @@ deterministic, atomic update; never edit root `AGENTS.md`.
 
 ```bash
 python3 .agents/skills/_shared/append_state_block.py \
-  --type feature --input .agents/logs/zone-c-input.json
+  --type feature --input .agents/logs/state-input-{slug}.json
 # Review the preview file path in the JSON output, then:
 python3 .agents/skills/_shared/append_state_block.py \
-  --type feature --input .agents/logs/zone-c-input.json --apply
+  --type feature --input .agents/logs/state-input-{slug}.json --apply
 ```
 
 Verify `"ok": true` and `"progress_tracker_preserved": true` in the output.
@@ -384,7 +417,7 @@ Spawn two teammates:
      WebSearch: '{topic} best practices constraints recommendations'
    - Use WebFetch for targeted documentation lookup
 
-   Save all findings to .agents/docs/research/{feature}.md
+   Save all findings to the `research` path from Step 0-b (.agents/docs/research/{slug}.md).
    Save library docs to .agents/docs/libraries/{library}.md
 
    Communicate with Architect teammate:
@@ -418,7 +451,9 @@ Spawn two teammates:
    4. Identify risks and mitigation strategies
 
    How to consult Codex:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "{question}" < /dev/null 2>/dev/null
+   Write the question to .agents/logs/codex/prompt-<topic>.md, then:
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-<topic>.md --label <topic> --sandbox read-only
+   Read the answer from the JSON output's response_file.
 
    Update .agents/docs/DESIGN.md with architecture decisions.
 
@@ -470,7 +505,7 @@ Agent Teams collapses this into a single parallel session with real-time interac
 ### Step 1: Synthesize Results
 
 - MODE=existing: Feature Brief + Codex architecture / plan / validation outputs.
-- MODE=greenfield: read `.agents/docs/research/{feature}.md` (Researcher findings),
+- MODE=greenfield: read `.agents/docs/research/{slug}.md` (Researcher findings),
   `.agents/docs/libraries/{library}.md` (library docs), `.agents/docs/DESIGN.md`
   (Architect decisions).
 
@@ -491,6 +526,14 @@ Task breakdown should follow `references/task-patterns.md`.
 ### Step 3: Update DESIGN.md and Shared State
 
 Per the common protocols above (DESIGN.md Update / Shared State Update).
+
+Gate Phase 3 on the codebase scan before presenting the plan:
+
+```bash
+python3 .agents/skills/_shared/workspace.py --skill feature --slug {slug} --verify
+```
+
+Exit 0 means the codebase scan exists and is non-empty; exit 2 means it is missing or effectively empty — do not present a plan built on a scan that was never written.
 
 ### Step 4: Present to User (approval gate)
 
@@ -543,10 +586,16 @@ use the classification from the Codex scope analysis.
 
 #### Route A: SIMPLE (1-3 files, <50 LOC) — Codex Direct
 
-Codex implements directly (danger-full-access):
+Codex implements directly. Write the prompt body below to
+`.agents/logs/codex/prompt-route-a-implement.md`, then invoke with write access:
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox danger-full-access "
+python3 .agents/skills/_shared/codex_consult.py \
+  --prompt-file .agents/logs/codex/prompt-route-a-implement.md \
+  --label route-a-implement --sandbox danger-full-access
+```
+
+```
 Objective: Implement this feature following the approved plan.
 Context:
 - Feature Brief: {feature brief}
@@ -569,8 +618,9 @@ Output format:
 ## Tests Written
 ## Validation Results
 ## Remaining Risks
-" < /dev/null 2>/dev/null
 ```
+
+Read the implementation summary from the JSON output's `response_file`.
 
 After Codex implementation, run the quality gates:
 
@@ -598,8 +648,9 @@ After Codex implementation:
 ```
 
 Pass the Feature Brief / Project Brief, Architecture Design, and Implementation
-Plan from Phase 2 as input to `/team-execute`. Use the same `{feature}` /
-`{team-name}` naming so work logs and research/design files line up across phases.
+Plan from Phase 2 as input to `/team-execute`, together with the `slug`
+resolved in Step 0-b — `/team-execute` reuses it verbatim so work logs and
+research/design files line up across phases.
 
 ### Post-Implementation
 
@@ -610,10 +661,13 @@ it now per the common protocol.
 
 ## Output Files
 
+Paths below are resolved once by `workspace.py` in Step 0-b (see `paths` in
+its JSON) rather than hardcoded here.
+
 | File | Author | Purpose |
 |------|--------|---------|
-| `.agents/docs/research/feature-{feature}-codebase.md` | Opus Subagent | Codebase scan |
-| `.agents/docs/research/{feature}.md` (greenfield) | Researcher | External research findings |
+| `.agents/docs/research/feature-{slug}-codebase.md` | Opus Subagent | Codebase scan |
+| `.agents/docs/research/{slug}.md` (greenfield) | Researcher | External research findings |
 | `.agents/docs/libraries/{lib}.md` (greenfield) | Researcher | Library documentation |
 | `.agents/docs/DESIGN.md` (updated) | Lead / Architect (Codex-informed) | Architecture decisions |
 | `.agents/STATE.md` (updated) | Lead | Cross-session feature context |

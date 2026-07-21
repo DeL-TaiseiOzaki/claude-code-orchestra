@@ -1,6 +1,10 @@
 # Troubleshooting
 
+Entries below assume Codex is invoked through the wrapper (`.agents/skills/_shared/codex_consult.py`) described in `../SKILL.md`, except where noted.
+
 ## Codex CLI Not Found
+
+The wrapper checks `PATH` before running and exits `2` with an actionable `error` field when `codex` is missing — no separate detection step is needed. To fix it directly:
 
 ```bash
 # Check installation
@@ -8,7 +12,7 @@ which codex
 codex --version
 
 # Install
-npm install -g @openai/codex
+npm install -g @openai/codex@latest
 ```
 
 ## Authentication Error
@@ -30,7 +34,7 @@ codex login status
 | high            | 600s                |
 | xhigh           | 900s                |
 
-Configure in config.toml:
+Pass `--timeout <sec>` to the wrapper to match the table above (default: 600s). For the underlying MCP server integration, configure in config.toml:
 ```toml
 [mcp_servers.codex]
 tool_timeout_sec = 600
@@ -38,18 +42,17 @@ tool_timeout_sec = 600
 
 ## Git Repository Error
 
+Codex refuses to run outside a Git repository. Prefer `git init` in the target directory so the work stays reviewable; when that is genuinely not appropriate, pass the flag through the wrapper:
+
 ```bash
-# Run outside of a Git repository
-codex exec --skip-git-repo-check ... < /dev/null
+python3 .agents/skills/_shared/codex_consult.py \
+  --prompt-file <path> --sandbox read-only --skip-git-repo-check
 ```
 
 ## Excessive Reasoning Output
 
-```bash
-# Suppress stderr
-codex exec ... < /dev/null 2>/dev/null
-
-# Or configure in config.toml
+The wrapper never prints raw stderr to the console — it captures stderr to a `{label}.err.log` file next to the response (its path is reported as `stderr_file` in the JSON result) instead of discarding or inlining it, so a verbose or crashed run is never mistaken for a quiet success. To reduce the volume Codex itself produces, configure in config.toml:
+```toml
 hide_agent_reasoning = true
 ```
 
@@ -67,12 +70,12 @@ codex sessions show {SESSION_ID}
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| Permission denied | Write attempted in read-only mode | Change to workspace-write, or drop `--sandbox` to use the project default `danger-full-access` (now the project default — this only occurs if you explicitly passed a more restrictive `--sandbox` flag) |
-| Network blocked | Sandbox restriction | Use danger-full-access (with caution) — now the project default, so this only occurs if you explicitly passed a more restrictive `--sandbox` flag |
+| Permission denied | Write attempted while the wrapper defaulted to `--sandbox read-only` | Pass `--sandbox workspace-write` or `--sandbox danger-full-access` explicitly — the wrapper always defaults to `read-only` and never falls back to the project's `.codex/config.toml` default |
+| Network blocked | Sandbox restriction | Pass `--sandbox danger-full-access` explicitly (with caution) |
 
 ## Out of Memory
 
 When analyzing large codebases:
 1. Narrow down the target files
 2. Analyze in stages
-3. Adjust with `--config context_limit=...`
+3. Raise the per-call budget with `--config context_limit=<value>`, or scope the prompt and file list down

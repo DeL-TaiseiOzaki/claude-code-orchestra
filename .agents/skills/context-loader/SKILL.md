@@ -16,41 +16,49 @@ documentation so every agent runtime uses the same source files.
 
 ## Workflow
 
-### Step 1: Load Coding Rules
+### Step 1: Resolve the Read Plan
 
-Read all files in `.agents/rules/`:
+Run `load_context.py` to get a deterministic read order instead of a
+hand-maintained file list, so the plan never drifts from what actually exists
+on disk:
 
-```
-.agents/rules/
-├── coding-principles.md   # Simplicity, single responsibility, early return
-├── dev-environment.md     # uv, ruff, ty, pytest requirements
-├── language.md            # Think in English, respond in Japanese
-├── security.md            # Secrets, validation, SQLi/XSS prevention
-├── testing.md             # TDD, AAA pattern, 80% coverage
-├── tiers.md               # Stable role and permission boundaries
-├── cli-execution.md       # CLI response and completion contract
-└── codex-delegation.md    # Skip when it is not relevant to the active runtime
+```bash
+python3 .agents/skills/context-loader/load_context.py [--task-libraries name,name]
 ```
 
-### Step 2: Load Project State and Design
+Pass `--task-libraries` (comma-separated) when the task names specific
+libraries; the script matches them against `.agents/docs/libraries/` and folds
+any hits into the read order.
 
-Read `.agents/STATE.md` for the active main agent, repository identity, and
-current work.
+The JSON reports `{ok, read_order, rules, state, design, progress, libraries,
+missing, warnings}`. `read_order` is the exact ordered list of repo-relative
+paths to read — it covers the rule files in `.agents/rules/` (coding
+principles, dev environment, language, security, testing, tiers, CLI
+execution, Codex delegation, and any newly added rule file), `.agents/STATE.md`
+for the active main agent and current work, `.agents/docs/DESIGN.md` for
+architecture decisions and constraints, and any matched library docs.
 
-Read `.agents/docs/DESIGN.md` for:
-- Architecture decisions
-- Implementation patterns
-- Library choices and constraints
-- TODO items and open questions
+### Step 2: Read Everything in `read_order`, Then Surface Gaps
 
-### Step 3: Check Library Documentation
+Read each path in `read_order`. Then check the rest of the report:
 
-If the task involves specific libraries, read relevant files from:
-```
-.agents/docs/libraries/
-```
+- **`missing`** — canonical files that do not exist at all (e.g.
+  `.agents/docs/DESIGN.md`, `PROGRESS.md`). Report these; do not silently
+  proceed as if they were empty.
+- **`warnings`** — most notably, `design.placeholder: true` means
+  `.agents/docs/DESIGN.md` is either absent or still the uninitialised `/init`
+  template (its "Background & Purpose" section is empty). Either state signals
+  that `/init` has not been run — surface it rather than treating the project
+  as if it had real design context.
+- **`libraries.matched`** vs **`libraries.files`** — `matched` is what
+  `read_order` included for the current task; `files` is every doc that
+  exists. If a library relevant to the task isn't in `files` at all, its
+  documentation simply doesn't exist yet.
 
-### Step 4: Execute Task
+Exit code 2 means a canonical file is missing entirely (`.agents/rules/` or
+`.agents/STATE.md`) — treat this as a hard stop, not a warning.
+
+### Step 3: Execute Task
 
 With the loaded context, execute the requested task following:
 - Coding principles from rules

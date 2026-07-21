@@ -242,9 +242,9 @@ def main():
                     "additionalContext": (
                         f"[Agent Routing] Detected '{trigger}' — this task may benefit from "
                         "Codex CLI for planning, design, or complex implementation. Consider: "
-                        '`codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
-                        '"{task description}" < /dev/null` for design decisions, planning, '
-                        "debugging, or complex analysis."
+                        "write the prompt to a file, then `python3 .agents/skills/_shared/"
+                        "codex_consult.py --prompt-file <path> --sandbox read-only` for "
+                        "design decisions, planning, debugging, or complex analysis."
                     ),
                 }
             }

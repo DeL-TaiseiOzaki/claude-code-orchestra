@@ -67,8 +67,11 @@ Well-implemented points
 
 ## Example Invocation
 
+Write the filled-in prompt template to a file, then call the wrapper (flags, JSON result, and exit codes are documented in `../SKILL.md`):
+
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
+prompt_file="$(mktemp)"
+cat > "${prompt_file}" << EOF
 Review this code change:
 
 ## Changes
@@ -83,7 +86,8 @@ $(git diff HEAD~1)
 - pydantic: Use Field() for validation, avoid root validators
 
 [Review checklist as above...]
-" < /dev/null 2>/dev/null
+EOF
+python3 .agents/skills/_shared/codex_consult.py --prompt-file "${prompt_file}" --label code-review --sandbox read-only
 ```
 
 ## When to Use

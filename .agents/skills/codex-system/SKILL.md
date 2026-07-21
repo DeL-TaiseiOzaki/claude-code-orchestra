@@ -40,7 +40,18 @@ Delegation policy — when to consult, when NOT to, and trigger criteria — liv
 
 ## How to Consult
 
-> Always append `< /dev/null` (and prefer `timeout <sec>`): codex exec waits for stdin EOF and hangs indefinitely when stdin is left open (e.g. background shells).
+> Invoke Codex through the wrapper — `.agents/skills/_shared/codex_consult.py` — instead of calling `codex exec` directly. `codex exec` itself waits for stdin EOF and hangs indefinitely when stdin is left open (e.g. background shells); the wrapper always runs it with stdin closed, so callers never need `< /dev/null`. It also passes the prompt as a single argv element (no shell, so nested quotes in the prompt body never break it), captures stdout/stderr to timestamped files under `.agents/logs/codex/`, and reports one JSON result instead of silently discarding stderr.
+
+```
+python3 .agents/skills/_shared/codex_consult.py (--prompt-file PATH | --prompt-stdin) [--label L] [--sandbox {read-only,workspace-write,danger-full-access}] [--model M] [--timeout N] [--cwd DIR] [--skip-git-repo-check] [--config KEY=VALUE]
+```
+
+- Write the prompt body (Objective / Constraints / Relevant files / Acceptance checks / Output format) to a file and pass it via `--prompt-file`; use `--prompt-stdin` to pipe a short prompt instead. Any path works — the ad-hoc snippets below use `mktemp`, while skills write to `.agents/logs/codex/prompt-{label}.md` so the prompt sits next to the response the wrapper writes for it, which is what makes a disappointing answer diagnosable afterwards.
+- `--sandbox` defaults to `read-only`. Pass `--sandbox danger-full-access` explicitly for implementation calls — see Sandbox Modes below.
+- `--model` defaults to `$CODEX_MODEL`, else `gpt-5.6-sol`. `--label` is a `[a-z0-9-]+` slug used in the log filenames (default `consult`). `--timeout` defaults to 600 seconds. `--skip-git-repo-check` covers the non-Git working directory case — see `references/troubleshooting.md`.
+- `--config KEY=VALUE` (repeatable) forwards a Codex config override, e.g. `--config model_reasoning_effort=low` for a cheap question. Keys naming a sandbox or approval setting are refused: `--sandbox` must stay the single visible statement of what Codex is allowed to touch.
+- The wrapper prints exactly one JSON object: `{ok, exit_code, model, sandbox, write_access, timed_out, duration_sec, response_file, stderr_file, response_chars, response_head, error}`. `response_head` is only a ~400-char preview — read the file at `response_file` for the full response, and `stderr_file` (non-null whenever Codex wrote to stderr) when diagnosing a failure.
+- Exit codes: `0` succeeded · `1` bad args or unreadable prompt file · `2` `codex` not on PATH · `3` codex exited non-zero or timed out.
 
 ### Subagent Pattern (Recommended)
 
@@ -51,7 +62,8 @@ Task tool parameters:
 - prompt: |
     Consult Codex about: {topic}
 
-    codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
+    Write the prompt body below to a file, then run the wrapper against it:
+
     Objective: {single-sentence objective}
     Constraints:
     - {constraint 1}
@@ -65,21 +77,24 @@ Task tool parameters:
     ## Implementation Plan
     ## Risks
     ## Next Steps
-    " < /dev/null 2>/dev/null
 
+    python3 .agents/skills/_shared/codex_consult.py --prompt-file {prompt_path} --label {short-slug} --sandbox read-only
+
+    Parse the JSON result; when ok is true, read response_file for the full analysis.
     Return CONCISE summary (key recommendation + rationale).
 ```
 
 ### Direct Call (short questions, responses up to ~50 lines)
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "Objective: {brief question}" < /dev/null 2>/dev/null
+echo "Objective: {brief question}" | python3 .agents/skills/_shared/codex_consult.py --prompt-stdin --label quick-question --sandbox read-only
 ```
 
 ### Having Codex Implement Code
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox danger-full-access "
+prompt_file="$(mktemp)"
+cat > "${prompt_file}" << 'EOF'
 Objective: Implement {detailed implementation task}
 Constraints:
 - Follow existing project conventions
@@ -92,7 +107,8 @@ Output format:
 ## Changes Made
 ## Validation
 ## Remaining Risks
-" < /dev/null 2>/dev/null
+EOF
+python3 .agents/skills/_shared/codex_consult.py --prompt-file "${prompt_file}" --label implement --sandbox danger-full-access
 ```
 
 ### Sandbox Modes
@@ -102,14 +118,15 @@ Output format:
 | Analysis | `read-only` | Design review, debugging, trade-off analysis |
 | Implementation | `danger-full-access` | Implementation, fixes, refactoring |
 
-`danger-full-access` is the project default (`.codex/config.toml`), so implementation calls need no explicit `--sandbox` flag. Analysis calls must still pass `--sandbox read-only` explicitly to avoid accidental writes.
+The wrapper's own default is `read-only`, so pass `--sandbox danger-full-access` explicitly for every implementation call. This is intentionally stricter than a bare `codex exec` invocation: `codex exec` alone would inherit the project's `.codex/config.toml` default of `danger-full-access` when no `--sandbox` flag is given, but the wrapper always sends an explicit `--sandbox` value and never lets that config default apply silently.
 
 ## Task Templates
 
 ### Implementation Planning
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
+prompt_file="$(mktemp)"
+cat > "${prompt_file}" << 'EOF'
 Create an implementation plan for: {feature}
 
 Context: {relevant architecture/code}
@@ -119,13 +136,15 @@ Provide:
 2. Files to create/modify
 3. Key design decisions
 4. Risks and mitigations
-" < /dev/null 2>/dev/null
+EOF
+python3 .agents/skills/_shared/codex_consult.py --prompt-file "${prompt_file}" --label plan --sandbox read-only
 ```
 
 ### Design Review
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
+prompt_file="$(mktemp)"
+cat > "${prompt_file}" << 'EOF'
 Review this design approach for: {feature}
 
 Context: {relevant code or architecture}
@@ -135,13 +154,15 @@ Evaluate:
 2. Alternative approaches?
 3. Potential issues?
 4. Recommendations?
-" < /dev/null 2>/dev/null
+EOF
+python3 .agents/skills/_shared/codex_consult.py --prompt-file "${prompt_file}" --label design-review --sandbox read-only
 ```
 
 ### Debug Analysis
 
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
+prompt_file="$(mktemp)"
+cat > "${prompt_file}" << 'EOF'
 Debug this issue:
 
 Error: {error message}
@@ -149,7 +170,8 @@ Code: {relevant code}
 Context: {what was happening}
 
 Analyze root cause and suggest fixes.
-" < /dev/null 2>/dev/null
+EOF
+python3 .agents/skills/_shared/codex_consult.py --prompt-file "${prompt_file}" --label debug --sandbox read-only
 ```
 
 ## Language Protocol
@@ -213,9 +235,9 @@ When the `openai/codex-plugin-cc` plugin is installed, these slash commands are 
 | Challenge design | `/codex:adversarial-review` |
 | Delegate investigation/fix | `/codex:rescue` |
 | Background work + tracking | Plugin `--background` |
-| Ad-hoc design question | `codex exec` (direct) |
-| Unrestricted implementation | `codex exec --sandbox danger-full-access` |
-| Subagent delegation | `codex exec` via general-purpose-opus |
+| Ad-hoc design question | `codex_consult.py` (direct) |
+| Unrestricted implementation | `codex_consult.py --sandbox danger-full-access` |
+| Subagent delegation | `codex_consult.py` via general-purpose-opus |
 
 ## Why Codex?
 

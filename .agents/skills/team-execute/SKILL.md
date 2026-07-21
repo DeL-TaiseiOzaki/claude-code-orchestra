@@ -41,9 +41,10 @@ produced by `/feature`:
 - **`.agents/docs/research/`** — Researcher findings and library constraints
 - **`PROGRESS.md`** (repo root) — rolling summary of recent sessions and next actions
 
-Use the **same `{feature}` / `{team-name}` naming as `/feature`** so work logs
+Use the **same `slug` `/feature` resolved** so work logs
 (`.agents/logs/agent-teams/{team-name}/`) and research/design files line up
-across phases.
+across phases. Step 1-1 resolves the workspace for a full run; Step 2-1
+re-resolves it for a `--review-only` entry.
 
 ## Workflow
 
@@ -68,6 +69,19 @@ Phase 2: REVIEW
 ## Step 1-1: Analyze Plan & Design Team
 
 **Identify parallelizable workstreams from the task list.**
+
+### Resolve the Workspace
+
+Resolve this run's paths once, reusing the same `slug` `/feature` resolved:
+
+```bash
+python3 .agents/skills/_shared/workspace.py \
+  --skill team-execute --slug {slug} --create
+```
+
+The JSON carries `team_name` and `paths` (`review_security`, `review_quality`,
+`review_tests`, `diff_file`, `team_dir`). Every `{team-name}` / output path
+below MUST come from this JSON verbatim, never be re-derived by hand.
 
 ### Team Design Principles
 
@@ -241,13 +255,13 @@ Wait for all teammates to complete their tasks.
 
 ### Work Log Validation
 
-Before reading each teammate's work log, validate it against the shared format:
+Validate every teammate's work log in the team directory with a single call:
 
 ```bash
-python3 .agents/skills/_shared/validate_work_log.py --file .agents/logs/agent-teams/{team-name}/{teammate}.md
+python3 .agents/skills/_shared/validate_doc.py --contract work-log --dir .agents/logs/agent-teams/{team-name}/
 ```
 
-If the script exits non-zero (exit 3 = required sections missing), ask the teammate to fix its log before proceeding.
+If the JSON's `files_failed` is non-zero, inspect `results` for which file(s) failed and ask that teammate to fix its log before proceeding. Reuse the `team_name` resolved in Step 1-1 for this path — do not re-derive it by hand.
 
 ### Quality Gates
 
@@ -299,14 +313,25 @@ forward so the review references the matching design and work-log files.
 
 ## Step 2-1: Gather Diff
 
-**Identify the scope of changes to review** with the bundled script:
+**Resolve the workspace, then identify the scope of changes to review.**
+
+If Phase 1 already ran, Step 1-1 resolved this already — repeat the identical
+call here (idempotent) when entering directly via `--review-only`:
+
+```bash
+python3 .agents/skills/_shared/workspace.py \
+  --skill team-execute --slug {slug} --create
+```
+
+Then gather the diff with the bundled script:
 
 ```bash
 bash .agents/skills/team-execute/gather_diff.sh [base-ref]   # base-ref defaults to main
 ```
 
-It writes the full diff to `.agents/logs/review-diff.patch` (kept out of context)
-and prints a lightweight JSON summary on stdout:
+It writes the full diff to `.agents/logs/review-diff.patch` (the same path as
+the resolved `diff_file`, kept out of context) and prints a lightweight JSON
+summary on stdout:
 
 - `changed_files[]`, `diffstat`, `commits[]` — the review scope.
 - `diff_file` — path to the full patch for reviewers to read as needed.
@@ -356,7 +381,7 @@ Spawn reviewers:
    - Description of the issue
    - Recommended fix
 
-   Save report to .agents/docs/research/review-security-{feature}.md
+   Save report to .agents/docs/research/review-security-{slug}.md
 
    IMPORTANT — Work Log:
    When your review is complete, write your work log to
@@ -378,8 +403,12 @@ Spawn reviewers:
    - Function length (target < 20 lines)
    - Library constraint violations (.agents/docs/libraries/)
 
-   Use Codex CLI for deep analysis of complex logic:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "{question}" < /dev/null 2>/dev/null
+   Use Codex CLI for deep analysis of complex logic. Write the question to
+   .agents/logs/codex/prompt-quality-review.md, then:
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-quality-review.md --label quality-review --sandbox read-only
+   Read the answer from the JSON output's response_file. Exit codes: 0 ok
+   (read response_file); 1 bad args; 2 codex CLI missing; 3 codex failed or
+   timed out (inspect error/stderr_file).
 
    Changed files: {list}
 
@@ -389,7 +418,7 @@ Spawn reviewers:
    - Current code
    - Suggested improvement
 
-   Save report to .agents/docs/research/review-quality-{feature}.md
+   Save report to .agents/docs/research/review-quality-{slug}.md
 
    IMPORTANT — Work Log:
    When your review is complete, write your work log to
@@ -423,7 +452,7 @@ Spawn reviewers:
    - What test cases are needed
    - Priority: High / Medium / Low
 
-   Save report to .agents/docs/research/review-tests-{feature}.md
+   Save report to .agents/docs/research/review-tests-{slug}.md
 
    IMPORTANT — Work Log:
    When your review is complete, write your work log to
@@ -458,20 +487,29 @@ Have them actively try to disprove each other's theories.
 
 ### Reviewer Work Log Validation
 
-Before reading each reviewer's work log, validate it against the shared format:
+Validate every reviewer's work log in the team directory with a single call:
 
 ```bash
-python3 .agents/skills/_shared/validate_work_log.py --file .agents/logs/agent-teams/{team-name}/{reviewer}.md
+python3 .agents/skills/_shared/validate_doc.py --contract work-log --dir .agents/logs/agent-teams/{team-name}/
 ```
 
-If the script exits non-zero (exit 3 = required sections missing), ask the reviewer to fix its log before proceeding.
+If the JSON's `files_failed` is non-zero, inspect `results` for which file(s) failed and ask that reviewer to fix its log before proceeding.
+
+### Workspace Artifact Check
+
+```bash
+python3 .agents/skills/_shared/workspace.py --skill team-execute --slug {slug} --verify
+```
+
+`ok: true` means all three review reports exist and are non-empty — read them
+next. On `ok: false`, check `missing` / `empty` before synthesizing.
 
 ### Review Reports
 
 Read review reports:
-- `.agents/docs/research/review-security-{feature}.md`
-- `.agents/docs/research/review-quality-{feature}.md`
-- `.agents/docs/research/review-tests-{feature}.md`
+- `.agents/docs/research/review-security-{slug}.md`
+- `.agents/docs/research/review-quality-{slug}.md`
+- `.agents/docs/research/review-tests-{slug}.md`
 
 ### Prioritization
 

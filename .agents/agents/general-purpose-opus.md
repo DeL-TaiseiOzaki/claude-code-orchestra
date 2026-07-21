@@ -36,14 +36,16 @@ several files.
 ### Codex delegation
 
 Consult Codex for planning, design decisions, debugging, difficult implementation,
-trade-offs, and code review:
+trade-offs, and code review. Write the prompt body to a file, then call the wrapper
+(`.agents/skills/_shared/codex_consult.py`; flags, JSON result, and exit codes are
+documented in `.agents/skills/codex-system/SKILL.md`):
 
 ```bash
 # Analysis (read-only)
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "{question}" < /dev/null 2>/dev/null
+python3 .agents/skills/_shared/codex_consult.py --prompt-file {path} --label {slug} --sandbox read-only
 
 # Implementation work (can write files)
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox danger-full-access "{task}" < /dev/null 2>/dev/null
+python3 .agents/skills/_shared/codex_consult.py --prompt-file {path} --label {slug} --sandbox danger-full-access
 ```
 
 ## Working Protocol

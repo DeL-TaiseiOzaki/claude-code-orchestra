@@ -75,9 +75,13 @@ def main():
 
 ### 5. Verify with Tests
 
+Run the quality gates:
+
 ```bash
-uv run pytest -v
+bash .agents/skills/_shared/verify.sh
 ```
+
+Read the JSON: `overall` is `pass` / `fail` / `no_gates`. On `fail`, inspect the `log_file`. On `no_gates` (project has no configured gates), fall back to the project's own verification commands and confirm manually.
 
 ## Notes
 

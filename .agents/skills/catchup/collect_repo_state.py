@@ -13,6 +13,10 @@ script still exits 0. Exit 1 only when the project root is not a git repository
 Usage:
     python3 collect_repo_state.py
     python3 collect_repo_state.py --since "30 days ago" --max-commits 100
+
+Exit codes:
+    0  ok (including graceful degradation of missing paths)
+    1  bad arguments, or the project root is not a git repository
 """
 
 import argparse
@@ -20,6 +24,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
@@ -29,6 +34,25 @@ CHECKPOINT_PREVIEW = 5
 CLI_LOG_TAIL = 50
 FIRST_LINE_LIMIT = 200
 GIT_TIMEOUT_SECONDS = 30
+EXIT_BAD_ARGS = 1
+
+
+def _emit(obj: dict) -> None:
+    """Print a single JSON object to stdout."""
+    print(json.dumps(obj, ensure_ascii=False))
+
+
+class JsonArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that reports usage errors through this tool's own
+    JSON-on-stdout / exit-1 contract instead of argparse's default stderr
+    text + exit(2) — so even an argparse-level failure (an unknown flag, or a
+    value that looks like an option) stays machine-readable and shares this
+    tool's existing exit code 1 (also used when the project root is not a
+    git repository) instead of argparse's own exit code 2."""
+
+    def error(self, message: str) -> NoReturn:
+        _emit({"ok": False, "error": message})
+        sys.exit(EXIT_BAD_ARGS)
 
 
 def run_git(root: Path, args: list[str]) -> str | None:
@@ -258,7 +282,7 @@ def build_state(root: Path, since: str, max_commits: int) -> tuple[dict, bool]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
+    parser = JsonArgumentParser(
         description="Collect repository state for the catchup skill (JSON to stdout)",
     )
     parser.add_argument("--project-root", type=Path, default=PROJECT_ROOT)
@@ -268,7 +292,7 @@ def main() -> int:
 
     state, is_repo = build_state(args.project_root, args.since, args.max_commits)
     print(json.dumps(state, ensure_ascii=False, indent=2))
-    return 0 if is_repo else 1
+    return 0 if is_repo else EXIT_BAD_ARGS
 
 
 if __name__ == "__main__":

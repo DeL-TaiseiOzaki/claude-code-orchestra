@@ -115,3 +115,17 @@ If the subagent is unavailable, verify via manual web search:
 - [Official Docs]({url})
 - [GitHub]({url})
 ```
+
+## Validate the Document
+
+After writing the document, validate it against the `lib-doc` contract:
+
+```bash
+python3 .agents/skills/_shared/validate_doc.py --contract lib-doc --file .agents/docs/libraries/$ARGUMENTS.md
+```
+
+Exit 0 means `## Overview`, `## Core Features`, `## Constraints & Notes`, and
+`## References` are all present — the template above already matches these
+headings, so following it should satisfy the contract directly. A non-zero
+exit means the JSON's `sections_missing` lists which of those are absent; fill
+them in before reporting completion.

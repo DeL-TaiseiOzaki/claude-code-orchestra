@@ -188,6 +188,7 @@ point directly to canonical capabilities under `.agents/`.
 │   ├── check.sh                 # Contract, bootstrap, model, and tier coherence checker
 │   ├── agents/                  # Claude agent definitions (canonical)
 │   ├── skills/                  # Shared workflow skills and deterministic helpers
+│   │   └── _shared/             # Bundled runtime: helpers every skill may depend on
 │   ├── hooks/                   # Claude hook implementations (canonical)
 │   ├── rules/                   # Shared policy, tiers, CLI, coding, testing, and security rules
 │   ├── docs/                    # Design, handoff, research, review, and library documents
@@ -205,8 +206,7 @@ point directly to canonical capabilities under `.agents/`.
 ├── .codex/                      # Codex native configuration only
 │   └── config.toml              # Shared skills point to .agents/
 │
-├── tests/
-│   └── test_install_script.py  # Installer and updater integration tests
+├── tests/                      # Contract tests for the template's own scripts and docs
 │
 └── scripts/
     ├── install.sh              # Conflict-aware installer for existing projects
@@ -236,6 +236,15 @@ The main workflow executes two skills in sequence.
 5. After approval, `/team-execute` runs parallel implementation by module, then parallel review for security, quality, and testing (`--review-only` skips implementation)
 
 ## Skills
+
+Each skill is a `SKILL.md` procedure that an agent follows. Steps with exactly
+one correct output for a given input — deriving artifact paths, validating
+document structure, invoking the Codex CLI, running quality gates — are
+delegated to bundled scripts instead of being described in prose, so they cannot
+drift between phases or fail silently. Judgment steps stay in markdown. The
+boundary and the shared script contract (one JSON object on stdout, a common
+exit-code vocabulary, errors never swallowed) are documented in
+`.agents/skills/_shared/README.md`.
 
 ### Core Workflow
 

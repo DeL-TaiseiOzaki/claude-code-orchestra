@@ -61,8 +61,11 @@ Provide:
 
 ## Example Invocation
 
+Write the filled-in prompt template to a file, then call the wrapper (flags, JSON result, and exit codes are documented in `../SKILL.md`):
+
 ```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox danger-full-access "
+prompt_file="$(mktemp)"
+cat > "${prompt_file}" << EOF
 Refactor this code for simplicity:
 
 ## Target Code
@@ -79,7 +82,8 @@ $(cat src/services/llm_client.py)
 - Improve naming
 
 [Principles and patterns as above...]
-" < /dev/null 2>/dev/null
+EOF
+python3 .agents/skills/_shared/codex_consult.py --prompt-file "${prompt_file}" --label refactor --sandbox danger-full-access
 ```
 
 ## Checklist

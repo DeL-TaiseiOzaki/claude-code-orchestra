@@ -80,6 +80,16 @@ Phase 3: SYNTHESIZE (Codex Evaluation + Claude Lead + User)
 
 > A well-framed question is half the answer. Phase 1 ensures we investigate the right thing within the right constraints.
 
+### Step 0: Resolve Workspace
+
+Resolve this spike's deterministic workspace once. The title becomes file and directory names, so give it a short English descriptor of the question -- not the user's raw wording, which the Language Protocol keeps out of paths:
+
+```bash
+python3 .agents/skills/_shared/workspace.py --skill spike --title "{short English title}" --create
+```
+
+This prints one JSON object: `slug`, `team_name`, and `paths` (`research`, `feasibility`, `report`, `prototype_dir`, `team_dir`). Exit 0 resolved/created; 1 bad args; 2 applies only to `--verify` (used later in Phase 3). Use `{slug}`, `{team_name}`, and every `paths.*` value from this JSON verbatim for the rest of this skill -- do not re-derive them by hand in a later phase.
+
 ### Step 1: Gather Spike Parameters from User
 
 Ask the user to provide:
@@ -92,10 +102,9 @@ Ask the user to provide:
 
 ### Step 2: Codex Question Decomposition (MANDATORY)
 
-Consult Codex to decompose the spike question into a structured investigation plan:
+Consult Codex to decompose the spike question into a structured investigation plan. Write the prompt to a file, then invoke the wrapper:
 
-```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
+```text
 Objective: Decompose this spike question into a structured investigation plan.
 Context:
 - Spike question: {question/hypothesis from user}
@@ -116,8 +125,13 @@ Output format:
 ## Investigation Approach
 ## Critical Path (which finding would short-circuit the spike)
 ## Risk of Inconclusive Result
-" < /dev/null 2>/dev/null
 ```
+
+```bash
+python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-spike-decomposition.md --label spike-decomposition
+```
+
+`.agents/skills/_shared/codex_consult.py` exits 0 when Codex answered normally, 2 if the Codex CLI is not installed, 3 if Codex failed or timed out -- check the JSON `ok` field and read `response_file` for the answer (`error`/`stderr_file` explain a failure). Every later Codex consultation in this skill follows this same write-prompt-then-invoke pattern without repeating these exit codes.
 
 ### Step 3: Create Spike Brief
 
@@ -137,12 +151,12 @@ This brief is passed to Phase 2 teammates as shared context.
 ### Team Setup
 
 ```
-Create an agent team for spike investigation: {topic}
+Create an agent team named `{team_name}` for spike investigation: {slug}
 
 Spawn two teammates:
 
 1. **Researcher** -- Uses WebSearch/WebFetch for external research (Opus 1M context)
-   Prompt: "You are the Researcher for spike: {topic}.
+   Prompt: "You are the Researcher for spike: {slug}.
 
    Your job: Gather external evidence to answer the spike's sub-questions.
 
@@ -167,7 +181,7 @@ Spawn two teammates:
 
    How to research:
    - Use WebSearch for comprehensive research:
-     WebSearch: '{topic} {sub-question keywords} best practices limitations benchmarks'
+     WebSearch: '{spike question} {sub-question keywords} best practices limitations benchmarks'
    - Use WebFetch for targeted documentation lookup:
      WebFetch: '{official docs URL}' with prompt to extract specific information
    - For library evaluation, check:
@@ -176,7 +190,7 @@ Spawn two teammates:
      - Benchmarks: performance characteristics
      - Migration guides: complexity of adoption
 
-   Save all findings to .agents/docs/research/spike-{topic}-research.md
+   Save all findings to `{paths.research}` (from Phase 1 Step 0).
 
    Communicate with Feasibility Analyst teammate:
    - Share findings that affect technical feasibility
@@ -185,7 +199,7 @@ Spawn two teammates:
 
    IMPORTANT -- Work Log:
    When ALL your tasks are complete, write your work log to
-   .agents/logs/agent-teams/{team-name}/researcher.md per the shared format:
+   {paths.team_dir}researcher.md per the shared format:
    .agents/skills/_shared/work-log-format.md
    Role-specific sections (between Tasks Completed and Communication):
    ## Sources Consulted
@@ -197,7 +211,7 @@ Spawn two teammates:
    "
 
 2. **Feasibility Analyst** -- Uses Codex CLI as PRIMARY analysis engine for technical feasibility
-   Prompt: "You are the Feasibility Analyst for spike: {topic}.
+   Prompt: "You are the Feasibility Analyst for spike: {slug}.
 
    Your job: Evaluate the technical feasibility of the spike question through deep analysis.
    Codex CLI is your PRIMARY tool for reasoning about technical trade-offs and feasibility.
@@ -216,10 +230,13 @@ Spawn two teammates:
 
    You MUST consult Codex for EACH of the following analysis tasks.
    Do NOT skip Codex consultation -- it is the primary reasoning engine for this role.
+   Each consultation below follows the same shape: write the prompt to a file,
+   then run `python3 .agents/skills/_shared/codex_consult.py --prompt-file <path> --label <label>`
+   and read the JSON `response_file`.
 
    ### 1. Technical Feasibility Assessment
-   For each sub-question, consult Codex:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
+   For each sub-question, write the prompt below to a file, then invoke the wrapper:
+
    Objective: Assess technical feasibility of {sub-question}.
    Context:
    - Spike question: {main question}
@@ -236,11 +253,12 @@ Spawn two teammates:
    ## Hard Blockers (if any)
    ## Soft Challenges
    ## Effort Estimate (if feasible)
-   ' < /dev/null 2>/dev/null
+
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-spike-feasibility.md --label spike-feasibility
 
    ### 2. Architecture Compatibility Analysis
-   Consult Codex to evaluate fit with existing architecture:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
+   Write the prompt below to a file, then consult Codex to evaluate fit with existing architecture:
+
    Objective: Evaluate how {proposed approach} fits with the existing architecture.
    Context:
    - Proposed approach: {description}
@@ -255,11 +273,12 @@ Spawn two teammates:
    ## Alignment with Existing Patterns
    ## Required Architectural Changes
    ## Migration Complexity (LOW / MEDIUM / HIGH)
-   ' < /dev/null 2>/dev/null
+
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-spike-architecture.md --label spike-architecture
 
    ### 3. Risk and Trade-off Analysis
-   Consult Codex to evaluate risks:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only '
+   Write the prompt below to a file, then consult Codex to evaluate risks:
+
    Objective: Identify and evaluate risks of adopting {proposed approach}.
    Context:
    - Proposed approach: {description}
@@ -275,11 +294,12 @@ Spawn two teammates:
    ## Risk Matrix (likelihood x impact)
    ## Comparison with Alternatives
    ## Mitigation Strategies
-   ' < /dev/null 2>/dev/null
+
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-spike-risk.md --label spike-risk
 
    ### 4. Prototype Validation (PROTOTYPE mode only)
-   If the investigation mode is PROTOTYPE, build a minimal throwaway prototype:
-   codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox danger-full-access '
+   If the investigation mode is PROTOTYPE, write the prompt below to a file, then have Codex build a minimal throwaway prototype. This is the one call that keeps `--sandbox danger-full-access`; every other consultation in this skill uses the default `read-only`:
+
    Objective: Build a minimal prototype to validate {specific technical question}.
    Context:
    - Question to validate: {what the prototype tests}
@@ -289,15 +309,16 @@ Spawn two teammates:
    - Keep it under 100 lines
    - Test ONE specific thing
    - Document what was validated and the result
-   - Place prototype in .agents/spikes/{topic}/ directory
+   - Place prototype in {paths.prototype_dir} (from Phase 1 Step 0)
    Output format:
    ## What Was Tested
    ## Prototype Code (with inline comments)
    ## Result (VALIDATED / INVALIDATED / INCONCLUSIVE)
    ## Evidence
-   ' < /dev/null 2>/dev/null
 
-   Save analysis to .agents/docs/research/spike-{topic}-feasibility.md
+   python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-spike-prototype.md --label spike-prototype --sandbox danger-full-access
+
+   Save analysis to `{paths.feasibility}` (from Phase 1 Step 0).
 
    Communicate with Researcher teammate:
    - Share technical constraints that need external validation
@@ -306,7 +327,7 @@ Spawn two teammates:
 
    IMPORTANT -- Work Log:
    When ALL your tasks are complete, write your work log to
-   .agents/logs/agent-teams/{team-name}/feasibility-analyst.md per the shared
+   {paths.team_dir}feasibility-analyst.md per the shared
    format: .agents/skills/_shared/work-log-format.md
    Role-specific sections replacing Tasks Completed for this role:
    ## Sub-question Assessments
@@ -350,17 +371,16 @@ Without Agent Teams, this discovery loop would require multiple sequential subag
 
 ### Step 1: Gather Investigation Results
 
-Read outputs from Phase 2:
-- `.agents/docs/research/spike-{topic}-research.md` -- Researcher findings
-- `.agents/docs/research/spike-{topic}-feasibility.md` -- Feasibility analysis (Codex-driven)
-- `.agents/spikes/{topic}/` -- Prototype code and results (if PROTOTYPE mode)
+Read outputs from Phase 2 (paths resolved in Phase 1 Step 0):
+- `{paths.research}` -- Researcher findings
+- `{paths.feasibility}` -- Feasibility analysis (Codex-driven)
+- `{paths.prototype_dir}` -- Prototype code and results (if PROTOTYPE mode)
 
 ### Step 2: Codex Final Evaluation (MANDATORY)
 
-Consult Codex to synthesize all findings into a go/no-go recommendation:
+Consult Codex to synthesize all findings into a go/no-go recommendation. Write the prompt to a file, then invoke the wrapper:
 
-```bash
-codex exec --model "${CODEX_MODEL:-gpt-5.6-sol}" --sandbox read-only "
+```text
 Objective: Synthesize spike investigation findings and produce a go/no-go recommendation.
 Context:
 - Spike question: {original question}
@@ -384,19 +404,29 @@ Output format:
 ## If GO: Recommended Next Skill (/feature — existing or greenfield mode)
 ## If NO-GO: Decisive Blocker and Alternatives
 ## If INCONCLUSIVE: What Additional Investigation Is Needed
-" < /dev/null 2>/dev/null
+```
+
+```bash
+python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-spike-evaluation.md --label spike-evaluation
 ```
 
 ### Step 3: Save Research Report
 
-Save the complete spike report to `.agents/docs/research/spike-{topic}.md` following the template contract in `references/report-template.md`.
+Save the complete spike report to `{paths.report}` (from Phase 1 Step 0) following the template contract in `references/report-template.md`. Then validate it and gate Phase 3 before presenting to the user:
+
+```bash
+python3 .agents/skills/_shared/validate_doc.py --contract spike-report --file {paths.report}
+python3 .agents/skills/_shared/workspace.py --skill spike --slug {slug} --verify
+```
+
+The first call confirms the report has every required section (`Question`, `Verdict`, `Evidence Summary`, `Risks`, `Next Steps`); exit 2 means a section is missing. The second confirms `research`, `feasibility`, and `report` all exist and are non-trivial; exit 2 means one is missing or empty. Resolve any gap before Step 4.
 
 ### Step 4: Present to User
 
 Present the spike result to the user:
 
 ```markdown
-## Spike Result: {topic}
+## Spike Result: {slug}
 
 ### Verdict: {GO / NO-GO / INCONCLUSIVE}
 **Confidence**: {HIGH / MEDIUM / LOW}
@@ -440,7 +470,7 @@ Present the spike result to the user:
 2. Consider a follow-up spike with narrower scope
 
 ---
-Full report saved to: `.agents/docs/research/spike-{topic}.md`
+Full report saved to: `{paths.report}`
 
 Shall we proceed with the recommended next step?
 ```
@@ -449,12 +479,14 @@ Shall we proceed with the recommended next step?
 
 ## Output Files
 
+Paths resolved once in Phase 1 Step 0 (`.agents/skills/_shared/workspace.py --skill spike`):
+
 | File | Author | Purpose |
 |------|--------|---------|
-| `.agents/docs/research/spike-{topic}-research.md` | Researcher | External research findings |
-| `.agents/docs/research/spike-{topic}-feasibility.md` | Feasibility Analyst | Technical feasibility analysis (Codex-driven) |
-| `.agents/docs/research/spike-{topic}.md` | Lead | Final spike report (decision document) |
-| `.agents/spikes/{topic}/` | Feasibility Analyst | Prototype code (PROTOTYPE mode only) |
+| `{paths.research}` | Researcher | External research findings |
+| `{paths.feasibility}` | Feasibility Analyst | Technical feasibility analysis (Codex-driven) |
+| `{paths.report}` | Lead | Final spike report (decision document) |
+| `{paths.prototype_dir}` | Feasibility Analyst | Prototype code (PROTOTYPE mode only) |
 
 ---
 

@@ -10,17 +10,30 @@ Update documentation in `.agents/docs/libraries/` with latest information.
 
 ## Steps
 
-### 1. Check Existing Documents
+### 1. Inventory Library Docs
 
-List current library documentation:
+Run `lib_inventory.py` instead of eyeballing the directory — it scans each
+doc's `> **Last Updated**` / `> **Version Checked**` metadata and cross-checks
+declared project dependencies:
 
 ```bash
-ls .agents/docs/libraries/
+python3 .agents/skills/update-lib-docs/lib_inventory.py [--stale-days N]
 ```
+
+Emits `{ok, libraries_dir, stale_days, libraries:[...], counts, undocumented,
+declared_dependencies}`. Each entry in `libraries` carries `file`, `name`,
+`last_updated`, `version_checked`, `age_days`, `stale`, `has_metadata`.
+`undocumented` lists declared dependencies (from `pyproject.toml` /
+`package.json`) that have no doc file at all. Default staleness threshold is
+90 days; pass `--stale-days` to change it.
+
+This run's scope is exactly two sets from that output: entries with
+`stale: true`, and every name in `undocumented`. Everything else is already
+current — skip it.
 
 ### 2. Web Search for Latest Info
 
-For each documented library, search for:
+For each `stale` library and each `undocumented` dependency, search for:
 
 - Latest version
 - Breaking changes
@@ -30,7 +43,9 @@ For each documented library, search for:
 
 ### 3. Update Documents
 
-For each library with changes:
+For each stale library, update its existing doc; for each undocumented
+dependency, create a new doc following the same template (see
+`research-lib`'s documentation template for the full section layout):
 
 1. Update version information
 2. Add new features/constraints
@@ -38,7 +53,20 @@ For each library with changes:
 4. Update code examples if needed
 5. Record update date at the top
 
-### 4. Check Impact on Code
+### 4. Validate Updated Documents
+
+After updating or creating a doc, validate it against the `lib-doc` contract:
+
+```bash
+python3 .agents/skills/_shared/validate_doc.py --contract lib-doc --file .agents/docs/libraries/{library}.md
+```
+
+Exit 0 means `## Overview`, `## Core Features`, `## Constraints & Notes`, and
+`## References` are all present. A non-zero exit means the JSON's
+`sections_missing` lists what's absent — fill those sections in before moving
+on; do not report the update as complete with sections still missing.
+
+### 5. Check Impact on Code
 
 After updating docs, verify:
 

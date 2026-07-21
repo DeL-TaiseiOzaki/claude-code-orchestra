@@ -25,6 +25,7 @@ import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import NoReturn
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
@@ -40,6 +41,18 @@ EXIT_CONFLICT = 3
 
 def _emit(obj: dict) -> None:
     print(json.dumps(obj, ensure_ascii=False))
+
+
+class JsonArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that reports usage errors through this tool's own
+    JSON-on-stdout / exit-1 contract instead of argparse's default stderr
+    text + exit(2) — so even an argparse-level failure (an unknown flag, or a
+    value that looks like an option) stays machine-readable and never
+    masquerades as this tool's exit code 2 or 3."""
+
+    def error(self, message: str) -> NoReturn:
+        _emit({"ok": False, "error": message})
+        sys.exit(EXIT_BAD_INPUT)
 
 
 def _sha256(text: str) -> str:
@@ -225,7 +238,7 @@ def apply_changes(  # noqa: C901
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
+    parser = JsonArgumentParser(
         description="Update .agents/docs/DESIGN.md with decisions and section appends",
     )
     parser.add_argument(
