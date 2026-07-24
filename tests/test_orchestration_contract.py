@@ -122,7 +122,18 @@ def test_native_runtime_directories_only_keep_native_settings() -> None:
         path.name for path in (REPO_ROOT / ".codex").iterdir() if not path.is_symlink()
     }
     assert codex_real_files == {"config.toml"}
-    assert not any(path.is_symlink() for path in (REPO_ROOT / ".claude").iterdir())
+    # The only symlinks allowed in .claude are the native discovery links that
+    # point Claude Code's subagent/skill discovery at the canonical .agents/
+    # directories. No shared content is physically duplicated.
+    claude_symlinks = {
+        path.name: path.readlink().as_posix()
+        for path in (REPO_ROOT / ".claude").iterdir()
+        if path.is_symlink()
+    }
+    assert claude_symlinks == {
+        "agents": "../.agents/agents",
+        "skills": "../.agents/skills",
+    }
     assert not any(path.is_symlink() for path in (REPO_ROOT / ".codex").iterdir())
 
 

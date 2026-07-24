@@ -109,9 +109,16 @@ task before acting.
 
 ## Native Runtime Boundary
 
-- `CLAUDE.md` is a symlink to this file.
-- `.claude/` contains only Claude Code settings and an installed-version marker
-  when present; `.codex/` contains only `config.toml`.
-- Native settings point directly to canonical `.agents/` capabilities. Do not
-  mirror shared rules, skills, agents, hooks, docs, logs, or checkpoints into
-  product-native directories.
+- `CLAUDE.md` is a symlink to this file. `.claude/` holds Claude Code settings
+  (and an installed-version marker); `.codex/` holds only `config.toml`.
+- `.claude/agents` and `.claude/skills` are **discovery symlinks** into
+  `../.agents/agents` and `../.agents/skills`. Claude Code auto-discovers
+  subagents/skills only from its native paths, so these links give native
+  discovery while `.agents/` stays the single physical source. No shared content
+  is ever copied into a native directory. The installer/updater creates and
+  heals the links; `.agents/check.sh` verifies them.
+- Other native settings point directly at `.agents/` (hooks via
+  `settings.json`, Codex skills via `config.toml` `path=`). Do not mirror rules,
+  hooks, docs, logs, or checkpoints into product-native directories.
+- Cross-CLI subagent calls use headless mode: `claude -p`, `codex exec`,
+  `gemini -p` — see `.agents/rules/cli-execution.md`.
