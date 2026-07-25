@@ -60,6 +60,18 @@ def write_state(root: Path, main_agent_block: str = "\nClaude Code\n") -> None:
     (agents_dir / "STATE.md").write_text(text, encoding="utf-8")
 
 
+PROGRESS_WITH_ENTRY = (
+    "# PROGRESS\n\n"
+    "> Auto-maintained by /checkpointing.\n\n"
+    "## [2026-07-25-100000](.agents/checkpoints/2026-07-25-100000.md)\n\n"
+    "### 何をしたのか\n- Shipped Wave 2.\n"
+)
+
+
+def write_progress(root: Path, text: str = PROGRESS_WITH_ENTRY) -> None:
+    (root / "PROGRESS.md").write_text(text, encoding="utf-8")
+
+
 def test_happy_path_full_context_and_rule_ordering(tmp_path: Path) -> None:
     write_rules(
         tmp_path,
@@ -69,7 +81,7 @@ def test_happy_path_full_context_and_rule_ordering(tmp_path: Path) -> None:
     docs_dir = tmp_path / ".agents" / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
     (docs_dir / "DESIGN.md").write_text(DESIGN_FILLED, encoding="utf-8")
-    (tmp_path / "PROGRESS.md").write_text("# Progress\n", encoding="utf-8")
+    write_progress(tmp_path)
     libraries_dir = docs_dir / "libraries"
     libraries_dir.mkdir(parents=True, exist_ok=True)
     (libraries_dir / "duckdb.md").write_text("# DuckDB\n", encoding="utf-8")
@@ -95,10 +107,15 @@ def test_happy_path_full_context_and_rule_ordering(tmp_path: Path) -> None:
     assert payload["design"]["present"] is True
     assert payload["design"]["placeholder"] is False
     assert payload["progress"]["present"] is True
+    assert payload["progress"]["entries"] == 1
     assert payload["libraries"]["files"] == ["duckdb.md", "fastapi.md"]
     assert payload["libraries"]["matched"] == ["duckdb.md"]
     assert payload["missing"] == []
+    assert payload["unreadable"] == []
     assert payload["warnings"] == []
+    # PROGRESS.md is pinned directly after shared state: it carries the
+    # session-to-session continuity /feature reads first, and it used to be
+    # reported by the script and then left out of the read plan entirely.
     assert payload["read_order"] == [
         ".agents/rules/coding-principles.md",
         ".agents/rules/dev-environment.md",
@@ -106,6 +123,7 @@ def test_happy_path_full_context_and_rule_ordering(tmp_path: Path) -> None:
         ".agents/rules/aaa-extra.md",
         ".agents/rules/zzz-extra.md",
         ".agents/STATE.md",
+        "PROGRESS.md",
         ".agents/docs/DESIGN.md",
         ".agents/docs/libraries/duckdb.md",
     ]
@@ -246,6 +264,71 @@ def test_stdout_is_single_json_line(tmp_path: Path) -> None:
 
     assert result.stdout.count("\n") == 1
     json.loads(result.stdout)
+
+
+def test_progress_md_is_read_after_state_and_before_design(tmp_path: Path) -> None:
+    write_rules(tmp_path, ["coding-principles"])
+    write_state(tmp_path)
+    write_progress(tmp_path)
+
+    result = run_load_context(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    order = payload["read_order"]
+    assert order.index("PROGRESS.md") == order.index(".agents/STATE.md") + 1
+    assert "PROGRESS.md" not in payload["missing"]
+
+
+def test_progress_md_without_entries_warns_but_stays_ok(tmp_path: Path) -> None:
+    write_rules(tmp_path, ["coding-principles"])
+    write_state(tmp_path)
+    write_progress(tmp_path, "# PROGRESS\n\n> Nothing checkpointed yet.\n")
+
+    result = run_load_context(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["progress"]["entries"] == 0
+    assert any("no checkpoint entries" in w for w in payload["warnings"])
+
+
+def test_an_unreadable_state_md_is_unreadable_not_missing(tmp_path: Path) -> None:
+    """A permission/encoding fault must not be reported as an un-bootstrapped
+    repository, which would steer the agent to /init instead of the filesystem."""
+    write_rules(tmp_path, ["coding-principles"])
+    state = tmp_path / ".agents" / "STATE.md"
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_bytes(b"# Agent State\n\n\xff\xfe not utf-8 \xff\n")
+
+    result = run_load_context(tmp_path)
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["unreadable"] == [".agents/STATE.md"]
+    assert ".agents/STATE.md" not in payload["missing"]
+    assert any("unreadable" in w for w in payload["warnings"])
+
+
+def test_design_placeholder_is_null_when_the_marker_heading_is_gone(
+    tmp_path: Path,
+) -> None:
+    write_rules(tmp_path, ["coding-principles"])
+    write_state(tmp_path)
+    docs_dir = tmp_path / ".agents" / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    (docs_dir / "DESIGN.md").write_text(
+        "# Design Document\n\n## Overview\n\nRenamed away from the template.\n",
+        encoding="utf-8",
+    )
+
+    result = run_load_context(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["design"]["placeholder"] is None
+    assert any("cannot be determined" in w for w in payload["warnings"])
 
 
 def test_placeholder_fixture_itself_is_detected(tmp_path: Path) -> None:
