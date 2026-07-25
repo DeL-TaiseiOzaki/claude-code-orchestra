@@ -1,6 +1,6 @@
 ---
 name: design-tracker
-description: PROACTIVELY track and document project design decisions without being asked. Activate automatically when detecting architecture discussions, implementation decisions, pattern choices, library selections, or any technical decisions. Also use when user explicitly says "record this", "what's our design status", or equivalent. Do NOT wait for user to ask - record important decisions immediately.
+description: Record a project design decision into .agents/docs/DESIGN.md through the shared typed writer. Use when the user says "record this", "add to design", "document this", "記録して", or asks what has been decided so far — and when a design decision has just been made and should not be lost.
 ---
 
 # Design Tracker Skill
@@ -9,60 +9,99 @@ description: PROACTIVELY track and document project design decisions without bei
 
 This skill keeps the project's 要件定義書 (`.agents/docs/DESIGN.md`) current.
 DESIGN.md is the **macro** requirements & design document (*what* the project builds
-and *why*); micro work progress lives in `PROGRESS.md`. This skill automatically tracks:
+and *why*); micro work progress lives in `PROGRESS.md`. It covers:
 - Background & purpose, scope
 - Functional & non-functional requirements
 - Architecture (including agent roles)
 - Tech stack choices and their rationale
 - Constraints, key decisions, and open questions
 
-## When to Activate
+## How This Skill Is Reached
 
-- User discusses architecture or design patterns
-- User makes implementation decisions (e.g., "let's use ReAct pattern")
-- User says "record this", "add to design", "document this"
-- User asks "what's our current design?" or "what have we decided?"
-- Important technical decisions are made during conversation
+Read this before relying on it: **nothing in the repository activates this skill
+automatically.** The description above is the entire trigger surface, and it works
+only through the runtime's own description-based skill selection.
 
-This skill also handles **explicit, manual update requests** — e.g. "update DESIGN",
-"force a design update", "記録して" — in addition to its proactive auto-activation.
-Whether triggered automatically or on request, it runs the same workflow below.
+- **Explicit request** — "record this", "add to design", "update DESIGN",
+  "記録して", `/design-tracker`. This is the reliable path.
+- **Model invocation** from the description, at the runtime's discretion.
+  Claude Code discovers the skill through `.claude/skills` → `.agents/skills`;
+  Codex through `.codex/config.toml`'s `path = ".agents/skills/design-tracker"`.
+- **No hook mechanism.** `.agents/hooks/` contains no design-tracker branch, and
+  the words a design conversation actually uses (設計 / design / architecture)
+  are claimed by `CODEX_TRIGGERS` in `agent-router.py`, which injects a *Codex*
+  consultation nudge instead. `check-codex-before-write.py` also nudges when
+  `DESIGN.md` is edited, but it blocks nothing — a freehand edit still lands.
+
+So an agent in a design conversation must decide to record the decision; no
+automation will decide for it. If a decision was made and this skill was not
+reached, record it at the next checkpoint — `/checkpointing` describes recording
+decisions via `update_design.py` for exactly that reason.
+
+> Previous versions of this file promised proactive, automatic activation
+> ("Do NOT wait for user to ask"). That promise was enforced by nothing, so it
+> has been removed rather than left as a false statement in a normative
+> document.
 
 ## Workflow
 
 ### Recording Decisions
 
-1. Read existing `.agents/docs/DESIGN.md`
-2. Extract the decision/information from conversation
-3. Map to the appropriate section (use the topic table below)
-4. Write the input JSON and run the shared writer script (see Mechanical Update below)
+1. Decide whether this *is* a design decision, and whether it is already
+   recorded. Grep the target table (e.g. `grep -n "^| " .agents/docs/DESIGN.md`)
+   instead of reading the whole document — the writer locates the table and
+   heading itself.
+2. Extract the decision from the conversation.
+3. Map it to a section and to that section's **typed input key** (table below).
+4. Write a per-invocation input JSON and run the shared writer (see Mechanical
+   Update).
 
 ### Sections to Update
 
-DESIGN.md uses these fixed sections (Japanese + English headings). Map each
-conversation topic to its section:
+DESIGN.md uses these fixed sections (Japanese + English headings). Every target
+has a typed input key, so no markdown row is ever hand-written:
 
-| Conversation Topic | Target Section |
-|-------------------|----------------|
-| Project goals, problem, stakeholders | `## 背景・目的 (Background & Purpose)` |
-| What is / isn't covered | `## スコープ (Scope)` — In / Out of Scope |
-| A feature the system must provide | `## 機能要件 (Functional Requirements)` table (ID / 要件 / 優先度 / 備考) |
-| Performance, security, availability, maintainability targets | `## 非機能要件 (Non-Functional Requirements)` table (カテゴリ / 要件 / 指標) |
-| System structure, components, agent roles | `## アーキテクチャ (Architecture)` — overview + Agent Roles table |
-| Library / framework / infra choice + why | `## 技術選定 (Tech Stack & Rationale)` table (領域 / 採用技術 / 理由 / 代替案) |
-| Hard limits (technical, org, compatibility) | `## 制約 (Constraints)` bullets |
-| Why we chose X over Y (significant) | `## Key Decisions` table (Decision / Rationale / Alternatives / Date) |
-| Things to do later, unresolved questions | `## TODO / Open Questions` |
+| Conversation Topic | Target Section | Input key | Fields |
+|-------------------|----------------|-----------|--------|
+| Project goals, problem, stakeholders | `## 背景・目的 (Background & Purpose)` | `section_updates` | `heading`, `content` (prose) |
+| What is / isn't covered | `## スコープ (Scope)` — In / Out of Scope | `section_updates` | `heading`, `content` (bullets) |
+| A feature the system must provide | `## 機能要件 (Functional Requirements)` | `requirements` | `id`, `requirement`, `priority`, `notes` |
+| Performance, security, availability, maintainability targets | `## 非機能要件 (Non-Functional Requirements)` | `nfr` | `category`, `requirement`, `metric` |
+| System structure, components, agent roles | `## アーキテクチャ (Architecture)` — overview + Agent Roles table | `section_updates` for the overview prose, `agent_roles` for the table | `agent`, `role`, `responsibilities` |
+| Library / framework / infra choice + why | `## 技術選定 (Tech Stack & Rationale)` | `tech_choices` | `area`, `technology`, `rationale`, `alternatives` |
+| Hard limits (technical, org, compatibility) | `## 制約 (Constraints)` bullets | `section_updates` | `heading`, `content` (bullets) |
+| Why we chose X over Y (significant) | `## Key Decisions` | `decisions` | `decision`, `rationale`, `alternatives` (the date is stamped by the writer) |
+| Things to do later, unresolved questions | `## TODO / Open Questions` | `section_updates` | `heading`, `content` (checklist) |
+
+The four prose sections have no typed key **because they have no fixed shape** —
+their content is a sentence or a bullet an agent writes, and there is no correct
+rendering for a script to own. Every section that *does* have a fixed shape (a
+table) has a typed key, and the writer refuses table rows passed through
+`section_updates`: it exits `2` naming the key you should have used, so the
+unescaped-cell and orphaned-row corruptions are now unreachable from this skill.
+
+Choosing the section stays judgment. Rendering the row does not.
 
 ### Mechanical Update
 
-Use the shared writer script for all DESIGN.md appends. Write the input JSON
-to `.agents/logs/design-input.json`:
+Use a **per-invocation** input path, never a shared one: this skill can run
+concurrently with other work (and inside a subagent), and two recordings sharing
+one input file overwrite each other. Derive the path from the decision topic:
+
+```bash
+slug="$(printf '%s' "{topic}" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-')"
+input=".agents/logs/design-input-${slug}.json"
+```
+
+Example input (use only the keys you need):
 
 ```json
 {
   "decisions": [
     {"decision": "Use ReAct pattern", "rationale": "Better tool-use control", "alternatives": "Function calling only"}
+  ],
+  "tech_choices": [
+    {"area": "Agent loop", "technology": "ReAct", "rationale": "Tool-use control", "alternatives": "Function calling only"}
   ],
   "section_updates": [
     {"heading": "## TODO / Open Questions", "content": "- [ ] Evaluate streaming support"}
@@ -70,24 +109,39 @@ to `.agents/logs/design-input.json`:
 }
 ```
 
-Run dry-run, review the preview, then apply:
+Run dry-run, read the preview, then apply:
 
 ```bash
-python3 .agents/skills/_shared/update_design.py --input .agents/logs/design-input.json
-# Review the preview file path in the JSON output, then:
-python3 .agents/skills/_shared/update_design.py --input .agents/logs/design-input.json --apply
+python3 .agents/skills/_shared/update_design.py --input "${input}"
+# Read the file named by preview_file in the JSON output, then:
+python3 .agents/skills/_shared/update_design.py --input "${input}" --apply --require-change
 ```
 
-Verify `"ok": true` in the output. Duplicate decision rows (same text + date)
-are automatically skipped. Exit code 2 means DESIGN.md structure is invalid or
-missing — run `/init` first.
+**Completion test.** `"ok": true` alone is not it — a duplicate or empty entry
+used to return `ok: true` with `result: "no-op"` and exit `0` while nothing was
+written. Require all of:
+
+- `result == "applied"`, and
+- `decisions_appended > 0` **or** some `rows_appended` value `> 0` **or**
+  `sections_updated` non-empty.
+
+Always report `skipped_duplicates` when it is non-zero — that is the honest
+"already recorded" answer. `--require-change` makes the writer enforce the same
+thing: a no-op becomes `ok: false` and exit `2`, so "recorded" can never be
+reported for a run that wrote nothing.
+
+Other exit codes: `1` bad arguments or input-schema violation · `2` DESIGN.md
+structure invalid or missing (run `/init` first), a duplicate requirement ID, a
+table row passed through `section_updates`, or a no-op under `--require-change` ·
+`3` DESIGN.md changed while the writer held it, or the write failed — re-read and
+retry.
 
 ## Output Format
 
 When recording, report concisely:
-- What was recorded
-- Which DESIGN.md section was updated
-- Brief summary of the change
+- What was recorded, and into which DESIGN.md section
+- The writer's `result`, the appended counts, and `skipped_duplicates`
+- Anything you decided *not* to record, and why
 
 ## Language Rules
 
