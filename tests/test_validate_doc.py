@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -17,6 +18,19 @@ FILE_RESULT_KEYS = {
     "role_variant",
     "sections_found",
     "sections_missing",
+    "metadata_missing",
+    "warnings",
+}
+
+# Directory-mode payload shape — stable whether or not --expect-files is given
+# (``error`` is added on top when an expectation fails).
+DIR_RESULT_KEYS = {
+    "ok",
+    "contract",
+    "results",
+    "files_checked",
+    "files_failed",
+    "expect_files",
     "warnings",
 }
 
@@ -62,6 +76,10 @@ Files X
 
 LIB_DOC_OK = """\
 # some-lib
+
+> **Last Updated**: 2026-07-25
+> **Version Checked**: 1.4.0
+
 ## Overview
 It's a library.
 ## Core Features
@@ -74,9 +92,19 @@ None
 
 LIB_DOC_MISSING = """\
 # some-lib
+
+> **Last Updated**: 2026-07-25
+> **Version Checked**: 1.4.0
+
 ## Overview
 It's a library.
 """
+
+# Every required heading, but no machine-readable version metadata: the state
+# that made every research-lib doc invisible to update-lib-docs.
+LIB_DOC_NO_METADATA = LIB_DOC_OK.replace(
+    "> **Last Updated**: 2026-07-25\n> **Version Checked**: 1.4.0\n", ""
+)
 
 SPIKE_REPORT_OK = """\
 # Spike: something
@@ -160,6 +188,38 @@ def test_lib_doc_contract_fail(tmp_path: Path) -> None:
     ]
 
 
+def test_lib_doc_requires_the_version_metadata_block(tmp_path: Path) -> None:
+    """All sections present but no `> **Version Checked**:` line is still a
+    contract violation: without it the doc is invisible to update-lib-docs."""
+    doc = _write(tmp_path / "some-lib.md", LIB_DOC_NO_METADATA)
+    result = run_validate_doc("--contract", "lib-doc", "--file", str(doc))
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2, result.stderr
+    assert payload["ok"] is False
+    assert payload["sections_missing"] == []
+    assert payload["metadata_missing"] == ["Last Updated", "Version Checked"]
+
+
+def test_lib_doc_metadata_must_carry_a_value(tmp_path: Path) -> None:
+    """An empty `> **Version Checked**:` is the same as no metadata at all."""
+    doc = _write(
+        tmp_path / "some-lib.md",
+        LIB_DOC_OK.replace("> **Version Checked**: 1.4.0", "> **Version Checked**:"),
+    )
+    result = run_validate_doc("--contract", "lib-doc", "--file", str(doc))
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2, result.stderr
+    assert payload["metadata_missing"] == ["Version Checked"]
+
+
+def test_contracts_without_metadata_requirements_report_an_empty_list(
+    tmp_path: Path,
+) -> None:
+    doc = _write(tmp_path / "log.md", IMPLEMENTER_LOG)
+    result = run_validate_doc("--contract", "work-log", "--file", str(doc))
+    assert json.loads(result.stdout)["metadata_missing"] == []
+
+
 def test_spike_report_contract_pass(tmp_path: Path) -> None:
     doc = _write(tmp_path / "spike.md", SPIKE_REPORT_OK)
     result = run_validate_doc("--contract", "spike-report", "--file", str(doc))
@@ -202,6 +262,162 @@ def test_bug_report_contract_fail(tmp_path: Path) -> None:
         "Affected Area",
         "Initial Hypotheses",
     ]
+
+
+# --- new contracts: minimal failing document reports the right names ---------
+#
+# Each expected list is the contract's own required set, which the pinned
+# template tests below tie back to the document the skill tells agents to write.
+
+NEW_CONTRACT_EXPECTATIONS = {
+    "plan-doc": (
+        "## Implementation Plan: x\n### Purpose\np\n",
+        ["Scope", "Implementation Steps", "Risks & Considerations", "Open Questions"],
+    ),
+    "spike-brief": (
+        "## Spike Brief: x\n### Question\nq\n",
+        [
+            "Parameters",
+            "Success Criteria",
+            "Sub-questions",
+            "Critical Path",
+            "Investigation Plan",
+        ],
+    ),
+    "diagnosis": (
+        "## Diagnosis Report: x\n### Error Reproduction\nr\n",
+        [
+            "Root Cause",
+            "Impact Assessment",
+            "Fix Plan",
+            "Alternative Approaches Considered",
+            "Next Steps",
+        ],
+    ),
+    "checkpoint-summary": (
+        "## サマリ\n### 何をしたのか\n- a\n",
+        [
+            "どういうやり取りをユーザーと行ったのか",
+            "どうやったのか",
+            "途中でどういう課題が起こったのか",
+            "将来のアクション",
+        ],
+    ),
+    "progress": (
+        "# PROGRESS\n## [2026-07-25-120000](x.md)\n### 何をしたのか\n- a\n",
+        ["将来のアクション"],
+    ),
+    "guide": (
+        "# Project Guide\n## 1. What is this project?\n- x\n",
+        ["3. Recent Work", "5. Capabilities", "7. How to Resume Work"],
+    ),
+}
+
+
+@pytest.mark.parametrize("contract", sorted(NEW_CONTRACT_EXPECTATIONS))
+def test_new_contract_reports_its_missing_sections(
+    tmp_path: Path, contract: str
+) -> None:
+    body, expected_missing = NEW_CONTRACT_EXPECTATIONS[contract]
+    doc = _write(tmp_path / f"{contract}.md", body)
+
+    result = run_validate_doc("--contract", contract, "--file", str(doc))
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 2, result.stderr
+    assert payload["sections_missing"] == expected_missing
+
+
+# --- feature-brief mode auto-detection ---------------------------------------
+
+FEATURE_BRIEF_EXISTING = """\
+## Feature Brief: x
+### Current State
+- Architecture: a
+### Feature Goal
+g
+### Scope
+- Include: i
+### Complexity Classification (from Codex)
+- Classification: SIMPLE
+### Integration Points
+- a: b
+### Risks
+- r: m
+### Success Criteria
+- c
+"""
+
+PROJECT_BRIEF_GREENFIELD = """\
+## Project Brief: x
+### Current State
+- Architecture: a
+### Goal
+g
+### Scope
+- Include: i
+### Constraints
+- c
+### Success Criteria
+- c
+"""
+
+
+def test_feature_brief_existing_mode_auto_detect(tmp_path: Path) -> None:
+    doc = _write(tmp_path / "brief.md", FEATURE_BRIEF_EXISTING)
+    result = run_validate_doc("--contract", "feature-brief", "--file", str(doc))
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, result.stderr
+    assert payload["role_variant"] == "existing"
+    assert payload["sections_missing"] == []
+
+
+def test_feature_brief_greenfield_mode_auto_detect(tmp_path: Path) -> None:
+    doc = _write(tmp_path / "brief.md", PROJECT_BRIEF_GREENFIELD)
+    result = run_validate_doc("--contract", "feature-brief", "--file", str(doc))
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, result.stderr
+    assert payload["role_variant"] == "greenfield"
+    assert payload["sections_missing"] == []
+
+
+def test_feature_brief_existing_marker_selects_the_stricter_variant(
+    tmp_path: Path,
+) -> None:
+    """One existing-mode heading flips the whole document, so an
+    existing-mode brief cannot pass under the shorter greenfield set."""
+    body = PROJECT_BRIEF_GREENFIELD.replace(
+        "### Goal", "### Feature Goal"
+    )  # existing-mode marker
+    doc = _write(tmp_path / "hybrid.md", body)
+
+    result = run_validate_doc("--contract", "feature-brief", "--file", str(doc))
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 2, result.stderr
+    assert payload["role_variant"] == "existing"
+    assert payload["sections_missing"] == [
+        "Complexity Classification",
+        "Integration Points",
+        "Risks",
+    ]
+
+
+def test_greenfield_goal_is_not_satisfied_by_a_feature_goal_heading(
+    tmp_path: Path,
+) -> None:
+    """`Goal` and `Feature Goal` are distinct required names — the whole-token
+    prefix rule must not collapse one into the other. A brief with only
+    `### Feature Goal` is judged in existing mode and must not silently satisfy
+    the greenfield `Goal` requirement."""
+    body = PROJECT_BRIEF_GREENFIELD.replace("### Goal", "### Feature Goal")
+    doc = _write(tmp_path / "brief.md", body)
+    payload = json.loads(
+        run_validate_doc("--contract", "feature-brief", "--file", str(doc)).stdout
+    )
+    assert payload["role_variant"] == "existing"
+    assert "Feature Goal" in payload["sections_found"]
+    assert "Goal" not in payload["sections_found"]
 
 
 # --- work-log variant auto-detection ---
@@ -332,6 +548,8 @@ def test_dir_mode_mixed_pass_fail(tmp_path: Path) -> None:
 
 
 def test_dir_mode_empty_dir(tmp_path: Path) -> None:
+    """Without --expect-files an empty directory stays exit 0 — but the state
+    is named in `warnings`, never reported as a silent all-clear."""
     team_dir = tmp_path / "team"
     team_dir.mkdir()
 
@@ -345,6 +563,10 @@ def test_dir_mode_empty_dir(tmp_path: Path) -> None:
         "results": [],
         "files_checked": 0,
         "files_failed": 0,
+        "expect_files": None,
+        "warnings": [
+            "no *.md files found: pass --expect-files N to make this a failure"
+        ],
     }
 
 
@@ -373,6 +595,177 @@ def test_dir_mode_ignores_non_markdown_files(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
 
     assert payload["files_checked"] == 1
+
+
+# --- --expect-files: an empty (or short) directory cannot pass -----------------
+#
+# The defect this closes: `--contract work-log --dir <fresh team dir>` returned
+# `ok: true, files_checked: 0`, exit 0, so "no teammate wrote a log at all" was
+# indistinguishable from "every log is valid".
+
+
+def test_expect_files_satisfied(tmp_path: Path) -> None:
+    team_dir = tmp_path / "team"
+    team_dir.mkdir()
+    _write(team_dir / "a.md", IMPLEMENTER_LOG)
+    _write(team_dir / "b.md", REVIEWER_LOG)
+
+    result = run_validate_doc(
+        "--contract", "work-log", "--dir", str(team_dir), "--expect-files", "2"
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["ok"] is True
+    assert payload["expect_files"] == 2
+    assert payload["warnings"] == []
+    assert "error" not in payload
+
+
+def test_expect_files_on_empty_dir_is_a_contract_violation(tmp_path: Path) -> None:
+    team_dir = tmp_path / "team"
+    team_dir.mkdir()
+
+    result = run_validate_doc(
+        "--contract", "work-log", "--dir", str(team_dir), "--expect-files", "3"
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 2, result.stderr
+    assert payload["ok"] is False
+    assert payload["error"] == "expected 3 files, found 0"
+    assert payload["files_checked"] == 0
+
+
+def test_expect_files_too_few(tmp_path: Path) -> None:
+    team_dir = tmp_path / "team"
+    team_dir.mkdir()
+    _write(team_dir / "a.md", IMPLEMENTER_LOG)
+
+    result = run_validate_doc(
+        "--contract", "work-log", "--dir", str(team_dir), "--expect-files", "2"
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 2, result.stderr
+    assert payload["error"] == "expected 2 files, found 1"
+    # The one file that exists is still validated and reported.
+    assert payload["files_checked"] == 1
+    assert payload["files_failed"] == 0
+
+
+def test_expect_files_too_many_also_fails(tmp_path: Path) -> None:
+    """An unexpected extra document means the caller's model of the run is
+    wrong, which is worth surfacing in both directions."""
+    team_dir = tmp_path / "team"
+    team_dir.mkdir()
+    _write(team_dir / "a.md", IMPLEMENTER_LOG)
+    _write(team_dir / "b.md", REVIEWER_LOG)
+
+    result = run_validate_doc(
+        "--contract", "work-log", "--dir", str(team_dir), "--expect-files", "1"
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 2, result.stderr
+    assert payload["error"] == "expected 1 files, found 2"
+
+
+def test_expect_files_zero_is_a_valid_expectation(tmp_path: Path) -> None:
+    team_dir = tmp_path / "team"
+    team_dir.mkdir()
+
+    result = run_validate_doc(
+        "--contract", "work-log", "--dir", str(team_dir), "--expect-files", "0"
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["ok"] is True
+    assert payload["expect_files"] == 0
+    # An explicit expectation replaces the "you should have used
+    # --expect-files" warning.
+    assert payload["warnings"] == []
+
+
+def test_expect_files_count_mismatch_wins_over_valid_files(tmp_path: Path) -> None:
+    """A satisfied per-file contract must not mask a missing document."""
+    team_dir = tmp_path / "team"
+    team_dir.mkdir()
+    _write(team_dir / "a.md", IMPLEMENTER_LOG)
+
+    result = run_validate_doc(
+        "--contract", "work-log", "--dir", str(team_dir), "--expect-files", "3"
+    )
+    payload = json.loads(result.stdout)
+
+    assert payload["files_failed"] == 0
+    assert payload["ok"] is False
+    assert result.returncode == 2
+
+
+def test_expect_files_requires_dir(tmp_path: Path) -> None:
+    """Silently ignoring the flag would let a caller believe an expectation was
+    checked when it was not."""
+    doc = _write(tmp_path / "x.md", IMPLEMENTER_LOG)
+    result = run_validate_doc(
+        "--contract", "work-log", "--file", str(doc), "--expect-files", "1"
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 1, result.stderr
+    assert payload["ok"] is False
+    assert "--expect-files is only valid with --dir" in payload["error"]
+
+
+def test_expect_files_rejects_negative(tmp_path: Path) -> None:
+    team_dir = tmp_path / "team"
+    team_dir.mkdir()
+    result = run_validate_doc(
+        "--contract", "work-log", "--dir", str(team_dir), "--expect-files", "-1"
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 1, result.stderr
+    assert payload["ok"] is False
+
+
+def test_expect_files_rejects_non_integer(tmp_path: Path) -> None:
+    team_dir = tmp_path / "team"
+    team_dir.mkdir()
+    result = run_validate_doc(
+        "--contract", "work-log", "--dir", str(team_dir), "--expect-files", "two"
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 1, result.stderr
+    assert payload["ok"] is False
+
+
+def test_dir_payload_shape_is_stable_with_and_without_expect_files(
+    tmp_path: Path,
+) -> None:
+    team_dir = tmp_path / "team"
+    team_dir.mkdir()
+    _write(team_dir / "a.md", IMPLEMENTER_LOG)
+
+    without = json.loads(
+        run_validate_doc("--contract", "work-log", "--dir", str(team_dir)).stdout
+    )
+    with_expect = json.loads(
+        run_validate_doc(
+            "--contract", "work-log", "--dir", str(team_dir), "--expect-files", "1"
+        ).stdout
+    )
+    failing = json.loads(
+        run_validate_doc(
+            "--contract", "work-log", "--dir", str(team_dir), "--expect-files", "2"
+        ).stdout
+    )
+
+    assert set(without.keys()) == DIR_RESULT_KEYS
+    assert set(with_expect.keys()) == DIR_RESULT_KEYS
+    assert set(failing.keys()) == DIR_RESULT_KEYS | {"error"}
 
 
 # --- bad args / not found ---
@@ -521,20 +914,70 @@ def test_output_is_indent2_json(tmp_path: Path) -> None:
 # These tests pin each contract to the reference template it mirrors, so the
 # two cannot drift apart.
 
-REFERENCE_TEMPLATES = {
-    "spike-report": (".agents/skills/spike/references/report-template.md", None, None),
+# contract -> one or more (rel_path, start_marker, end_marker) template specs.
+# A contract with variants (work-log, feature-brief) pins every variant, so no
+# mode can drift unnoticed behind a passing sibling.
+REFERENCE_TEMPLATES: dict[str, tuple[tuple[str, str | None, str | None], ...]] = {
+    "spike-report": (
+        (".agents/skills/spike/references/report-template.md", None, None),
+    ),
     "bug-report": (
-        ".agents/skills/troubleshoot/references/bug-report-template.md",
-        None,
-        None,
+        (
+            ".agents/skills/troubleshoot/references/bug-report-template.md",
+            None,
+            None,
+        ),
     ),
-    "work-log": (".agents/skills/_shared/work-log-format.md", None, None),
+    "work-log": ((".agents/skills/_shared/work-log-format.md", None, None),),
     "lib-doc": (
-        ".agents/skills/research-lib/SKILL.md",
-        "## Documentation Template",
-        "## Validate the Document",
+        (
+            ".agents/skills/research-lib/SKILL.md",
+            "## Documentation Template",
+            "## Validate the Document",
+        ),
     ),
+    "plan-doc": ((".agents/skills/plan/SKILL.md", "### 4. Output Format", "## Notes"),),
+    "feature-brief": (
+        (
+            ".agents/skills/feature/references/brief-templates.md",
+            "## Feature Brief (MODE=existing)",
+            "## Project Brief (MODE=greenfield)",
+        ),
+        (
+            ".agents/skills/feature/references/brief-templates.md",
+            "## Project Brief (MODE=greenfield)",
+            None,
+        ),
+    ),
+    "spike-brief": ((".agents/skills/spike/references/brief-template.md", None, None),),
+    "diagnosis": (
+        (".agents/skills/troubleshoot/references/diagnosis-template.md", None, None),
+    ),
+    "checkpoint-summary": (
+        (
+            ".agents/skills/checkpointing/references/formats.md",
+            "## Checkpoint File Format",
+            "## Rolling PROGRESS.md Format",
+        ),
+    ),
+    "progress": (
+        (
+            ".agents/skills/checkpointing/references/formats.md",
+            "## Rolling PROGRESS.md Format",
+            None,
+        ),
+    ),
+    "guide": ((".agents/skills/catchup/references/guide-template.md", None, None),),
 }
+
+# `{placeholder}` tokens as the templates write them.
+PLACEHOLDER_RE = re.compile(r"\{[^{}\n]*\}")
+
+TEMPLATE_CASES = [
+    (contract, index)
+    for contract in sorted(REFERENCE_TEMPLATES)
+    for index in range(len(REFERENCE_TEMPLATES[contract]))
+]
 
 
 def _extract_template(rel_path: str, start: str | None, end: str | None) -> str:
@@ -549,17 +992,57 @@ def _extract_template(rel_path: str, start: str | None, end: str | None) -> str:
     return text
 
 
-@pytest.mark.parametrize("contract", sorted(REFERENCE_TEMPLATES))
+def _template_body(contract: str, index: int) -> str:
+    return _extract_template(*REFERENCE_TEMPLATES[contract][index])
+
+
+@pytest.mark.parametrize(("contract", "index"), TEMPLATE_CASES)
 def test_contract_accepts_its_own_reference_template(
-    tmp_path: Path, contract: str
+    tmp_path: Path, contract: str, index: int
 ) -> None:
-    body = _extract_template(*REFERENCE_TEMPLATES[contract])
-    doc = _write(tmp_path / f"{contract}.md", body)
+    body = _template_body(contract, index)
+    doc = _write(tmp_path / f"{contract}-{index}.md", body)
 
     result = run_validate_doc("--contract", contract, "--file", str(doc))
     payload = json.loads(result.stdout)
 
     assert payload["sections_missing"] == [], payload
+
+
+@pytest.mark.parametrize(("contract", "index"), TEMPLATE_CASES)
+def test_reference_template_satisfies_the_full_contract(
+    tmp_path: Path, contract: str, index: int
+) -> None:
+    """Sections *and* required metadata: a template that cannot produce a
+    passing document is a broken template, not an agent error."""
+    body = _template_body(contract, index)
+    doc = _write(tmp_path / f"{contract}-{index}.md", body)
+
+    result = run_validate_doc("--contract", contract, "--file", str(doc))
+    payload = json.loads(result.stdout)
+
+    assert payload["metadata_missing"] == [], payload
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(("contract", "index"), TEMPLATE_CASES)
+def test_contract_accepts_a_document_rendered_from_its_template(
+    tmp_path: Path, contract: str, index: int
+) -> None:
+    """Closes half of the produced-doc gap: the template-pinning tests above
+    validate the *skeleton*, which still contains `{placeholder}` tokens. An
+    agent submits the rendered result, so a required heading that only matches
+    while its placeholder is intact (`## Fix Plan ({N} tasks) -- ...`) would
+    pass the skeleton test and fail in production. Full prose adequacy is not
+    checkable here — that stays a Codex/user gate."""
+    body = PLACEHOLDER_RE.sub("filled", _template_body(contract, index))
+    doc = _write(tmp_path / f"{contract}-{index}-rendered.md", body)
+
+    result = run_validate_doc("--contract", contract, "--file", str(doc))
+    payload = json.loads(result.stdout)
+
+    assert payload["sections_missing"] == [], payload
+    assert payload["metadata_missing"] == [], payload
     assert result.returncode == 0, result.stderr
 
 
@@ -581,6 +1064,35 @@ def test_every_contract_has_a_pinned_reference_template() -> None:
         ).stdout
     )
     assert declared == sorted(REFERENCE_TEMPLATES)
+
+
+def _declared(expression: str) -> object:
+    """Evaluate *expression* against a freshly imported validate_doc module."""
+    return json.loads(
+        subprocess.run(
+            [
+                "python3",
+                "-c",
+                "import json,sys;"
+                f"sys.path.insert(0, {str(VALIDATE_DOC.parent)!r});"
+                "import validate_doc;"
+                f"print(json.dumps({expression}))",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+
+
+def test_metadata_requirements_reference_real_contracts() -> None:
+    """A REQUIRED_METADATA key that matches no contract is dead configuration
+    that would silently never be enforced."""
+    metadata_contracts = _declared("sorted(validate_doc.REQUIRED_METADATA)")
+    contracts = _declared("sorted(validate_doc.CONTRACTS)")
+    assert isinstance(metadata_contracts, list)
+    assert isinstance(contracts, list)
+    assert set(metadata_contracts) <= set(contracts)
 
 
 def test_heading_with_inline_value_satisfies_the_contract(tmp_path: Path) -> None:
