@@ -88,7 +88,7 @@ Resolve this spike's deterministic workspace once. The title becomes file and di
 python3 .agents/skills/_shared/workspace.py --skill spike --title "{short English title}" --create
 ```
 
-This prints one JSON object: `slug`, `team_name`, and `paths` (`research`, `feasibility`, `report`, `prototype_dir`, `team_dir`). Exit 0 resolved/created; 1 bad args; 2 applies only to `--verify` (used later in Phase 3). Use `{slug}`, `{team_name}`, and every `paths.*` value from this JSON verbatim for the rest of this skill -- do not re-derive them by hand in a later phase.
+This prints one JSON object: `slug`, `team_name`, and `paths` (`brief`, `research`, `feasibility`, `report`, `prototype_dir`, `team_dir`). Exit 0 resolved/created; 1 bad args; 2 applies only to `--verify` (used later in Phase 3); 3 the workspace directories could not be created. Use `{slug}`, `{team_name}`, and every `paths.*` value from this JSON verbatim for the rest of this skill -- do not re-derive them by hand in a later phase.
 
 ### Step 1: Gather Spike Parameters from User
 
@@ -135,9 +135,23 @@ python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex
 
 ### Step 3: Create Spike Brief
 
-Combine user parameters + Codex decomposition into a Spike Brief following the template contract in `references/brief-template.md`.
+Combine user parameters + Codex decomposition into a Spike Brief following the template contract in `references/brief-template.md`. Write it to `{paths.brief}` (from Step 0) -- not only into this conversation -- then validate it:
 
-This brief is passed to Phase 2 teammates as shared context.
+```bash
+python3 .agents/skills/_shared/validate_doc.py --contract spike-brief --file {paths.brief}
+```
+
+`references/brief-template.md` is the single source of truth for the required
+sections; the `spike-brief` contract is pinned to that template by
+`tests/test_validate_doc.py`. Exit 0 means every required section is present;
+exit 2 means one is missing and the JSON `sections_missing` names it; exit 1
+means the file does not exist. Fill the gap before spawning the team.
+
+The brief carries the success criteria and sub-questions that Phase 3 scores the
+evidence against, and `{paths.brief}` is in `REQUIRED_KEYS`, so the Phase 3
+`--verify` gate fails without it. A brief that lives only in the Lead's context
+does not survive compaction or a session break -- which is why it is a file
+here, and why both teammates are pointed at the path instead of a pasted copy.
 
 ---
 
@@ -160,8 +174,7 @@ Spawn two teammates:
 
    Your job: Gather external evidence to answer the spike's sub-questions.
 
-   Spike Brief:
-   {spike brief from Phase 1}
+   Spike Brief: read `{paths.brief}` (written and validated in Phase 1 Step 3).
 
    Tasks:
    1. Research each sub-question from the Spike Brief:
@@ -216,8 +229,7 @@ Spawn two teammates:
    Your job: Evaluate the technical feasibility of the spike question through deep analysis.
    Codex CLI is your PRIMARY tool for reasoning about technical trade-offs and feasibility.
 
-   Spike Brief:
-   {spike brief from Phase 1}
+   Spike Brief: read `{paths.brief}` (written and validated in Phase 1 Step 3).
 
    Tasks:
    1. Analyze technical feasibility of each sub-question
@@ -318,6 +330,29 @@ Spawn two teammates:
 
    python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-spike-prototype.md --label spike-prototype --sandbox danger-full-access
 
+   ### 5. Post-Prototype Acceptance Checks (MANDATORY after the call above)
+   `ok: true` from the wrapper means `codex exec` exited 0 -- nothing more. Per
+   the Guardrails in `.agents/rules/cli-execution.md`, YOU run the acceptance
+   checks; a write-enabled delegated CLI is never trusted on its self-report.
+   Run both, in this order:
+
+   python3 .agents/skills/_shared/workspace.py --skill spike --slug {slug} --verify --require prototype_dir
+   python3 .agents/skills/_shared/verify_delegation.py --base HEAD --forbid-outside {paths.prototype_dir}
+
+   The first exits 2 when `{paths.prototype_dir}` holds no non-trivial file --
+   i.e. Codex reported success and wrote nothing. Read `verify.missing` /
+   `verify.empty` to see which key failed.
+   The second collects the diff evidence: `deletions`, `placeholders`,
+   `weakened_tests`, `out_of_scope_files`. Its `verdict` is always
+   `needs-review` -- it reports evidence and never accepts on your behalf. Read
+   the payload yourself: any path in `out_of_scope_files` means a throwaway
+   prototype wrote outside its directory, and must be reverted before the
+   evidence is used. Stub or placeholder code invalidates a VALIDATED result.
+
+   Record the outcome of both checks in your work log under
+   `## Prototype Results`, and treat the prototype as INCONCLUSIVE if either
+   check failed.
+
    Save analysis to `{paths.feasibility}` (from Phase 1 Step 0).
 
    Communicate with Researcher teammate:
@@ -329,7 +364,11 @@ Spawn two teammates:
    When ALL your tasks are complete, write your work log to
    {paths.team_dir}feasibility-analyst.md per the shared
    format: .agents/skills/_shared/work-log-format.md
-   Role-specific sections replacing Tasks Completed for this role:
+   Keep all five core sections, `## Tasks Completed` included -- the Lead
+   validates this log with `validate_doc.py --contract work-log`, which
+   rejects a log that drops it.
+   Role-specific sections (between Tasks Completed and Communication with
+   Teammates) for this role:
    ## Sub-question Assessments
    - {sub-question}: {FEASIBLE / NOT_FEASIBLE / UNKNOWN} -- {key reasoning}
    ## Codex Consultations
@@ -341,6 +380,8 @@ Spawn two teammates:
    ## Prototype Results (if applicable)
    - Tested: {what}
    - Result: {VALIDATED / INVALIDATED / INCONCLUSIVE}
+   - Acceptance checks: workspace --require prototype_dir: {exit code} /
+     verify_delegation out_of_scope_files: {list or none}
    "
 
 Wait for both teammates to complete their tasks.
@@ -371,7 +412,23 @@ Without Agent Teams, this discovery loop would require multiple sequential subag
 
 ### Step 1: Gather Investigation Results
 
-Read outputs from Phase 2 (paths resolved in Phase 1 Step 0):
+Confirm both teammates actually finished **before** reading anything -- "wait for
+both teammates to complete" is a self-report, and a half-finished investigation
+read as complete produces a confident verdict on partial evidence:
+
+```bash
+python3 .agents/skills/_shared/validate_doc.py --contract work-log \
+  --dir {paths.team_dir} --expect-files 2
+```
+
+Exit 0 means both logs exist and satisfy the work-log contract. Exit 2 means
+either a log is missing (`error: "expected 2 files, found N"` -- without
+`--expect-files` an empty directory would pass) or a log is malformed
+(`files_failed > 0`, with `sections_missing` per file). Resolve it before
+continuing.
+
+Then read outputs from Phase 2 (paths resolved in Phase 1 Step 0):
+- `{paths.brief}` -- Spike Brief: the success criteria to score against
 - `{paths.research}` -- Researcher findings
 - `{paths.feasibility}` -- Feasibility analysis (Codex-driven)
 - `{paths.prototype_dir}` -- Prototype code and results (if PROTOTYPE mode)
@@ -384,7 +441,7 @@ Consult Codex to synthesize all findings into a go/no-go recommendation. Write t
 Objective: Synthesize spike investigation findings and produce a go/no-go recommendation.
 Context:
 - Spike question: {original question}
-- Success criteria: {from Spike Brief}
+- Success criteria: {quoted verbatim from the `Success Criteria` section of {paths.brief}}
 - Researcher findings: {summary of key findings}
 - Feasibility assessment: {summary of Codex feasibility analysis per sub-question}
 - Risks identified: {summary of risks}
@@ -395,8 +452,8 @@ Constraints:
 - If GO, specify key constraints and risks to carry forward
 - If NO-GO, explain the decisive blocker and suggest alternatives
 - If INCONCLUSIVE, specify what additional investigation is needed
-Output format:
-## Evidence Summary (per success criterion)
+Output format (headings chosen to drop straight into `references/report-template.md`):
+## Success Criteria Evaluation (per criterion, quoting the criterion verbatim)
 ## Verdict: GO / NO-GO / INCONCLUSIVE
 ## Confidence Level: HIGH / MEDIUM / LOW
 ## Decisive Factor
@@ -417,9 +474,24 @@ Save the complete spike report to `{paths.report}` (from Phase 1 Step 0) followi
 ```bash
 python3 .agents/skills/_shared/validate_doc.py --contract spike-report --file {paths.report}
 python3 .agents/skills/_shared/workspace.py --skill spike --slug {slug} --verify
+# PROTOTYPE mode only -- make the prototype itself a required artifact:
+python3 .agents/skills/_shared/workspace.py --skill spike --slug {slug} --verify --require prototype_dir
 ```
 
-The first call confirms the report has every required section (`Question`, `Verdict`, `Evidence Summary`, `Risks`, `Next Steps`); exit 2 means a section is missing. The second confirms `research`, `feasibility`, and `report` all exist and are non-trivial; exit 2 means one is missing or empty. Resolve any gap before Step 4.
+`references/report-template.md` is the single source of truth for the report's
+required sections; the `spike-report` contract is pinned to that template by
+`tests/test_validate_doc.py`. Do not work from a section list retyped here.
+Exit 0 means every required section is present; exit 2 means one is missing and
+the JSON `sections_missing` names it -- the usual casualty is the section that
+ties the verdict back to the Phase 1 success criteria, and a report without it
+has an unsupported verdict.
+
+The `--verify` call confirms `brief`, `research`, `feasibility`, and `report`
+all exist and are non-trivial; exit 2 means one is missing or empty (read
+`verify.missing` / `verify.empty`). In PROTOTYPE mode add
+`--require prototype_dir`: `prototype_dir` is not required by default, so
+without it a PROTOTYPE spike passes this gate with no prototype on disk. An
+empty directory does not satisfy it. Resolve any gap before Step 4.
 
 ### Step 4: Present to User
 
@@ -483,6 +555,7 @@ Paths resolved once in Phase 1 Step 0 (`.agents/skills/_shared/workspace.py --sk
 
 | File | Author | Purpose |
 |------|--------|---------|
+| `{paths.brief}` | Lead | Spike Brief: success criteria, sub-questions, time budget (Phase 1) |
 | `{paths.research}` | Researcher | External research findings |
 | `{paths.feasibility}` | Feasibility Analyst | Technical feasibility analysis (Codex-driven) |
 | `{paths.report}` | Lead | Final spike report (decision document) |
@@ -497,7 +570,7 @@ Paths resolved once in Phase 1 Step 0 (`.agents/skills/_shared/workspace.py --sk
 - **Phase 1 is critical**: A well-decomposed question makes Phase 2 much more efficient. Invest time in framing the right sub-questions with Codex
 - **Phase 2**: Agent Teams bidirectional communication allows Researcher (Opus) and Feasibility Analyst (Codex-driven) to converge on evidence-based assessment
 - **Phase 3**: Codex synthesizes all findings into a decision. After a GO decision, proceed to `/feature` -- do NOT start implementation within the spike
-- **PROTOTYPE mode**: Prototype code is throwaway. It lives in `.agents/spikes/` and is NOT production code. Its only purpose is to generate evidence for the decision
+- **PROTOTYPE mode**: Prototype code is throwaway. It lives in `{paths.prototype_dir}` and is NOT production code. Its only purpose is to generate evidence for the decision -- and because that call is the skill's only `danger-full-access` invocation, the acceptance checks after it (`--require prototype_dir` plus `verify_delegation.py`) are not optional
 - **Short-circuit**: If Phase 2 discovers a hard blocker early, short-circuit to Phase 3 immediately. No need to complete all sub-questions if the answer is already clear
 - **Inconclusive is OK**: Not every spike produces a clear answer. An INCONCLUSIVE result with documented unknowns is more valuable than a false GO
 - **Reuse research**: Spike reports in `.agents/docs/research/` persist across sessions. Reference prior spikes before starting new ones on similar topics
