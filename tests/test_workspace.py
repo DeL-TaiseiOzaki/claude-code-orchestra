@@ -13,7 +13,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SHARED_DIR = REPO_ROOT / ".agents" / "skills" / "_shared"
 SCRIPT = SHARED_DIR / "workspace.py"
 
-ALL_SKILLS = ("feature", "spike", "troubleshoot", "team-execute")
+ALL_SKILLS = (
+    "feature",
+    "spike",
+    "troubleshoot",
+    "team-execute",
+    "plan",
+    "research-lib",
+)
+TEAM_SKILLS = ("feature", "spike", "troubleshoot", "team-execute")
 
 # Two titles with zero ASCII alnum characters, so both hit the sha1 fallback
 # in _slugify. Content is irrelevant; only "purely non-Latin" matters here.
@@ -93,17 +101,32 @@ def test_slugify_is_deterministic_in_process() -> None:
 
 def test_required_keys_match_spec() -> None:
     assert workspace.REQUIRED_KEYS == {
-        "feature": ("codebase_scan",),
-        "spike": ("research", "feasibility", "report"),
-        "troubleshoot": ("context", "root_cause", "impact"),
+        "feature": ("brief", "codebase_scan"),
+        "spike": ("brief", "research", "feasibility", "report"),
+        "troubleshoot": ("bug_report", "context", "root_cause", "impact"),
         "team-execute": ("review_security", "review_quality", "review_tests"),
+        "plan": ("plan_doc",),
+        "research-lib": ("lib_doc",),
     }
+
+
+def test_every_skill_has_a_template_for_each_required_key() -> None:
+    for skill, keys in workspace.REQUIRED_KEYS.items():
+        for key in keys:
+            assert key in workspace.PATH_TEMPLATES[skill], (
+                f"{skill}: required key {key!r} has no path template"
+            )
+
+
+def test_skill_choices_and_templates_agree() -> None:
+    assert set(workspace.SKILL_CHOICES) == set(workspace.PATH_TEMPLATES)
+    assert set(workspace.SKILL_CHOICES) == set(workspace.REQUIRED_KEYS)
 
 
 # --- resolve (happy path) ---------------------------------------------------
 
 
-@pytest.mark.parametrize("skill", ALL_SKILLS)
+@pytest.mark.parametrize("skill", TEAM_SKILLS)
 def test_resolve_happy_path(tmp_path: Path, skill: str) -> None:
     result = run_workspace(tmp_path, "--skill", skill, "--title", "DuckDB Plan")
 
@@ -130,6 +153,7 @@ def test_paths_match_spec_table_for_feature(tmp_path: Path) -> None:
     data = parsed(run_workspace(tmp_path, "--skill", "feature", "--title", "X"))
     slug = data["slug"]
     assert data["paths"] == {
+        "brief": f".agents/docs/research/feature-{slug}-brief.md",
         "codebase_scan": f".agents/docs/research/feature-{slug}-codebase.md",
         "research": f".agents/docs/research/{slug}.md",
         "state_input": f".agents/logs/state-input-{slug}.json",
@@ -141,6 +165,7 @@ def test_paths_match_spec_table_for_spike(tmp_path: Path) -> None:
     data = parsed(run_workspace(tmp_path, "--skill", "spike", "--title", "X"))
     slug = data["slug"]
     assert data["paths"] == {
+        "brief": f".agents/docs/research/spike-{slug}-brief.md",
         "research": f".agents/docs/research/spike-{slug}-research.md",
         "feasibility": f".agents/docs/research/spike-{slug}-feasibility.md",
         "report": f".agents/docs/research/spike-{slug}.md",
@@ -160,6 +185,7 @@ def test_paths_match_spec_table_for_troubleshoot(tmp_path: Path) -> None:
     data = parsed(run_workspace(tmp_path, "--skill", "troubleshoot", "--title", "X"))
     slug = data["slug"]
     assert data["paths"] == {
+        "bug_report": f".agents/docs/research/troubleshoot-{slug}-bug-report.md",
         "context": f".agents/docs/research/troubleshoot-{slug}-context.md",
         "root_cause": f".agents/docs/research/troubleshoot-{slug}-root-cause.md",
         "impact": f".agents/docs/research/troubleshoot-{slug}-impact.md",
@@ -178,6 +204,191 @@ def test_paths_match_spec_table_for_team_execute(tmp_path: Path) -> None:
         "diff_file": ".agents/logs/review-diff.patch",
         "team_dir": f".agents/logs/agent-teams/team-execute-{slug}/",
     }
+
+
+def test_paths_match_spec_table_for_plan(tmp_path: Path) -> None:
+    data = parsed(run_workspace(tmp_path, "--skill", "plan", "--title", "Auth Rework"))
+    assert data["paths"] == {"plan_doc": ".agents/docs/plans/auth-rework.md"}
+    assert data["dirs"] == [".agents/docs/plans"]
+
+
+def test_paths_match_spec_table_for_research_lib(tmp_path: Path) -> None:
+    data = parsed(
+        run_workspace(tmp_path, "--skill", "research-lib", "--title", "ruamel.yaml")
+    )
+    assert data["slug"] == "ruamel.yaml"
+    assert data["paths"] == {"lib_doc": ".agents/docs/libraries/ruamel.yaml.md"}
+
+
+# --- --teammate --------------------------------------------------------------
+
+
+@pytest.mark.parametrize("skill", TEAM_SKILLS)
+def test_teammate_adds_a_work_log_inside_the_team_dir(
+    tmp_path: Path, skill: str
+) -> None:
+    data = parsed(
+        run_workspace(
+            tmp_path, "--skill", skill, "--slug", "shared", "--teammate", "backend-dev"
+        )
+    )
+    assert (
+        data["paths"]["work_log"]
+        == f".agents/logs/agent-teams/{skill}-shared/backend-dev.md"
+    )
+    assert data["paths"]["work_log"].startswith(data["paths"]["team_dir"])
+
+
+def test_work_log_is_absent_without_teammate(tmp_path: Path) -> None:
+    data = parsed(run_workspace(tmp_path, "--skill", "spike", "--slug", "s"))
+    assert "work_log" not in data["paths"]
+
+
+def test_teammate_needs_no_extra_directory(tmp_path: Path) -> None:
+    with_teammate = parsed(
+        run_workspace(tmp_path, "--skill", "spike", "--slug", "s", "--teammate", "a")
+    )
+    without = parsed(run_workspace(tmp_path, "--skill", "spike", "--slug", "s"))
+    assert with_teammate["dirs"] == without["dirs"]
+
+
+@pytest.mark.parametrize("bad", ["Backend", "back end", "../etc"])
+def test_invalid_teammate_is_rejected(tmp_path: Path, bad: str) -> None:
+    result = run_workspace(
+        tmp_path, "--skill", "spike", "--slug", "s", f"--teammate={bad}", "--create"
+    )
+    assert result.returncode == 1, result.stderr
+    assert parsed(result)["ok"] is False
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_teammate_is_rejected_for_a_teamless_skill(tmp_path: Path) -> None:
+    result = run_workspace(
+        tmp_path, "--skill", "plan", "--slug", "p", "--teammate", "backend"
+    )
+    assert result.returncode == 1, result.stderr
+    assert "team" in parsed(result)["error"]
+
+
+# --- --require ---------------------------------------------------------------
+
+
+def test_require_adds_a_key_to_the_verified_set(tmp_path: Path) -> None:
+    resolved = parsed(run_workspace(tmp_path, "--skill", "spike", "--slug", "req"))
+    for key in workspace.REQUIRED_KEYS["spike"]:
+        target = tmp_path / resolved["paths"][key]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("x" * 25, encoding="utf-8")
+
+    without = run_workspace(tmp_path, "--skill", "spike", "--slug", "req", "--verify")
+    assert without.returncode == 0, without.stderr
+
+    with_require = run_workspace(
+        tmp_path,
+        "--skill",
+        "spike",
+        "--slug",
+        "req",
+        "--verify",
+        "--require",
+        "prototype_dir",
+    )
+    assert with_require.returncode == 2, with_require.stderr
+    data = parsed(with_require)
+    assert "prototype_dir" in data["verify"]["required"]
+    assert "prototype_dir" in data["verify"]["missing"]
+
+
+def test_require_accepts_a_directory_artifact_with_content(tmp_path: Path) -> None:
+    resolved = parsed(run_workspace(tmp_path, "--skill", "spike", "--slug", "dir"))
+    for key in workspace.REQUIRED_KEYS["spike"]:
+        target = tmp_path / resolved["paths"][key]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("x" * 25, encoding="utf-8")
+    prototype = tmp_path / resolved["paths"]["prototype_dir"]
+    prototype.mkdir(parents=True, exist_ok=True)
+
+    empty_dir = run_workspace(
+        tmp_path,
+        "--skill",
+        "spike",
+        "--slug",
+        "dir",
+        "--verify",
+        "--require",
+        "prototype_dir",
+    )
+    assert empty_dir.returncode == 2, "an empty prototype dir must not verify"
+    assert parsed(empty_dir)["verify"]["empty"] == ["prototype_dir"]
+
+    (prototype / "main.py").write_text(
+        "print('hello prototype run')\n", encoding="utf-8"
+    )
+    filled = run_workspace(
+        tmp_path,
+        "--skill",
+        "spike",
+        "--slug",
+        "dir",
+        "--verify",
+        "--require",
+        "prototype_dir",
+    )
+    assert filled.returncode == 0, filled.stderr
+    assert parsed(filled)["verify"]["ok"] is True
+
+
+def test_require_is_repeatable(tmp_path: Path) -> None:
+    result = run_workspace(
+        tmp_path,
+        "--skill",
+        "feature",
+        "--slug",
+        "multi",
+        "--verify",
+        "--require",
+        "research",
+        "--require",
+        "state_input",
+    )
+    assert result.returncode == 2, result.stderr
+    required = parsed(result)["verify"]["required"]
+    assert {"research", "state_input"} <= set(required)
+
+
+def test_unknown_require_key_is_an_error(tmp_path: Path) -> None:
+    result = run_workspace(
+        tmp_path, "--skill", "spike", "--slug", "s", "--verify", "--require", "nope"
+    )
+    assert result.returncode == 1, result.stderr
+    assert parsed(result)["ok"] is False
+
+
+def test_require_without_verify_is_an_error(tmp_path: Path) -> None:
+    result = run_workspace(
+        tmp_path, "--skill", "spike", "--slug", "s", "--require", "research"
+    )
+    assert result.returncode == 1, result.stderr
+    assert parsed(result)["ok"] is False
+
+
+# --- guarded writes ----------------------------------------------------------
+
+
+def test_create_against_a_file_shaped_agents_dir_reports_json(tmp_path: Path) -> None:
+    """Regression: --create used to raise NotADirectoryError and print a
+    traceback with no JSON at all when `.agents` existed as a file."""
+    (tmp_path / ".agents").write_text("not a directory\n", encoding="utf-8")
+
+    result = run_workspace(
+        tmp_path, "--skill", "spike", "--title", "Guarded Write", "--create"
+    )
+
+    assert result.returncode == 3, result.stderr
+    assert "Traceback" not in result.stderr
+    data = parsed(result)
+    assert data["ok"] is False
+    assert "error" in data
 
 
 def test_slug_flag_resolves_same_paths_as_title_derived_slug(tmp_path: Path) -> None:
@@ -273,8 +484,10 @@ def test_verify_fails_on_effectively_empty_content(tmp_path: Path) -> None:
     )
     slug = resolved["slug"]
 
+    brief = tmp_path / resolved["paths"]["brief"]
+    brief.parent.mkdir(parents=True, exist_ok=True)
+    brief.write_text("x" * 25, encoding="utf-8")
     target = tmp_path / resolved["paths"]["codebase_scan"]
-    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("too short", encoding="utf-8")  # < 20 stripped chars
 
     result = run_workspace(tmp_path, "--skill", skill, "--slug", slug, "--verify")
@@ -352,6 +565,34 @@ def test_invalid_slug_format_is_rejected(tmp_path: Path, bad_slug: str) -> None:
     data = parsed(result)
     assert data["ok"] is False
     assert "error" in data
+
+
+def test_dotted_slug_is_accepted_only_for_research_lib(tmp_path: Path) -> None:
+    accepted = run_workspace(tmp_path, "--skill", "research-lib", "--slug=ruamel.yaml")
+    assert accepted.returncode == 0, accepted.stderr
+    assert parsed(accepted)["paths"]["lib_doc"].endswith("ruamel.yaml.md")
+
+    rejected = run_workspace(tmp_path, "--skill", "spike", "--slug=ruamel.yaml")
+    assert rejected.returncode == 1, rejected.stderr
+    assert parsed(rejected)["ok"] is False
+
+
+@pytest.mark.parametrize("bad_slug", ["../etc", "Ruamel.Yaml", ".hidden"])
+def test_invalid_package_slug_is_rejected(tmp_path: Path, bad_slug: str) -> None:
+    result = run_workspace(tmp_path, "--skill", "research-lib", f"--slug={bad_slug}")
+    assert result.returncode == 1, result.stderr
+    assert parsed(result)["ok"] is False
+
+
+def test_unusable_package_title_is_an_error_not_a_hash_slug(tmp_path: Path) -> None:
+    """A package name is not free text: a title that normalizes to something
+    PACKAGE_SLUG_RE rejects must fail loudly instead of inventing a slug that
+    lib_inventory.py would never match."""
+    result = run_workspace(
+        tmp_path, "--skill", "research-lib", "--title", JAPANESE_TITLE_A
+    )
+    assert result.returncode == 1, result.stderr
+    assert parsed(result)["ok"] is False
 
 
 def test_space_separated_dash_leading_slug_still_emits_json(tmp_path: Path) -> None:

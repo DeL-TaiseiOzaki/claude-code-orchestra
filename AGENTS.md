@@ -85,7 +85,7 @@ For implementation, report changed files, commands run, test results, and risks.
 - `.agents/agents/`: complete specialist-agent definitions.
 - `.agents/skills/`: complete reusable workflow definitions and helpers.
 - `.agents/hooks/`: shared runtime hooks.
-- `.agents/docs/{research,libraries,reviews}/`: durable findings and reviews.
+- `.agents/docs/{research,libraries,plans,reviews}/`: durable findings and reviews.
 - `.agents/logs/`: generated local execution logs.
 
 Project-specific and mutable content never belongs in this file. Load
