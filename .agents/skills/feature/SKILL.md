@@ -94,8 +94,8 @@ python3 .agents/skills/_shared/workspace.py \
   --skill feature --title "<short English title>" --create
 ```
 
-The JSON on stdout carries `slug`, `team_name`, and `paths` (`codebase_scan`,
-`research`, `state_input`, `team_dir`). From here on, every `{slug}` /
+The JSON on stdout carries `slug`, `team_name`, and `paths` (`brief`,
+`codebase_scan`, `research`, `state_input`, `team_dir`). From here on, every `{slug}` /
 `{team-name}` / output path in this skill — and the `/team-execute` handoff in
 Route C — MUST come from this JSON verbatim, never be re-derived by hand: two
 independently hand-derived slugs are exactly how cross-phase artifacts drift
@@ -158,9 +158,14 @@ Every Codex consultation in this skill goes through the shared wrapper instead
 of a raw `codex exec` call, so a crashed CLI is never silently mistaken for an
 empty answer. Write the prompt body to a file under the workspace
 (`.agents/logs/codex/prompt-{label}.md`, beside where the wrapper writes
-the response), then invoke:
+the response), then invoke. The wrapper creates its log directory only *after*
+it reads the prompt file, so create the directory first — otherwise the heredoc
+write fails in a fresh clone and the consult reads nothing (or a stale prompt
+from a previous label):
 
 ```bash
+mkdir -p .agents/logs/codex
+# write the prompt body to .agents/logs/codex/prompt-{label}.md, then:
 python3 .agents/skills/_shared/codex_consult.py \
   --prompt-file .agents/logs/codex/prompt-{label}.md --label {label} --sandbox read-only
 ```
@@ -183,23 +188,58 @@ scan — always include them.
 ### DESIGN.md Update
 
 In both modes, record the feature's architecture decisions in
-`.agents/docs/DESIGN.md` (the macro 要件定義書) before presenting the plan:
+`.agents/docs/DESIGN.md` (the macro 要件定義書) before presenting the plan —
+**never by editing the file directly.** DESIGN.md is user-owned and, in
+MODE=greenfield, has two writers (the Architect in Phase 2G and the lead in
+Phase 3); a hand edit loses the atomic replace and the concurrent-modification
+guard, and one writer silently overwrites the other. Every write goes through
+the shared writer, exactly as `design-tracker` does.
 
-```markdown
-## Feature: {feature}
+Write the typed input JSON to `.agents/logs/design-input-{slug}.json` (slug from
+Step 0-b, so two features cannot collide on one input file):
 
-### Architecture
-- {Key architecture decisions from Codex / Architect}
-
-### Integration Points
-- {How the feature connects to existing code}
-
-### Design Decisions
-- {Decision 1}: {rationale}
-- {Decision 2}: {rationale}
+```json
+{
+  "decisions": [
+    {"decision": "{design decision}", "rationale": "{why}", "alternatives": "{what was rejected}"}
+  ],
+  "tech_choices": [
+    {"area": "{area}", "technology": "{library or tool}", "rationale": "{why}", "alternatives": "{rejected}"}
+  ],
+  "section_updates": [
+    {"heading": "## アーキテクチャ (Architecture)", "content": "- {integration point}: {how the feature connects}"}
+  ]
+}
 ```
 
-(In MODE=greenfield the Architect teammate updates DESIGN.md directly during Phase 2G.)
+Table rows go through their typed key — `decisions`, `requirements`, `nfr`,
+`tech_choices`, `agent_roles` — which places the row in the right table and
+escapes `|` in every cell. Hand-writing a table row as `section_updates`
+content is refused. Use `section_updates` only for prose sections
+(Architecture overview, Constraints, TODO / Open Questions).
+
+Run the dry-run, review the preview, then apply:
+
+```bash
+python3 .agents/skills/_shared/update_design.py \
+  --input .agents/logs/design-input-{slug}.json
+# Review the preview file path in the JSON output, then:
+python3 .agents/skills/_shared/update_design.py \
+  --input .agents/logs/design-input-{slug}.json --apply --require-change
+```
+
+Verify `"ok": true` and `"result": "applied"`. `--require-change` makes a
+`no-op` result (every row a duplicate, or an empty payload) exit `2`, so this
+step can never report "recorded" for a run that wrote nothing. Exit `1` is a
+bad input schema; exit `2` DESIGN.md is missing or structurally invalid (run
+`/init`) or the run was a no-op; exit `3` DESIGN.md changed under you
+(concurrent modification) or the write failed — re-read DESIGN.md, drop what the
+other writer already recorded, and re-run the dry-run before applying again.
+
+Ordering in MODE=greenfield: the Architect teammate writes its design decisions
+during Phase 2G through this same script; the lead writes only after **both**
+teammates have finished (Phase 3 Step 3), and records only what the Architect
+did not.
 
 ### Shared State Update
 
@@ -285,9 +325,33 @@ Use Codex's complexity classification to determine the implementation route in P
 
 ### Create Feature Brief
 
-Combine user requirements + codebase analysis + Codex scope assessment into a Feature Brief following the MODE=existing template in `references/brief-templates.md`.
+Combine user requirements + codebase analysis + Codex scope assessment into a
+Feature Brief following the MODE=existing template in
+`references/brief-templates.md`, and **write it to the `brief` path from Step 0-b**
+(`.agents/docs/research/feature-{slug}-brief.md`).
 
-This brief is passed to Phase 2E for design.
+The brief is the primary cross-phase artifact: it feeds all three Phase 2E Codex
+prompts, Phase 3, the Route A implementation prompt, and the `/team-execute`
+handoff. Interpolating it from conversation context is how a half-filled brief
+reaches three Codex prompts undetected — every downstream step reads the file.
+
+Validate it before leaving this phase:
+
+```bash
+python3 .agents/skills/_shared/validate_doc.py \
+  --contract feature-brief --file .agents/docs/research/feature-{slug}-brief.md
+```
+
+Exit `0` every required section is present (the MODE=existing / MODE=greenfield
+variant is auto-detected from the headings); `1` bad args or the file is
+unreadable — most often it was never written; `2` a required section is missing,
+listed in `sections_missing`. Do not continue to Phase 2E on a non-zero exit.
+
+The `### Complexity Classification (from Codex)` section is where the decided
+classification is **recorded once**. Phase 3's presentation and route selection
+read it from this file rather than re-typing it, so a MODERATE assessment cannot
+be presented and then routed as SIMPLE. Codex decides the classification; only
+its propagation is mechanical.
 
 ---
 
@@ -303,7 +367,7 @@ This brief is passed to Phase 2E for design.
 ```
 Objective: Design the architecture for adding this feature to the existing codebase.
 Context:
-- Feature Brief: {feature brief from Phase 1E}
+- Feature Brief: contents of .agents/docs/research/feature-{slug}-brief.md (from Phase 1E)
 - Existing patterns: {conventions from codebase scan}
 - Integration points: {from Codex scope analysis}
 Constraints:
@@ -325,7 +389,7 @@ Output format:
 ```
 Objective: Create a step-by-step implementation plan for this feature.
 Context:
-- Feature Brief: {feature brief from Phase 1E}
+- Feature Brief: contents of .agents/docs/research/feature-{slug}-brief.md (from Phase 1E)
 - Architecture Design: {from Step 1}
 - Complexity: {SIMPLE / MODERATE / COMPLEX}
 Constraints:
@@ -346,7 +410,7 @@ Output format:
 ```
 Objective: Validate this implementation plan for completeness, correctness, and risk.
 Context:
-- Feature Brief: {feature brief}
+- Feature Brief: contents of .agents/docs/research/feature-{slug}-brief.md
 - Architecture Design: {from Step 1}
 - Implementation Plan: {from Step 2}
 - Existing codebase patterns: {from Phase 1E}
@@ -378,9 +442,24 @@ Then update DESIGN.md (common protocol) and continue to Phase 3.
 
 ### Create Project Brief
 
-Combine codebase understanding + requirements into a Project Brief following the MODE=greenfield template in `references/brief-templates.md`.
+Combine codebase understanding + requirements into a Project Brief following the
+MODE=greenfield template in `references/brief-templates.md`, and **write it to
+the `brief` path from Step 0-b** (`.agents/docs/research/feature-{slug}-brief.md`).
 
-This brief is passed to Phase 2G teammates as shared context.
+Validate it before spawning the team — a teammate that starts from a truncated
+brief researches the wrong thing, and nothing downstream would notice:
+
+```bash
+python3 .agents/skills/_shared/validate_doc.py \
+  --contract feature-brief --file .agents/docs/research/feature-{slug}-brief.md
+```
+
+Exit `0` every required section is present (variant auto-detected); `1` bad args
+or unreadable/never written; `2` a required section is missing, listed in
+`sections_missing`.
+
+Phase 2G teammates receive the brief **path** as shared context and read the
+file, so lead and teammates work from the same bytes.
 
 ---
 
@@ -403,8 +482,7 @@ Spawn two teammates:
 
    Your job: Research external information needed for this project.
 
-   Project Brief:
-   {project brief from Phase 1G}
+   Project Brief: read .agents/docs/research/feature-{slug}-brief.md
 
    Tasks:
    1. Research libraries and tools: usage patterns, constraints, best practices
@@ -441,8 +519,7 @@ Spawn two teammates:
 
    Your job: Use Codex CLI to design the architecture and create implementation plan.
 
-   Project Brief:
-   {project brief from Phase 1G}
+   Project Brief: read .agents/docs/research/feature-{slug}-brief.md
 
    Tasks:
    1. Design architecture (modules, interfaces, data flow)
@@ -455,7 +532,18 @@ Spawn two teammates:
    python3 .agents/skills/_shared/codex_consult.py --prompt-file .agents/logs/codex/prompt-<topic>.md --label <topic> --sandbox read-only
    Read the answer from the JSON output's response_file.
 
-   Update .agents/docs/DESIGN.md with architecture decisions.
+   Record architecture decisions in .agents/docs/DESIGN.md through the shared
+   writer — never by editing the file. The lead writes the same document in
+   Phase 3, so a direct edit is a lost update:
+   write the typed JSON to .agents/logs/design-input-{slug}-architect.json
+   (keys: decisions / tech_choices / agent_roles / section_updates — table rows
+   only through their typed key), then:
+   python3 .agents/skills/_shared/update_design.py --input .agents/logs/design-input-{slug}-architect.json
+   # review the preview path in the JSON output, then:
+   python3 .agents/skills/_shared/update_design.py --input .agents/logs/design-input-{slug}-architect.json --apply --require-change
+   Verify "ok": true and "result": "applied". Exit 2 = invalid structure or a
+   no-op; exit 3 = DESIGN.md changed concurrently — re-read it and redo the
+   dry-run before applying. Report an exit 2 or 3 in your work log.
 
    Communicate with Researcher teammate:
    - Request specific library/tool research
@@ -475,6 +563,24 @@ Spawn two teammates:
 
 Wait for both teammates to complete their tasks.
 ```
+
+### Verify the Team Run (before Phase 3)
+
+Both teammates were told to write a work log; a teammate that died mid-task, or
+wrote a log missing `Issues Encountered`, is otherwise indistinguishable from
+success — and Phase 3 would then synthesize from an incomplete run:
+
+```bash
+python3 .agents/skills/_shared/validate_doc.py \
+  --contract work-log --dir .agents/logs/agent-teams/{team-name}/ --expect-files 2
+```
+
+Gate on `files_failed == 0`. Exit `0` both logs exist and satisfy the contract;
+`1` bad args or the team directory does not exist; `2` a required section is
+missing (see `results[].sections_missing`) **or** the directory does not hold
+exactly 2 logs — `--expect-files 2` is what makes "no teammate wrote a log"
+distinguishable from "all logs valid". Do not proceed on a non-zero exit: find
+out what the missing teammate did or did not do first.
 
 ### Why Bidirectional Communication Matters
 
@@ -504,10 +610,30 @@ Agent Teams collapses this into a single parallel session with real-time interac
 
 ### Step 1: Synthesize Results
 
-- MODE=existing: Feature Brief + Codex architecture / plan / validation outputs.
+- MODE=existing: the Feature Brief at `.agents/docs/research/feature-{slug}-brief.md`
+  (including its recorded Complexity Classification) + Codex architecture / plan /
+  validation outputs.
 - MODE=greenfield: read `.agents/docs/research/{slug}.md` (Researcher findings),
   `.agents/docs/libraries/{library}.md` (library docs), `.agents/docs/DESIGN.md`
   (Architect decisions).
+
+In MODE=greenfield, validate each library doc the Researcher's work log claims
+it wrote, before its constraints are built into the plan:
+
+```bash
+python3 .agents/skills/_shared/validate_doc.py \
+  --contract lib-doc --file .agents/docs/libraries/{library}.md
+```
+
+Exit `0` the doc has its sections and its `> **Last Updated**:` /
+`> **Version Checked**:` metadata; `1` the file is missing — the Researcher
+claimed a doc it never wrote; `2` a required section or metadata line is missing
+(`sections_missing` / `metadata_missing`). Validate one file per doc: running
+`--dir .agents/docs/libraries/` also checks every pre-existing doc in the
+repository, which is a different question from "did this feature's research
+produce usable docs". A Researcher that recorded external library constraints in
+prose only, with no doc at all, is a finding — say so rather than silently
+proceeding.
 
 ### Step 2: Create Task List
 
@@ -527,13 +653,27 @@ Task breakdown should follow `references/task-patterns.md`.
 
 Per the common protocols above (DESIGN.md Update / Shared State Update).
 
-Gate Phase 3 on the codebase scan before presenting the plan:
+Gate Phase 3 on the artifacts this phase actually consumes, before presenting
+the plan. MODE=existing:
 
 ```bash
 python3 .agents/skills/_shared/workspace.py --skill feature --slug {slug} --verify
 ```
 
-Exit 0 means the codebase scan exists and is non-empty; exit 2 means it is missing or effectively empty — do not present a plan built on a scan that was never written.
+MODE=greenfield consumes the Researcher's `research` artifact as well, and that
+key is not required by default — so name it explicitly, otherwise the gate
+verifies the scan and stays blind to the file Step 1 just read:
+
+```bash
+python3 .agents/skills/_shared/workspace.py --skill feature --slug {slug} \
+  --verify --require research
+```
+
+Exit 0 means every required artifact (`brief`, `codebase_scan`, plus each
+`--require` key) exists and is non-empty; exit 1 is bad args or an unknown
+`--require` key; exit 2 means one is missing or effectively empty — read
+`verify.missing` in the JSON. Do not present a plan built on a brief or a scan
+that was never written.
 
 ### Step 4: Present to User (approval gate)
 
@@ -582,7 +722,59 @@ Do not implement until the user approves the plan.
 ### Step 5: Complexity Routing
 
 Greenfield features usually classify as COMPLEX (Route C); existing-mode features
-use the classification from the Codex scope analysis.
+use the classification recorded in the brief's `### Complexity Classification`
+section — read it from `.agents/docs/research/feature-{slug}-brief.md` rather
+than re-deciding it here, so the route matches what the user approved.
+
+#### Completion Verification (MANDATORY on every route)
+
+Every route below hands implementation to an agent that reports on its own work.
+A self-report is never completion evidence (`AGENTS.md` Guardrails), so all three
+routes end with the same two executable checks — the only difference between the
+routes is *who wrote the code*, not how much verification it gets.
+
+**1. Quality gates:**
+
+```bash
+bash .agents/skills/_shared/verify.sh
+```
+
+Read the JSON: `overall` is `pass` / `fail` / `no_gates`. Exit `0` means
+`overall: pass`. **Exit `2` means a gate failed, or no gate could run at all** —
+inspect `log_file` and `tools`; `no_gates` is a failure by default because an
+implementation must not be declarable done with zero checks executed. If the
+project genuinely has no configured gates, re-run with `--allow-no-gates`,
+verify manually with the project's own commands, and say so in the report.
+Exit `1` bad arguments, `3` the log could not be written.
+
+**2. Diff evidence (the other half of the Guardrails):**
+
+```bash
+python3 .agents/skills/_shared/verify_delegation.py \
+  --base {ref the delegated run started from} \
+  --expect-files {file the plan said would change} \
+  --forbid-outside {directory the plan scoped the change to} \
+  --label route-{a|b|c}
+```
+
+`--expect-files` and `--forbid-outside` each take a **repo-relative path** and
+are repeatable: name the files the approved plan named, and the directories it
+scoped the change to. `--base` defaults to `HEAD`, which is what a Codex run
+that left the tree dirty needs.
+
+Read `deletions`, `placeholders`, `weakened_tests`, and `out_of_scope_files`.
+`verdict` is **always** `needs-review`: the script collects evidence and never
+accepts a delegated run on your behalf, so read the reported hunks and decide.
+Exit `0` nothing actionable and no violated expectation — deletions alone land
+here, reported but not actionable on their own, and exit `0` is still not an
+accept, so read the diff; `1` bad args or a `--base` that does not resolve;
+`2` an actionable finding (`placeholders`, `weakened_tests`) or a violated
+expectation (a missing expected file, an out-of-scope file, an empty scope);
+`3` git failed or the diff could not be written.
+
+Use `.agents/skills/_shared/gather_diff.py --base {ref}` when you want the full
+patch to read: `scope_empty: true` with exit `2` means the delegated run changed
+nothing at all — a failed implementation, not a clean one.
 
 #### Route A: SIMPLE (1-3 files, <50 LOC) — Codex Direct
 
@@ -598,7 +790,7 @@ python3 .agents/skills/_shared/codex_consult.py \
 ```
 Objective: Implement this feature following the approved plan.
 Context:
-- Feature Brief: {feature brief}
+- Feature Brief: contents of .agents/docs/research/feature-{slug}-brief.md
 - Architecture Design: {from Phase 2}
 - Implementation Plan: {from Phase 2}
 - Existing conventions: {from Phase 1 codebase scan}
@@ -620,24 +812,23 @@ Output format:
 ## Remaining Risks
 ```
 
-Read the implementation summary from the JSON output's `response_file`.
+Read the implementation summary from the JSON output's `response_file` — as
+input to the verification, never as its result.
 
-After Codex implementation, run the quality gates:
-
-```bash
-bash .agents/skills/_shared/verify.sh
-```
-
-Read the JSON: `overall` is `pass` / `fail` / `no_gates`. On `fail`, inspect the `log_file`. On `no_gates` (project has no configured gates), fall back to the project's own verification commands and confirm manually.
+Then run **Completion Verification** above (both checks).
 
 #### Route B: MODERATE (3-5 files) — Codex + Review
 
-1. **Implement with Codex** (same as Route A, but with more files)
-2. **Run basic verification** (tests, linting)
-3. **Invoke `/team-execute --review-only`** for parallel review (security, quality, test coverage)
+1. **Implement with Codex** (same prompt and `--sandbox danger-full-access` as
+   Route A, with more files)
+2. **Run Completion Verification** above — both checks, same exit-code reading.
+   Route B changes more files than Route A, so it gets no weaker a gate: record
+   `verify.sh`'s `overall` and the `verify_delegation.py` payload before moving on
+3. **Hand off to `/team-execute --review-only`** for parallel review (security,
+   quality, test coverage), passing the `slug` from Step 0-b
 
 ```
-After Codex implementation:
+After Codex implementation and Completion Verification:
 /team-execute --review-only   <- Parallel review from multiple perspectives
 ```
 
@@ -647,10 +838,18 @@ After Codex implementation:
 /team-execute   <- Phase 1: parallel implementation, Phase 2: parallel review
 ```
 
-Pass the Feature Brief / Project Brief, Architecture Design, and Implementation
-Plan from Phase 2 as input to `/team-execute`, together with the `slug`
-resolved in Step 0-b — `/team-execute` reuses it verbatim so work logs and
-research/design files line up across phases.
+Hand `/team-execute` the brief path (`.agents/docs/research/feature-{slug}-brief.md`),
+the Architecture Design and Implementation Plan from Phase 2, and the `slug`
+resolved in Step 0-b — `/team-execute` reuses the slug verbatim, so its research
+and design artifacts resolve to the same files this skill wrote. Its work logs
+land in `.agents/logs/agent-teams/team-execute-{slug}/`, deliberately separate
+from this skill's `feature-{slug}/` team directory: the slug is shared, the team
+directory is per-skill. Do not look for Phase 2G logs under the team-execute
+directory.
+
+When `/team-execute` returns, run **Completion Verification** above yourself.
+Its own review phase is a teammate's report on teammates' work; the gates and the
+diff evidence are what close the route.
 
 ### Post-Implementation
 
@@ -666,11 +865,13 @@ its JSON) rather than hardcoded here.
 
 | File | Author | Purpose |
 |------|--------|---------|
+| `.agents/docs/research/feature-{slug}-brief.md` | Lead | Feature / Project Brief — validated with `--contract feature-brief` |
 | `.agents/docs/research/feature-{slug}-codebase.md` | Opus Subagent | Codebase scan |
 | `.agents/docs/research/{slug}.md` (greenfield) | Researcher | External research findings |
 | `.agents/docs/libraries/{lib}.md` (greenfield) | Researcher | Library documentation |
 | `.agents/docs/DESIGN.md` (updated) | Lead / Architect (Codex-informed) | Architecture decisions |
 | `.agents/STATE.md` (updated) | Lead | Cross-session feature context |
+| `.agents/logs/agent-teams/feature-{slug}/*.md` (greenfield) | Researcher / Architect | Work logs — validated with `--contract work-log --expect-files 2` |
 | Task list (internal) | Lead | Implementation tracking |
 | Implementation files | Codex / Agent Teams | The feature itself |
 | Test files | Codex / Agent Teams | Tests for the feature |
@@ -684,6 +885,7 @@ its JSON) rather than hardcoded here.
 - **Existing patterns**: The most important input to Codex is the existing codebase patterns from the Opus subagent scan — include them in every Codex prompt
 - **Agent Teams (greenfield mode)**: Bidirectional communication lets Researcher (Opus) and Architect (Codex) influence each other in real time
 - **Complexity routing**: Do not over-engineer simple features. 1-3 file changes should use Codex direct implementation, not Agent Teams
-- **Quality gates**: After implementation, always run the quality gates per `.agents/rules/dev-environment.md` regardless of complexity route
+- **Quality gates**: Every route ends with Completion Verification — `verify.sh` (gate failure or no gate at all is exit `2`) plus `verify_delegation.py` diff evidence. A Codex or teammate summary is input to that check, never a substitute for it
+- **Artifacts, not transcripts**: the brief, the scan, the research file and the work logs are files with contracts. If a phase cannot point at a validated file, the phase did not happen
 - **Ctrl+T**: Toggle task list display
 - **Shift+Up/Down**: Navigate between teammates (when using Agent Teams)

@@ -1,16 +1,29 @@
 # Checkpoint and PROGRESS.md Format Reference
 
 Format contracts for the two artifacts produced by `checkpoint.py`.
-These document what the script already generates — they are descriptive, not prescriptive overrides.
-Section headings within each format are REQUIRED (the script emits them); content under each heading is filled from collected session data.
+These describe what the script actually generates — every heading below was
+verified against a real run, not transcribed from an earlier design.
+Section headings are REQUIRED; content under each heading is filled from
+collected session data.
+
+Machine-checkable subsets of these formats live in
+`.agents/skills/_shared/validate_doc.py`:
+`--contract checkpoint-summary` (the five-part summary block) and
+`--contract progress` (the rolling PROGRESS.md). `checkpoint.py` gates on both
+and exits 2 rather than writing a document that violates them.
 
 ---
 
 ## Checkpoint File Format
 
-Each checkpoint is written to `.agents/checkpoints/YYYY-MM-DD-HHMMSS.md`.
-It opens with a user-facing summary block wrapped in progress-summary markers,
-followed by collected data sections.
+Each checkpoint is written to `.agents/checkpoints/YYYY-MM-DD-HHMMSS.md`, with
+the timestamp taken from the single injected clock (`--now`, default
+`datetime.now(UTC)`), so the filename, the `# Checkpoint` heading, the footer,
+and the `PROGRESS.md` link always agree. An existing file is never overwritten.
+
+The document opens with the agent-written summary block wrapped in
+progress-summary markers, followed by collected data sections. Sections marked
+*(conditional)* are emitted only when their source produced data.
 
 ```markdown
 # Checkpoint 2026-02-08-153000
@@ -35,57 +48,50 @@ followed by collected data sections.
 <!-- PROGRESS-SUMMARY:END -->
 
 ## Summary
+
+- **Branch**: `main`
 - **Commits**: 12
 - **Files changed**: 15 (10 modified, 4 created, 1 deleted)
 - **Codex consultations**: 3
 - **Agent Teams sessions**: 1 (3 teammates)
-- **Tasks completed**: 8/10
+- **Tasks**: 8/10 completed
+- **Teammate work logs**: 2
+- **Since**: 2026-02-01
 
-## Git History
+## Collector Status
+
+All collectors succeeded.
+
+## Git Activity
 
 ### Commits
 - `abc1234` feat: redesign feature skill for Opus 4.6
-- `def5678` feat: add team-execute skill
-...
 
 ### File Changes
 **Created:**
-- `.agents/skills/team-execute/SKILL.md` (+180)
-...
+- `.agents/skills/team-execute/SKILL.md` (+180, -0)
 
 **Modified:**
 - `AGENTS.md` (+40, -25)
-...
 
 ## CLI Consultations
 
 ### Codex (3 consultations)
 - ✓ Design: Architecture for Agent Teams integration
-- ✓ Debug: Task dependency resolution
 - ✗ Review: (timeout)
 
 ## Agent Teams Activity
 
 ### Team: project-planning
+
 **Composition:**
-- Lead: Claude (orchestration)
-- Researcher: Opus-powered (external research)
-- Architect: Codex-powered (design decisions)
+- researcher (general-purpose-opus)
 
 **Task List:**
-- [x] Research library options (Researcher)
-- [x] Design module architecture (Architect)
-- [x] Validate API constraints (Researcher)
-- [x] Finalize implementation plan (Architect)
-
-**Communication Patterns:**
-- Researcher → Architect: 3 messages (library constraints)
-- Architect → Researcher: 2 messages (additional research requests)
+- [x] Research library options (researcher)
 
 **Effectiveness:**
-- All tasks completed
-- No file conflicts
-- 2 design iterations triggered by research findings
+- Tasks: 1/1 completed
 
 ## Teammate Work Logs
 
@@ -94,58 +100,35 @@ followed by collected data sections.
 #### researcher
 *Source: `.agents/logs/agent-teams/project-planning/researcher.md`*
 
-(work log embedded verbatim — shared format: `.agents/skills/_shared/work-log-format.md`)
-## Summary
-Researched httpx library constraints and API patterns for the new API client module.
-## Tasks Completed
-- [x] Research libraries: httpx supports HTTP/2 via h2 dependency
-- [x] Find documentation: httpx connection pool defaults to 100
-## Communication with Teammates
-- → Architect: httpx connection pool limit of 100, HTTP/2 requires h2
-- ← Architect: Requested HTTP/2 multiplexing research
+(work log embedded verbatim, first 50 lines — shared format:
+`.agents/skills/_shared/work-log-format.md`)
 
-#### architect
-*Source: `.agents/logs/agent-teams/project-planning/architect.md`*
+## Design Decisions (Changes)
 
-(work log embedded verbatim — shared format: `.agents/skills/_shared/work-log-format.md`)
-## Summary
-Designed API client module architecture with HTTP/2 support.
-## Design Decisions
-- Use httpx[http2] for multiplexed connections: reduces latency for parallel requests
-## Codex Consultations
-- Connection pool sizing strategy: Codex recommended dynamic pool based on load
-## Communication with Teammates
-- → Researcher: Request HTTP/2 multiplexing research
-- ← Researcher: httpx supports HTTP/2 via h2
-
-## Design Decisions (New)
 - Agent Teams for Research ↔ Design (bidirectional)
-
-## Skill Pattern Suggestions
-
-### Pattern 1: Research-Design Iteration (Confidence: 0.85)
-**Evidence:** Researcher and Architect exchanged findings 5 times, each
-exchange refined the design. This back-and-forth is a repeatable pattern.
-
-**Suggested skill:** Already captured as /feature Phase 2G (greenfield).
-
-### Pattern 2: Parallel File-Isolated Implementation (Confidence: 0.75)
-**Evidence:** 3 implementers worked on separate modules with zero conflicts.
-Module boundaries were defined by directory ownership.
-
-**Suggested skill:** Already captured as /team-execute Phase 1.
 
 ---
 *Generated by checkpointing skill at 2026-02-08-153000*
 ```
 
+`## Summary`, `## Collector Status`, `## Git Activity`, and
+`## CLI Consultations` are always emitted. `## Agent Teams Activity`,
+`## Teammate Work Logs`, and `## Design Decisions (Changes)` are conditional.
+
+`## Collector Status` lists every collector that failed and every record that
+was skipped, so "git could not run" is never rendered as "no activity this
+session". Skill-pattern suggestions are **not** part of the checkpoint: the
+analysis prompt goes to the sibling
+`.agents/checkpoints/YYYY-MM-DD-HHMMSS.analyze-prompt.md`.
+
 ---
 
 ## Rolling PROGRESS.md Format
 
-`PROGRESS.md` is fully regenerated at each checkpoint run from the **latest 5**
+`PROGRESS.md` is fully regenerated at each `--apply` run from the **latest 5**
 checkpoints (newest first). Each entry links to its full checkpoint and
-reproduces that checkpoint's PROGRESS-SUMMARY subsections.
+reproduces that checkpoint's PROGRESS-SUMMARY subsections, with the inner
+`## サマリ` heading removed so the entry link is the only `## ` heading.
 
 ```markdown
 # PROGRESS
@@ -165,5 +148,11 @@ reproduces that checkpoint's PROGRESS-SUMMARY subsections.
 ```
 
 `PROGRESS.md` **is** tracked by git (unlike the checkpoints directory), so the
-rolling summary travels with the repo and is the first thing `/feature`
-reads on the next session.
+rolling summary travels with the repo. It is the first document `read_order`
+lists after `.agents/STATE.md` (`context-loader/load_context.py`), which makes
+it the first thing `/feature` reads on the next session.
+
+Because it is user-owned and tracked, `checkpoint.py` rewrites it under the
+Writer Safety Contract: dry-run by default, `--apply` to write, atomic
+`os.replace`, a content-hash guard, and `--contract progress` validation of the
+composed bytes before they replace the original.

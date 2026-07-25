@@ -22,6 +22,7 @@
 | Mutable agent state           | project-owned         | `.agents/STATE.md`                            | Repository identity and cross-session working state |
 | Main-agent change runbook     | normative             | `.agents/change_main.md`                      | On-demand procedure for changing the main runtime |
 | Project documentation        | project-owned         | `.agents/docs/`                               | Design, research, reviews, and library notes |
+| Approved plans                | project-owned         | `.agents/docs/plans/`                         | `/plan` output, consumed by `/team-execute` |
 | Antigravity workflows         | experimental/inactive | `.agents/workflows/antigravity/`              | Future multi-agent orchestration   |
 | Consistency checker           | tooling               | `.agents/check.sh`                            | Validates cross-file coherence     |
 

@@ -3,29 +3,103 @@
 #
 # Runs configured quality gates (ruff check, ruff format, ty, pytest) against
 # the project, logging full output and emitting a single JSON summary on stdout.
+# Shell scripts are not exempt from the Shared Script Contract
+# (.agents/skills/_shared/README.md): one JSON object on every path, `ok` on
+# success and failure alike, and the shared exit-code vocabulary.
 #
 # Usage:
-#   bash verify.sh [--project-root DIR]
+#   bash verify.sh [--project-root DIR] [--allow-no-gates]
+#   bash verify.sh --help
 #
-# Exit: 0  overall is "pass" or "no_gates"
-#       1  at least one tool failed
+# Exit codes:
+#   0  ok — overall "pass" (or "no_gates" with --allow-no-gates)
+#   1  bad arguments
+#   2  contract violation — at least one gate failed, or no gate could run at
+#      all (overall "no_gates") without --allow-no-gates. A skill that edits
+#      code must not be able to declare done with zero checks executed.
+#   3  external failure — the log directory or log file could not be written
 
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+ALLOW_NO_GATES=0
+
+EXIT_BAD_ARGS=1
+EXIT_CONTRACT_VIOLATION=2
+EXIT_EXTERNAL_FAILURE=3
+
+# --- Helper: single-line JSON error object, always with "ok" ------------------
+fail_json() {
+    # $1 = exit code, $2 = message
+    python3 -c 'import json,sys;print(json.dumps({"ok": False, "error": sys.argv[1]}))' "$2"
+    exit "$1"
+}
+
+usage_json() {
+    python3 - <<'PY'
+import json
+
+print(
+    json.dumps(
+        {
+            "ok": True,
+            "usage": (
+                "bash verify.sh [--project-root DIR] [--allow-no-gates] | "
+                "bash verify.sh --help"
+            ),
+            "description": (
+                "Run the configured quality gates (ruff check, ruff format, ty, "
+                "pytest) and emit one JSON summary."
+            ),
+            "flags": {
+                "--project-root DIR": "Repository root to run the gates in "
+                "(default: the repository containing this script).",
+                "--allow-no-gates": "Treat overall 'no_gates' as success "
+                "(exit 0) instead of a contract violation.",
+                "--help": "Print this object and exit 0.",
+            },
+            "exit_codes": {
+                "0": "ok - overall 'pass', or 'no_gates' with --allow-no-gates",
+                "1": "bad arguments",
+                "2": "a gate failed, or no gate ran and --allow-no-gates was "
+                "not passed",
+                "3": "external failure - the log file could not be written",
+            },
+            "payload": {
+                "ok": "boolean",
+                "overall": "pass | fail | no_gates",
+                "tools": "per-tool status/exit_code/reason/summary",
+                "log_file": "repo-relative path to the full gate output",
+                "artifacts": "repo-relative paths this run wrote",
+            },
+        },
+        indent=2,
+    )
+)
+PY
+    exit 0
+}
 
 # --- Argument parsing ---------------------------------------------------------
 while [ "$#" -gt 0 ]; do
     case "$1" in
+        --help|-h)
+            usage_json
+            ;;
         --project-root)
-            [ "$#" -ge 2 ] || { printf '{"error":"--project-root requires a value"}\n'; exit 1; }
-            PROJECT_ROOT="$(cd "$2" 2>/dev/null && pwd)" || { printf '{"error":"directory not found: %s"}\n' "$2"; exit 1; }
+            [ "$#" -ge 2 ] || fail_json "$EXIT_BAD_ARGS" "--project-root requires a value"
+            # The failure is handled on this same line, so suppressing cd's own
+            # stderr keeps the one-JSON-object contract without hiding anything.
+            PROJECT_ROOT="$(cd "$2" 2>/dev/null && pwd)" || fail_json "$EXIT_BAD_ARGS" "directory not found: $2"
             shift 2
             ;;
+        --allow-no-gates)
+            ALLOW_NO_GATES=1
+            shift
+            ;;
         *)
-            printf '{"error":"unknown argument: %s"}\n' "$1"
-            exit 1
+            fail_json "$EXIT_BAD_ARGS" "unknown argument: $1"
             ;;
     esac
 done
@@ -35,8 +109,10 @@ LOG_FILE="$LOG_DIR/verify.log"
 LOG_FILE_REL=".agents/logs/verify.log"
 PYPROJECT="$PROJECT_ROOT/pyproject.toml"
 
-mkdir -p "$LOG_DIR"
-: >"$LOG_FILE"
+# Guarded writes: a log directory that cannot be created is an external
+# failure reported as JSON, not a bare shell error on stderr.
+mkdir -p "$LOG_DIR" || fail_json "$EXIT_EXTERNAL_FAILURE" "cannot create log directory: $LOG_DIR"
+: >"$LOG_FILE" || fail_json "$EXIT_EXTERNAL_FAILURE" "cannot write log file: $LOG_FILE"
 
 # --- Helper: check whether pyproject.toml mentions a tool --------------------
 pyproject_mentions() {
@@ -44,7 +120,7 @@ pyproject_mentions() {
 }
 
 # --- Collect results in temp dir ---------------------------------------------
-TMP_DIR="$(mktemp -d)"
+TMP_DIR="$(mktemp -d)" || fail_json "$EXIT_EXTERNAL_FAILURE" "cannot create temp directory"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 # Per-tool result files: <tool>.status  <tool>.exit  <tool>.reason  <tool>.summary
@@ -123,7 +199,9 @@ elif ! [ -d "$PROJECT_ROOT/tests" ] && ! grep -q '\[tool\.pytest' "$PYPROJECT" 2
 else
     record_run pytest uv run pytest -q
     # pytest exit code 5 = no tests collected: that is absence of a gate,
-    # not a failure — report it as skipped so overall stays truthful.
+    # not a failure — report it as skipped so overall stays truthful. It then
+    # counts toward "no_gates", which is itself a failure unless the caller
+    # passed --allow-no-gates.
     if [ "$(cat "$TMP_DIR/pytest.exit" 2>/dev/null)" = "5" ]; then
         echo "skipped" >"$TMP_DIR/pytest.status"
         echo "no tests collected (pytest exit 5)" >"$TMP_DIR/pytest.reason"
@@ -138,13 +216,16 @@ else
 fi
 
 # --- Assemble JSON (delegated to python3 for correct escaping) ---------------
-python3 - "$TMP_DIR" "$LOG_FILE_REL" <<'PY'
+python3 - "$TMP_DIR" "$LOG_FILE_REL" "$ALLOW_NO_GATES" <<'PY'
 import json
 import os
 import sys
 
 tmp_dir = sys.argv[1]
 log_file_rel = sys.argv[2]
+allow_no_gates = sys.argv[3] == "1"
+
+EXIT_CONTRACT_VIOLATION = 2
 
 TOOLS = ["ruff_check", "ruff_format", "ty", "pytest"]
 
@@ -153,16 +234,21 @@ def read_text(path):
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             return f.read().strip()
-    except OSError:
-        return ""
+    except OSError as exc:
+        return f"__read_error__: {exc}"
 
 
 tools = {}
 any_ran = False
 any_failed = False
+warnings = []
 
 for tool in TOOLS:
     status = read_text(os.path.join(tmp_dir, f"{tool}.status"))
+    if status.startswith("__read_error__"):
+        # Degradation is reported, never an invisible fallback to "skipped".
+        warnings.append(f"{tool}: could not read recorded status ({status})")
+        status = ""
     if not status:
         status = "skipped"
 
@@ -170,18 +256,18 @@ for tool in TOOLS:
 
     if status == "skipped":
         reason = read_text(os.path.join(tmp_dir, f"{tool}.reason"))
-        if reason:
+        if reason and not reason.startswith("__read_error__"):
             entry["reason"] = reason
     else:
         any_ran = True
         exit_code = read_text(os.path.join(tmp_dir, f"{tool}.exit"))
-        if exit_code:
+        if exit_code.isdigit():
             entry["exit_code"] = int(exit_code)
         if status == "fail":
             any_failed = True
 
     summary = read_text(os.path.join(tmp_dir, f"{tool}.summary"))
-    if summary:
+    if summary and not summary.startswith("__read_error__"):
         entry["summary"] = summary
 
     tools[tool] = entry
@@ -193,13 +279,25 @@ elif not any_ran:
 else:
     overall = "pass"
 
+# "No gate could run" is not success: it means nothing was verified. It is
+# only acceptable when the caller says so explicitly.
+if overall == "no_gates" and not allow_no_gates:
+    warnings.append(
+        "no quality gate could run: pass --allow-no-gates to accept this"
+    )
+
+ok = overall == "pass" or (overall == "no_gates" and allow_no_gates)
+
 report = {
+    "ok": ok,
     "overall": overall,
+    "allow_no_gates": allow_no_gates,
     "tools": tools,
+    "warnings": warnings,
     "log_file": log_file_rel,
+    "artifacts": [log_file_rel],
 }
 print(json.dumps(report, ensure_ascii=False, indent=2))
 
-# Exit code: 1 if any tool failed, 0 otherwise
-sys.exit(1 if any_failed else 0)
+sys.exit(0 if ok else EXIT_CONTRACT_VIOLATION)
 PY

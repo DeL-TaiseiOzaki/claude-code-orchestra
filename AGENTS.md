@@ -85,7 +85,7 @@ For implementation, report changed files, commands run, test results, and risks.
 - `.agents/agents/`: complete specialist-agent definitions.
 - `.agents/skills/`: complete reusable workflow definitions and helpers.
 - `.agents/hooks/`: shared runtime hooks.
-- `.agents/docs/{research,libraries,reviews}/`: durable findings and reviews.
+- `.agents/docs/{research,libraries,plans,reviews}/`: durable findings and reviews.
 - `.agents/logs/`: generated local execution logs.
 
 Project-specific and mutable content never belongs in this file. Load
@@ -120,5 +120,7 @@ task before acting.
 - Other native settings point directly at `.agents/` (hooks via
   `settings.json`, Codex skills via `config.toml` `path=`). Do not mirror rules,
   hooks, docs, logs, or checkpoints into product-native directories.
-- Cross-CLI subagent calls use headless mode: `claude -p`, `codex exec`,
-  `gemini -p` — see `.agents/rules/cli-execution.md`.
+- Cross-CLI subagent calls go through the shared wrappers
+  (`.agents/skills/_shared/cli_consult.py` for Claude Code and Gemini,
+  `codex_consult.py` for Codex), never a raw headless shell-out — see
+  `.agents/rules/cli-execution.md`.

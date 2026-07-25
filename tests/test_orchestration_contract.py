@@ -159,8 +159,15 @@ def test_shared_runtime_docs_use_canonical_agents_paths() -> None:
         ".agents/rules/agents-md-zones.md",
     )
     violations: list[str] = []
+    reviews_dir = REPO_ROOT / ".agents" / "docs" / "reviews"
     for path in (REPO_ROOT / ".agents").rglob("*"):
         if not path.is_file() or path.suffix not in {".md", ".py", ".sh"}:
+            continue
+        # Review notes are evidence records, not runtime documentation: an audit
+        # finding has to be able to quote the legacy path it found, and a
+        # proposal has to be able to name a script that does not exist yet.
+        # Same rationale as check.sh's logs/checkpoints/research exclusions.
+        if reviews_dir in path.parents:
             continue
         content = path.read_text(encoding="utf-8")
         if any(stale_path in content for stale_path in stale_paths):
@@ -198,6 +205,34 @@ def test_cli_contract_extends_root_orchestration_contract() -> None:
 
     assert "AGENTS.md" in content
     assert ".agents/rules/orchestration.md" not in content
+
+
+def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
+    """Regression guard: the cross-CLI section used to hand callers a raw
+    `codex exec "<prompt>" < /dev/null` idiom, contradicting the rule (enforced
+    by tests/test_shared_script_contract.py) that Codex is reached only through
+    the wrapper — and leaving `claude -p` / `gemini -p` with no hardened path
+    at all."""
+    content = read_repo_file(".agents/rules/cli-execution.md")
+    section = content.split("## Cross-CLI Subagent Invocation", 1)[1].split("\n## ", 1)[
+        0
+    ]
+
+    for wrapper in (
+        ".agents/skills/_shared/cli_consult.py",
+        ".agents/skills/_shared/codex_consult.py",
+    ):
+        assert wrapper in section, f"cross-CLI section does not route through {wrapper}"
+    for raw_idiom in ('codex exec "', 'claude -p "', 'gemini -p "'):
+        assert raw_idiom not in section, (
+            f"cross-CLI section still recommends the raw idiom {raw_idiom!r}"
+        )
+    # Access must be stated per callee, in both directions.
+    assert "read-only" in section.lower()
+    assert "--write-access" in section
+
+    root = read_repo_file("AGENTS.md")
+    assert "cli_consult.py" in root
 
 
 def test_registry_marks_root_agents_contract_as_normative() -> None:

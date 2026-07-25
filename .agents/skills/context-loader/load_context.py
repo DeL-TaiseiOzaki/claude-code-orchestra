@@ -3,21 +3,35 @@
 
 Enumerates the rule files actually present in ``.agents/rules/`` (with a
 stable preferred-order prefix so the order never drifts from what changes on
-disk), reports ``.agents/STATE.md`` / ``.agents/docs/DESIGN.md`` /
-``PROGRESS.md`` status, and lists library docs -- optionally filtered to the
-current task -- so "always start with context-loader" has one deterministic
-read order instead of a hand-maintained list in SKILL.md.
+disk), reports ``.agents/STATE.md`` / ``PROGRESS.md`` / ``.agents/docs/DESIGN.md``
+status, and lists library docs -- optionally filtered to the current task -- so
+"always start with context-loader" has one deterministic read order instead of a
+hand-maintained list in SKILL.md.
+
+``read_order`` is rules, then ``.agents/STATE.md``, then ``PROGRESS.md``, then
+``.agents/docs/DESIGN.md``, then matched library docs. ``PROGRESS.md`` sits
+directly after shared state because it carries the session-to-session
+continuity that ``checkpointing/references/formats.md`` calls "the first thing
+`/feature` reads on the next session"; it used to be reported and never read.
+
+Three states, never two: a file that exists but cannot be read or decoded is
+reported in ``unreadable`` rather than in ``missing``, so a permission or
+encoding problem does not steer the agent to ``/init``. ``design.placeholder``
+is likewise tri-state -- ``true`` (absent, or the untouched template), ``false``
+(real prose), ``null`` (the Background & Purpose heading is gone, so emptiness
+cannot be judged) -- because the previous boolean reported a renamed heading as
+"initialised".
 
 Usage:
     python3 load_context.py
     python3 load_context.py --task-libraries duckdb,fastapi
 
 Exit codes:
-    0  ok (rules dir and STATE.md are present; design/progress/libraries may
-       legitimately be absent -- that is reported, not an error)
+    0  ok (rules dir and STATE.md are present and readable; design/progress/
+       libraries may legitimately be absent -- that is reported, not an error)
     1  bad args
-    2  a canonical file is missing entirely (.agents/STATE.md or the
-       .agents/rules/ directory)
+    2  a canonical file is missing entirely or is unreadable
+       (.agents/STATE.md or the .agents/rules/ directory)
 """
 
 import argparse
@@ -48,6 +62,12 @@ DESIGN_PLACEHOLDER_HEADING_MARKER = "Background & Purpose"
 
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
+# A rolling PROGRESS.md entry: `## [2026-07-25-100000](.agents/checkpoints/...)`,
+# the shape checkpointing/references/formats.md declares.
+PROGRESS_ENTRY_RE = re.compile(
+    r"^## \[\d{4}-\d{2}-\d{2}-\d{6}\]\(\.agents/checkpoints/", re.MULTILINE
+)
+
 EXIT_OK = 0
 EXIT_BAD_ARGS = 1
 EXIT_CONTRACT_VIOLATION = 2
@@ -77,12 +97,20 @@ def _rel_posix(path: Path, root: Path) -> str:
         return path.as_posix()
 
 
-def _safe_read(path: Path) -> str | None:
-    """Read a text file; return None when missing/unreadable."""
+def _safe_read(path: Path) -> tuple[str | None, str | None]:
+    """Read a text file, returning ``(text, error)``.
+
+    ``(None, None)`` means the file does not exist; ``(None, "...")`` means it
+    exists but could not be read or decoded. Collapsing those two into one
+    ``None`` made a permission-denied STATE.md indistinguishable from an
+    un-bootstrapped repository.
+    """
+    if not path.exists():
+        return None, None
     try:
-        return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
+        return path.read_text(encoding="utf-8"), None
+    except (OSError, UnicodeDecodeError) as exc:
+        return None, f"{type(exc).__name__}: {exc}"
 
 
 def _normalize(name: str) -> str:
@@ -139,43 +167,58 @@ def _extract_section_body(text: str, heading_marker: str) -> str | None:
     return "\n".join(lines[start:end])
 
 
-def _is_design_placeholder(text: str) -> bool:
-    """Detect the fresh /init template: the Background & Purpose section holds
-    only its instructional HTML comment, with no real prose added yet."""
+def _is_design_placeholder(text: str) -> bool | None:
+    """Whether DESIGN.md is still the fresh /init template.
+
+    ``True`` when the Background & Purpose section holds only its instructional
+    HTML comment, ``False`` when real prose was added, and ``None`` when the
+    marker heading is absent altogether — emptiness cannot be judged then, and
+    reporting ``False`` (the old behaviour) claimed the document was initialised.
+    """
     body = _extract_section_body(text, DESIGN_PLACEHOLDER_HEADING_MARKER)
     if body is None:
-        return False
+        return None
     return HTML_COMMENT_RE.sub("", body).strip() == ""
 
 
 def build_state_info(root: Path) -> dict:
     """Report STATE.md presence and its ``## Main Agent`` value."""
     path = root / ".agents" / "STATE.md"
-    text = _safe_read(path)
-    present = text is not None
+    text, error = _safe_read(path)
     return {
-        "present": present,
+        "present": text is not None,
         "path": _rel_posix(path, root),
-        "main_agent": _extract_heading_value(text, "Main Agent") if present else None,
+        "error": error,
+        "main_agent": _extract_heading_value(text, "Main Agent") if text else None,
     }
 
 
 def build_design_info(root: Path) -> dict:
     """Report DESIGN.md presence and whether it is still the /init placeholder."""
     path = root / ".agents" / "docs" / "DESIGN.md"
-    text = _safe_read(path)
-    present = text is not None
+    text, error = _safe_read(path)
     return {
-        "present": present,
+        "present": text is not None,
         "path": _rel_posix(path, root),
-        "placeholder": True if text is None else _is_design_placeholder(text),
+        "error": error,
+        # Absent means definitively uninitialised; unreadable means unknowable.
+        "placeholder": _is_design_placeholder(text)
+        if text is not None
+        else (None if error else True),
     }
 
 
 def build_progress_info(root: Path) -> dict:
-    """Report PROGRESS.md presence."""
+    """Report PROGRESS.md presence and how many checkpoint entries it holds."""
     path = root / "PROGRESS.md"
-    return {"present": path.is_file(), "path": _rel_posix(path, root)}
+    text, error = _safe_read(path)
+    entries = len(PROGRESS_ENTRY_RE.findall(text)) if text is not None else 0
+    return {
+        "present": text is not None,
+        "path": _rel_posix(path, root),
+        "error": error,
+        "entries": entries,
+    }
 
 
 def build_libraries_info(root: Path, task_libraries: list[str]) -> dict:
@@ -215,6 +258,8 @@ def build_report(root: Path, task_libraries: list[str]) -> tuple[dict, int]:
     read_order = list(rule_rel_paths)
     if state["present"]:
         read_order.append(state["path"])
+    if progress["present"]:
+        read_order.append(progress["path"])
     if design["present"]:
         read_order.append(design["path"])
     libraries_dir = root / ".agents" / "docs" / "libraries"
@@ -223,19 +268,31 @@ def build_report(root: Path, task_libraries: list[str]) -> tuple[dict, int]:
     )
 
     missing: list[str] = []
+    unreadable: list[str] = []
     if not rules_present:
         missing.append(_rel_posix(rules_dir, root))
-    if not state["present"]:
-        missing.append(state["path"])
-    if not design["present"]:
-        missing.append(design["path"])
-    if not progress["present"]:
-        missing.append(progress["path"])
+    for info in (state, progress, design):
+        if info["present"]:
+            continue
+        (unreadable if info["error"] else missing).append(info["path"])
 
     warnings: list[str] = []
-    if design["placeholder"]:
+    for info in (state, progress, design):
+        if info["error"]:
+            warnings.append(f"{info['path']} exists but is unreadable: {info['error']}")
+    if design["placeholder"] is True:
         warnings.append(
             "DESIGN.md is still the uninitialised /init template; run /init to populate it"
+        )
+    elif design["present"] and design["placeholder"] is None:
+        warnings.append(
+            "DESIGN.md has no heading containing "
+            f"'{DESIGN_PLACEHOLDER_HEADING_MARKER}', so whether it is still a "
+            "placeholder cannot be determined"
+        )
+    if progress["present"] and progress["entries"] == 0:
+        warnings.append(
+            "PROGRESS.md holds no checkpoint entries; run /checkpointing to populate it"
         )
 
     ok = rules_present and state["present"]
@@ -252,6 +309,7 @@ def build_report(root: Path, task_libraries: list[str]) -> tuple[dict, int]:
         "progress": progress,
         "libraries": libraries,
         "missing": missing,
+        "unreadable": unreadable,
         "warnings": warnings,
     }
     return report, (EXIT_OK if ok else EXIT_CONTRACT_VIOLATION)

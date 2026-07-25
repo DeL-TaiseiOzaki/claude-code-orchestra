@@ -61,7 +61,7 @@ Resolve this bug's deterministic workspace once. The title becomes file and dire
 python3 .agents/skills/_shared/workspace.py --skill troubleshoot --title "{short English title}" --create
 ```
 
-This prints one JSON object: `slug`, `team_name`, and `paths` (`context`, `root_cause`, `impact`, `state_input`, `team_dir`). Exit 0 resolved/created; 1 bad args; 2 applies only to `--verify` (used later in Phase 3). Use `{slug}`, `{team_name}`, and every `paths.*` value from this JSON verbatim for the rest of this skill -- do not re-derive them by hand in a later phase.
+This prints one JSON object: `slug`, `team_name`, and `paths` (`bug_report`, `context`, `root_cause`, `impact`, `diagnosis`, `state_input`, `team_dir`). Exit 0 resolved/created; 1 bad args; 2 applies only to `--verify` (used later in Phase 3); 3 the workspace directories could not be created. Use `{slug}`, `{team_name}`, and every `paths.*` value from this JSON verbatim for the rest of this skill -- do not re-derive them by hand in a later phase.
 
 ### Step 1: Gather Error Details from User
 
@@ -73,21 +73,47 @@ Ask the user to provide:
 4. **Environment**: OS, Python version, dependency versions
 5. **Recent changes**: What changed before the error appeared (if known)
 
-### Step 2: Reproduce & Capture Context (repro.sh)
+### Step 2: Reproduce & Capture Context (repro.py)
 
 First run the bundled script for the **mechanical** capture — it runs the failing
-command, records stdout/stderr/exit code + extracted traceback to
-`.agents/logs/troubleshoot-repro.log`, and gathers recent git history (plus
-optional blame for a stack-trace file):
+command under a deadline, records stdout/stderr/exit code + extracted traceback
+to a log file keyed by `--label`, and gathers recent git history (plus optional
+last-commit context for a stack-trace file):
 
 ```bash
-bash .agents/skills/troubleshoot/repro.sh "<repro-command>" [--file <path-from-stack-trace>]
+python3 .agents/skills/troubleshoot/repro.py "<repro-command>" \
+  --label {slug}-initial [--file <path-from-stack-trace>] [--timeout 120]
 ```
 
-The script always exits `0` in capture mode (the repro command's own result is
-the JSON `exit_code`); exit `1` means bad arguments. Read the JSON fields:
-`exit_code`, `stdout_tail`, `stderr_tail`, `traceback`, `recent_commits`, `blame`,
-`log_file`.
+Always pass `--label {slug}-initial` here: the log path is
+`.agents/logs/troubleshoot-repro-{label}.log` and an unlabelled run reuses one
+shared file, so the Phase 3 fix-verification run (Step 2 task 3) would otherwise
+overwrite the original failure evidence this whole diagnosis rests on.
+
+Exit codes: `0` capture completed; `1` bad arguments (including an unusable
+`--label` or `--bisect-good` ref, checked *before* the command runs); `2` the
+observed exit code differs from `--expect-exit` (not used in Phase 1); `3` the
+repro command timed out or the log could not be written. A failing repro command
+is the expected case and is still exit `0` — its result is the JSON `exit_code`.
+
+Read the JSON fields: `exit_code`, `timed_out`, `stdout_tail`, `stderr_tail`,
+`traceback`, `traceback_format`, `git_available`, `git_error`, `recent_commits`,
+`blame`, `blame_error`, `bisect`, `log_file`, `artifacts`. Two fields exist to
+stop a null being over-read: `traceback` is only extracted for CPython
+tracebacks (`traceback_format: "python"`), so `null` there means "no *Python*
+traceback" — a Node/Go/pytest-assertion stack is in `stderr_tail`. And
+`git_available: false` with a `git_error` means history could not be read at
+all; that is not the same as "no relevant recent history".
+
+On `timed_out: true` (exit 3) the command has no usable result: raise the
+`--timeout`, narrow the repro command, or treat the hang itself as the bug —
+do not proceed as if the capture succeeded.
+
+To scope a regression, add `--bisect-good <last-known-good-ref>`. It reports the
+`bisect` object (`candidate_commits`, `candidate_count`, `path_filter`,
+`bisect_command`) — the commits an actual `git bisect` would search, plus the
+command to start it. The script never checks out a commit itself, so driving the
+bisect stays the Impact Investigator's call in Phase 2.
 
 Then hand that captured context to `general-purpose-opus` for the
 **judgment** part — do NOT re-run the command or re-fetch git history:
@@ -96,10 +122,10 @@ Then hand that captured context to `general-purpose-opus` for the
 Task tool:
   subagent_type: "general-purpose-opus"
   prompt: |
-    Analyze this reproduced error (already captured by repro.sh):
+    Analyze this reproduced error (already captured by repro.py):
 
     Error: {error message / stack trace}
-    repro.sh JSON: {exit_code, traceback, recent_commits, log_file}
+    repro.py JSON: {exit_code, traceback, recent_commits, log_file}
 
     Tasks:
     1. Read all files mentioned in the traceback; trace the execution flow
@@ -144,15 +170,21 @@ Use Codex's analysis to strengthen the Initial Hypotheses section of the Bug Rep
 
 ### Step 3: Create Bug Report
 
-Combine error details + codebase analysis + Codex initial hypotheses into a Bug Report following the template contract in `references/bug-report-template.md`. Save it to `.agents/docs/research/troubleshoot-{slug}-bug-report.md`, then validate it:
+Combine error details + codebase analysis + Codex initial hypotheses into a Bug Report following the template contract in `references/bug-report-template.md`. Save it to `{paths.bug_report}` (from Step 0), then validate it:
 
 ```bash
-python3 .agents/skills/_shared/validate_doc.py --contract bug-report --file .agents/docs/research/troubleshoot-{slug}-bug-report.md
+python3 .agents/skills/_shared/validate_doc.py --contract bug-report --file {paths.bug_report}
 ```
 
-Exit 0 means every required section (`Summary`, `Reproduction`, `Expected vs Actual`, `Initial Hypotheses`) is present; exit 2 means one is missing -- fill the gap before proceeding.
+`references/bug-report-template.md` is the single source of truth for the
+required sections; the `bug-report` contract is pinned to that template by
+`tests/test_validate_doc.py`. Do not work from a section list retyped here --
+that drift is exactly what this fix removed. Exit 0 means every required section
+is present; exit 2 means one is missing, and the JSON `sections_missing` names
+it. Fill the gap before proceeding; exit 1 means the file does not exist.
 
-This bug report is passed to Phase 2 teammates as shared context.
+Both Phase 2 teammates read this file, and Phase 3's `--verify` gate requires
+it, so it must exist on disk -- not only in this conversation.
 
 ---
 
@@ -176,8 +208,7 @@ Spawn two teammates:
    Your job: Identify the definitive root cause of this error through deep code analysis.
    Codex CLI is your PRIMARY tool for reasoning about code behavior.
 
-   Bug Report:
-   {bug report from Phase 1}
+   Bug Report: read `{paths.bug_report}` (written and validated in Phase 1 Step 3).
 
    Tasks:
    1. Trace the execution flow step by step from entry point to error
@@ -291,7 +322,11 @@ Spawn two teammates:
    When ALL your tasks are complete, write your work log to
    {paths.team_dir}root-cause-analyst.md per the shared
    format: .agents/skills/_shared/work-log-format.md
-   Role-specific sections replacing Tasks Completed for this role:
+   Keep all five core sections, `## Tasks Completed` included -- the Lead
+   validates this log with `validate_doc.py --contract work-log`, which
+   rejects a log that drops it.
+   Role-specific sections (between Tasks Completed and Communication with
+   Teammates) for this role:
    ## Hypotheses Evaluated
    - [confirmed/eliminated] {hypothesis}: {evidence}
    ## Root Cause
@@ -312,8 +347,7 @@ Spawn two teammates:
    Your job: Determine the full scope and impact of this bug, and gather context for the fix.
    Consult Codex for regression risk reasoning and fix safety analysis.
 
-   Bug Report:
-   {bug report from Phase 1}
+   Bug Report: read `{paths.bug_report}` (written and validated in Phase 1 Step 3).
 
    Tasks:
    1. Trace the bug's origin in git history:
@@ -398,7 +432,11 @@ Spawn two teammates:
    When ALL your tasks are complete, write your work log to
    {paths.team_dir}impact-investigator.md per the shared
    format: .agents/skills/_shared/work-log-format.md
-   Role-specific sections replacing Tasks Completed for this role:
+   Keep all five core sections, `## Tasks Completed` included -- the Lead
+   validates this log with `validate_doc.py --contract work-log`, which
+   rejects a log that drops it.
+   Role-specific sections (between Tasks Completed and Communication with
+   Teammates) for this role:
    ## Git History
    - Introducing commit: {hash} — {description}
    - Related commits: {list}
@@ -442,13 +480,16 @@ Without Agent Teams, this discovery loop would require multiple sequential subag
 
 ### Step 1: Synthesize Diagnosis
 
-Gate Phase 3 on the Phase 1/2 artifacts before synthesizing:
+Gate Phase 3 on the Phase 1/2 artifacts **before** reading anything, so a
+teammate that stopped early cannot be mistaken for one that finished:
 
 ```bash
 python3 .agents/skills/_shared/workspace.py --skill troubleshoot --slug {slug} --verify
+python3 .agents/skills/_shared/validate_doc.py --contract work-log \
+  --dir {paths.team_dir} --expect-files 2
 ```
 
-Exit 0 means `context`, `root_cause`, and `impact` are all present and non-trivial; exit 2 means one is missing or empty -- resolve the gap before continuing.
+The first call exits 0 when `bug_report`, `context`, `root_cause`, and `impact` are all present and non-trivial; exit 2 means one is missing or empty (read `verify.missing` / `verify.empty`). The second exits 0 only when both teammate logs exist and satisfy the work-log contract; exit 2 means a log is missing (`error: "expected 2 files, found N"`) or malformed (`files_failed > 0`, with `sections_missing` per file). "Wait for both teammates to complete" is a self-report; these two commands are the check. Resolve every gap before continuing.
 
 Read outputs from Phase 2:
 - `{paths.root_cause}` -- Root cause analysis
@@ -501,16 +542,25 @@ Task breakdown should follow `references/debug-patterns.md`.
 Typical fix task structure:
 1. **Write failing test** -- Reproduce the bug as a test case
 2. **Apply fix** -- Implement the root cause fix
-3. **Verify fix** -- Re-run the original repro command through
-   `bash .agents/skills/troubleshoot/repro.sh "<repro-command>"` and confirm the
-   JSON `exit_code` is now `0` (the failing test/command passes).
+3. **Verify fix** -- Re-run the original repro command with the expectation
+   asserted by the script rather than read by eye, and with its own label so the
+   Phase 1 failure log survives:
+
+   ```bash
+   python3 .agents/skills/troubleshoot/repro.py "<repro-command>" \
+     --label {slug}-fix-verify --expect-exit 0
+   ```
+
+   Exit `0` is the verification. Exit `2` means the fix is **not** verified
+   (`error: "expected exit 0, got N"`); exit `3` means it timed out and nothing
+   was verified at all. Do not report a verified fix on any exit code but `0`.
 4. **Check regressions** -- Run the quality gates:
 
    ```bash
    bash .agents/skills/_shared/verify.sh
    ```
 
-   Read the JSON: `overall` is `pass` / `fail` / `no_gates`. On `fail`, inspect the `log_file`. On `no_gates` (project has no configured gates), fall back to the project's own verification commands and confirm manually.
+   Read the JSON: `overall` is `pass` / `fail` / `no_gates`. Exit `0` is a pass; exit **`2`** is a gate failure *or* `no_gates` -- inspect `log_file` and the per-tool `tools` object. `no_gates` means zero gates actually ran, which is a contract violation, not a pass: fall back to the project's own verification commands and confirm manually, and pass `--allow-no-gates` only when you have done so deliberately. Quote the `tools` object rather than re-typing each status, so a `skipped` gate is never reported as a pass.
 5. **Fix collateral damage** -- Address blast radius items (if any)
 
 ### Step 3: Update Shared State
@@ -555,7 +605,25 @@ Exit code 2 means the state structure is invalid; stop before writing.
 
 ### Step 4: Present to User
 
-Present the diagnosis and fix plan to the user following the template contract in `references/diagnosis-template.md`.
+Compose the diagnosis and fix plan following the template contract in
+`references/diagnosis-template.md`. Write the composed presentation to
+`{paths.diagnosis}` (resolved in Phase 1 Step 0, never hand-built) and validate
+its structure before presenting it:
+
+```bash
+python3 .agents/skills/_shared/validate_doc.py --contract diagnosis \
+  --file {paths.diagnosis}
+python3 .agents/skills/_shared/workspace.py --skill troubleshoot \
+  --slug {slug} --verify --require diagnosis
+```
+
+`references/diagnosis-template.md` is the section source of truth (the
+`diagnosis` contract is pinned to it by `tests/test_validate_doc.py`). Exit 0
+means every required section is present; exit 2 means one is missing and
+`sections_missing` names it -- most often `Alternative Approaches Considered`,
+the section a rushed presentation drops. Then present the validated document to
+the user. Structure is all this gate checks: whether the diagnosis is *correct*
+remains the Codex validation in Step 1.5 plus the user's approval.
 
 ---
 
@@ -565,12 +633,23 @@ Paths resolved once in Phase 1 Step 0 (`.agents/skills/_shared/workspace.py --sk
 
 | File | Author | Purpose |
 |------|--------|---------|
+| `{paths.bug_report}` | Lead | Bug Report (Phase 1 synthesis) |
 | `{paths.context}` | Opus Subagent | Initial error context analysis |
-| `.agents/docs/research/troubleshoot-{slug}-bug-report.md` | Lead | Bug Report (Phase 1 synthesis) |
 | `{paths.root_cause}` | Root Cause Analyst | Root cause analysis (Codex-driven) |
 | `{paths.impact}` | Impact Investigator | Impact assessment (with Codex risk analysis) |
 | `.agents/STATE.md` (updated) | Lead | Cross-session bug fix context |
 | Task list (internal) | Lead | Fix implementation tracking |
+
+Run artifacts under `.agents/logs/`, keyed by `{slug}` so successive runs do not
+overwrite each other. The repro logs are not part of `--verify`; the diagnosis is
+checkable on demand with `--require diagnosis` (it is not a default required key,
+because in Phases 1-2 it does not exist yet):
+
+| File | Author | Purpose |
+|------|--------|---------|
+| `.agents/logs/troubleshoot-repro-{slug}-initial.log` | `repro.py` | Phase 1 failure capture |
+| `.agents/logs/troubleshoot-repro-{slug}-fix-verify.log` | `repro.py` | Phase 3 fix-verification capture |
+| `{paths.diagnosis}` | Lead | Phase 3 presentation, validated with `--contract diagnosis` and `--require diagnosis` |
 
 ---
 

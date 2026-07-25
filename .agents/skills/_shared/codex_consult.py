@@ -10,16 +10,25 @@ the prompt is a single argv element (no shell), stdin is closed, stdout and
 stderr are captured to timestamped files under ``.agents/logs/codex/``, and
 every outcome is reported as a single JSON object.
 
+The prompt that was actually sent is always persisted next to the response
+(``{stem}.prompt.md``), including on the ``--prompt-stdin`` path, so a consult
+stays diagnosable after the fact. With neither ``--prompt-file`` nor
+``--prompt-stdin``, the prompt is read from the label's conventional path,
+``.agents/logs/codex/prompt-{label}.md``.
+
 Usage:
     python3 codex_consult.py --prompt-file prompt.txt --label design-review
+    python3 codex_consult.py --label design-review   # reads prompt-design-review.md
     echo "Objective: ..." | python3 codex_consult.py --prompt-stdin
     python3 codex_consult.py --prompt-file p.txt --config model_reasoning_effort=low
 
 Exit codes:
-    0  codex exec exited 0
-    1  bad args (missing/both prompt sources, unreadable prompt file, bad --cwd)
+    0  codex exec exited 0 and its output was saved and verified
+    1  bad args (both prompt sources, unreadable prompt file, bad --cwd,
+       unparseable --now)
     2  codex CLI not found on PATH
-    3  codex exec exited non-zero, or timed out
+    3  codex exec exited non-zero or timed out, or a log file could not be
+       written, created, or verified
 """
 
 import argparse
@@ -49,6 +58,13 @@ INSTALL_HINT = "install with `npm install -g @openai/codex@latest`"
 # quietly contradict.
 CONFIG_KEY_RE = re.compile(r"^[a-z0-9_]+(\.[a-z0-9_]+)*$")
 CONFIG_KEY_DENYLIST = ("sandbox", "approval")
+
+# Second-granularity timestamps collide: two consults started in the same second
+# with the same --label (and `consult` is the default) used to write the same
+# response file, so the second run silently destroyed the first run's answer.
+# The repository now runs several agents in parallel, so the log stem is
+# *reserved* with O_EXCL and a numeric suffix is appended on collision.
+MAX_LOG_ATTEMPTS = 100
 
 EXIT_OK = 0
 EXIT_BAD_ARGS = 1
@@ -95,6 +111,90 @@ def _as_text(value: bytes | str | None) -> str:
     return value
 
 
+def parse_now(value: str | None) -> tuple[datetime | None, str | None]:
+    """Resolve the run's single clock reading, honouring ``--now``.
+
+    The clock is read exactly once per run so every filename and field in one
+    payload agrees, and so a test can pin the log names it then inspects.
+    """
+    if value is None:
+        return datetime.now(tz=UTC), None
+    try:
+        return datetime.fromisoformat(value), None
+    except ValueError:
+        return None, f"--now must be an ISO 8601 timestamp, got {value!r}"
+
+
+def _guarded_mkdir(path: Path) -> str | None:
+    """Create *path* and its parents; return an error message, never raise."""
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return f"cannot create log directory {path}: {exc}"
+    return None
+
+
+def _guarded_write(path: Path, text: str) -> str | None:
+    """Write *text* to *path*; return an error message, never raise.
+
+    An unwritable log directory used to surface as a bare ``OSError``
+    traceback with no JSON at all, which a caller reading the exit code alone
+    could not distinguish from a bad argument.
+    """
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        return f"cannot write {path}: {exc}"
+    return None
+
+
+def _verify_written(path: Path, expected: str) -> str | None:
+    """Confirm *path* holds exactly *expected*; return an error message.
+
+    "Codex answered" and "we saved the answer" are two different claims. This
+    makes the second one checked rather than assumed before ``ok: true``.
+    """
+    try:
+        actual = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return f"cannot re-read {path} after writing it: {exc}"
+    if actual != expected:
+        return (
+            f"{path} does not match the captured output "
+            f"({len(actual)} chars on disk, {len(expected)} captured)"
+        )
+    return None
+
+
+def reserve_log_stem(
+    logs_dir: Path, timestamp: str, label: str
+) -> tuple[str | None, str | None]:
+    """Reserve a unique ``{timestamp}-{label}`` stem inside *logs_dir*.
+
+    The response file is created with ``O_CREAT | O_EXCL`` so a concurrent run
+    that picked the same second cannot take the same stem; the loser appends
+    ``-2``, ``-3``, … instead of overwriting an existing answer. Returns
+    ``(stem, error)`` with exactly one of the two set.
+    """
+    for attempt in range(1, MAX_LOG_ATTEMPTS + 1):
+        stem = (
+            f"{timestamp}-{label}" if attempt == 1 else f"{timestamp}-{label}-{attempt}"
+        )
+        try:
+            fd = os.open(logs_dir / f"{stem}.md", os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            continue
+        except OSError as exc:
+            return None, f"cannot create response file for {stem!r}: {exc}"
+        os.close(fd)
+        return stem, None
+    return (
+        None,
+        f"cannot find a free log name for {timestamp}-{label} "
+        f"after {MAX_LOG_ATTEMPTS} attempts",
+    )
+
+
 def validate_config_overrides(overrides: list[str]) -> str | None:
     """Return an error message if any ``--config`` override is unusable."""
     for override in overrides:
@@ -128,11 +228,17 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     parser = JsonArgumentParser(
         description="Safely invoke the Codex CLI and capture its output.",
     )
-    parser.add_argument("--prompt-file", type=Path, help="File containing the prompt")
+    parser.add_argument(
+        "--prompt-file",
+        type=Path,
+        help=(
+            "File containing the prompt (default: .agents/logs/codex/prompt-{label}.md)"
+        ),
+    )
     parser.add_argument(
         "--prompt-stdin",
         action="store_true",
-        help="Read the prompt from stdin",
+        help="Read the prompt from stdin instead of a file",
     )
     parser.add_argument(
         "--label",
@@ -178,6 +284,11 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         ),
     )
     parser.add_argument(
+        "--now",
+        default=None,
+        help="ISO 8601 timestamp to stamp instead of the real clock",
+    )
+    parser.add_argument(
         "--project-root",
         type=Path,
         default=PROJECT_ROOT,
@@ -186,8 +297,10 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     args = parser.parse_args()
     project_root = args.project_root
 
-    # --- Validate prompt source: exactly one of --prompt-file/--prompt-stdin ---
-    if bool(args.prompt_file) == bool(args.prompt_stdin):
+    # --- Validate prompt source: at most one of --prompt-file/--prompt-stdin ---
+    # Neither is allowed: the prompt then comes from the label's conventional
+    # path, which is what five skills used to hand-type on every call.
+    if args.prompt_file is not None and args.prompt_stdin:
         _emit(
             {
                 "ok": False,
@@ -214,12 +327,29 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         _emit({"ok": False, "error": config_error})
         return EXIT_BAD_ARGS
 
+    # --- Resolve the run's single clock reading ---
+    now, now_error = parse_now(args.now)
+    if now is None:
+        _emit({"ok": False, "error": now_error})
+        return EXIT_BAD_ARGS
+
+    logs_dir = project_root / ".agents" / "logs" / "codex"
+
     # --- Load prompt ---
-    if args.prompt_file is not None:
+    prompt_source: Path | None = args.prompt_file
+    if prompt_source is None and not args.prompt_stdin:
+        prompt_source = logs_dir / f"prompt-{args.label}.md"
+    if prompt_source is not None:
         try:
-            prompt = args.prompt_file.read_text(encoding="utf-8")
+            prompt = prompt_source.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
-            _emit({"ok": False, "error": f"cannot read prompt file: {exc}"})
+            hint = (
+                ""
+                if args.prompt_file is not None
+                else " (the default path for --label; pass --prompt-file or "
+                "--prompt-stdin to use another source)"
+            )
+            _emit({"ok": False, "error": f"cannot read prompt file: {exc}{hint}"})
             return EXIT_BAD_ARGS
     else:
         prompt = sys.stdin.read()
@@ -240,11 +370,34 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         )
         return EXIT_NOT_FOUND
 
-    logs_dir = project_root / ".agents" / "logs" / "codex"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
-    response_path = logs_dir / f"{timestamp}-{args.label}.md"
-    stderr_path = logs_dir / f"{timestamp}-{args.label}.err.log"
+    # --- Reserve the log stem before spending a Codex call on it ---
+    mkdir_error = _guarded_mkdir(logs_dir)
+    if mkdir_error:
+        _emit({"ok": False, "error": mkdir_error, "artifacts": []})
+        return EXIT_FAILED
+    timestamp = now.strftime("%Y%m%dT%H%M%SZ")
+    stem, stem_error = reserve_log_stem(logs_dir, timestamp, args.label)
+    if stem is None:
+        _emit({"ok": False, "error": stem_error, "artifacts": []})
+        return EXIT_FAILED
+    response_path = logs_dir / f"{stem}.md"
+    stderr_path = logs_dir / f"{stem}.err.log"
+    prompt_path = logs_dir / f"{stem}.prompt.md"
+
+    # The prompt is persisted before the call, so a timeout or a crash still
+    # leaves the exact text that was sent — including on the --prompt-stdin
+    # path, where it previously existed nowhere.
+    write_error = _guarded_write(prompt_path, prompt)
+    if write_error:
+        _emit(
+            {
+                "ok": False,
+                "error": write_error,
+                "response_file": _repo_relative(response_path, project_root),
+                "artifacts": [_repo_relative(response_path, project_root)],
+            }
+        )
+        return EXIT_FAILED
 
     cwd = args.cwd if args.cwd is not None else project_root
     argv = ["codex", "exec", "--model", model, "--sandbox", sandbox]
@@ -290,15 +443,29 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         return EXIT_NOT_FOUND
     duration_sec = round(time.monotonic() - start, 3)
 
-    response_path.write_text(stdout_text, encoding="utf-8")
+    artifacts = [
+        _repo_relative(prompt_path, project_root),
+        _repo_relative(response_path, project_root),
+    ]
+    write_failure = _guarded_write(response_path, stdout_text)
     stderr_file: str | None = None
-    if stderr_text:
-        stderr_path.write_text(stderr_text, encoding="utf-8")
-        stderr_file = _repo_relative(stderr_path, project_root)
+    if stderr_text and write_failure is None:
+        write_failure = _guarded_write(stderr_path, stderr_text)
+        if write_failure is None:
+            stderr_file = _repo_relative(stderr_path, project_root)
+            artifacts.append(stderr_file)
+    # Saving the answer is verified, not assumed: a truncated or replaced
+    # response file must not be reported as a successful consult.
+    response_verified = False
+    if write_failure is None:
+        write_failure = _verify_written(response_path, stdout_text)
+        response_verified = write_failure is None
 
-    ok = exit_code == 0 and not timed_out
+    ok = exit_code == 0 and not timed_out and write_failure is None
     if not ok and error is None:
-        error = f"codex exec exited with code {exit_code}"
+        error = write_failure or f"codex exec exited with code {exit_code}"
+    elif write_failure is not None:
+        error = f"{error}; and {write_failure}"
 
     _emit(
         {
@@ -309,10 +476,13 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             "write_access": write_access,
             "timed_out": timed_out,
             "duration_sec": duration_sec,
+            "prompt_file": _repo_relative(prompt_path, project_root),
             "response_file": _repo_relative(response_path, project_root),
+            "response_verified": response_verified,
             "stderr_file": stderr_file,
             "response_chars": len(stdout_text),
             "response_head": stdout_text[:400],
+            "artifacts": artifacts,
             "error": error,
         }
     )

@@ -48,8 +48,8 @@ and referenced by workflows, skills, and configuration.
   `.agents/docs/reviews/` only.
 - **Inputs**: Context summary, competing proposals or stuck-state description.
 - **Outputs**: Judgment, arbitration decision, review notes.
-- **Model**: Claude `fable-advisor` agent (created in a later commit;
-  configuration TBD).
+- **Model**: Claude `fable-advisor` agent
+  (`.agents/agents/fable-advisor.md`).
 
 ## Fable Differentiation
 

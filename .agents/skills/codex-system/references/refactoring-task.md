@@ -99,10 +99,15 @@ python3 .agents/skills/_shared/codex_consult.py --prompt-file "${prompt_file}" -
 - [ ] Verify library usage unchanged
 
 ### After Refactoring
-- [ ] All tests pass
-- [ ] Behavior unchanged
+- [ ] `bash .agents/skills/_shared/verify.sh` → exit `0` (`overall: "pass"`; exit `2` is a failed gate *or* no gate executed)
+- [ ] `python3 .agents/skills/_shared/verify_delegation.py --forbid-outside {scope}` evidence read — `verdict` is always `needs-review`
+- [ ] Behavior unchanged, and no test was deleted, skipped, or weakened to get there
 - [ ] Code is simpler
 - [ ] Type hints appropriate
+
+This is a `danger-full-access` call, so the full protocol in
+`codex-system/SKILL.md` → *Verify Before Trusting* applies, including the
+re-delegate-once-then-halt rule.
 
 ## When to Use
 
