@@ -139,7 +139,7 @@ python3 .agents/skills/_shared/verify_delegation.py --base HEAD \
   --forbid-outside {directory the task was scoped to}
 ```
 
-It reports `deletions`, `placeholders`, `weakened_tests`, `out_of_scope_files`, `missing_expected_files`, `scope_empty`, and the captured diff at `diff_file`. Exit `0` = no finding and no violated expectation; exit **`2`** = at least one of either. Use `--base <pre-delegation ref>` when Codex committed its work; the default `HEAD` covers the usual uncommitted case.
+It reports `deletions`, `placeholders`, `weakened_tests`, `out_of_scope_files`, `missing_expected_files`, `scope_empty`, and the captured diff at `diff_file`. Exit `0` = nothing actionable and no violated expectation — deletions alone land here, reported but not actionable on their own, and exit `0` is still not an accept. Exit **`2`** = an actionable finding (`placeholders`, `weakened_tests`) or a violated expectation (`out_of_scope_files`, `missing_expected_files`, `scope_empty`). Use `--base <pre-delegation ref>` when Codex committed its work; the default `HEAD` covers the usual uncommitted case.
 
 **3. Read the diff and decide.** `verdict` is always `needs-review` and there is no verdict that means "accepted" — deliberately. The pattern list is heuristic (a legitimate test deletion exists, and a `TODO` in a docstring is not a stub), and only you know what the prompt authorised. Reject the completion when the diff shows any of:
 

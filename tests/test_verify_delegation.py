@@ -120,9 +120,16 @@ def test_no_verdict_ever_reads_as_accepted(repo: Path) -> None:
 
 
 def test_empty_scope_is_not_success(repo: Path) -> None:
+    """CONTRACT CHANGE (was: ok is False on any finding).
+
+    `ok` now reports whether *collection* succeeded, so a run that collected
+    cleanly and found something is `ok: true` with exit 2. An empty scope is
+    still a violated expectation and still exits 2.
+    """
     code, payload = run(repo)
     assert code == 2
-    assert payload["ok"] is False
+    assert payload["ok"] is True
+    assert payload["expectations_violated"] == 1
     assert payload["scope_empty"] is True
     assert payload["changed_files"] == []
 
@@ -149,9 +156,19 @@ def test_untracked_file_is_scanned_as_additions(repo: Path) -> None:
 
 
 def test_deleted_lines_are_reported_with_samples(repo: Path) -> None:
+    """CONTRACT CHANGE (was: exit 2 on any deletion).
+
+    Deletions are evidence, not a verdict: any removed non-blank line counts,
+    so driving the exit code from them made exit 2 the routine outcome and
+    taught callers that this script's failure is noise. They are still reported
+    in full, and `verdict` is still `needs-review`.
+    """
     (repo / "src" / "a.py").write_text("def add(x, y):\n", encoding="utf-8")
     code, payload = run(repo)
-    assert code == 2
+    assert code == 0, payload
+    assert payload["verdict"] == "needs-review"
+    assert payload["actionable_total"] == 0
+    assert payload["findings_total"] == 1
     entry = next(d for d in payload["deletions"] if d["file"] == "src/a.py")
     assert entry["deleted_lines"] == 1
     assert entry["samples"] == ["return x + y"]
@@ -159,9 +176,12 @@ def test_deleted_lines_are_reported_with_samples(repo: Path) -> None:
 
 
 def test_deleted_file_is_flagged(repo: Path) -> None:
+    """CONTRACT CHANGE (was: exit 2). A whole deleted file is still reported as
+    evidence with `file_deleted`, but like any deletion it is not actionable on
+    its own — see test_deleted_lines_are_reported_with_samples."""
     (repo / "src" / "a.py").unlink()
     code, payload = run(repo)
-    assert code == 2
+    assert code == 0, payload
     entry = next(d for d in payload["deletions"] if d["file"] == "src/a.py")
     assert entry["file_deleted"] is True
 
@@ -180,6 +200,34 @@ def test_placeholder_and_swallowed_exception_are_reported(repo: Path) -> None:
     patterns = {p["pattern"] for p in payload["placeholders"]}
     assert "todo-marker" in patterns
     assert "swallowed-exception" in patterns
+
+
+def test_a_returned_placeholder_is_actionable(repo: Path) -> None:
+    (repo / "src" / "a.py").write_text(
+        'def add(x, y):\n    return "placeholder"\n', encoding="utf-8"
+    )
+    code, payload = run(repo)
+    assert code == 2
+    assert {p["pattern"] for p in payload["placeholders"]} == {"placeholder-text"}
+
+
+def test_prose_about_placeholders_is_not_a_finding(repo: Path) -> None:
+    """The word "placeholder" in prose is not evidence of a stub.
+
+    Matching it bare made this check fire on its own documentation — including
+    the Guardrails section that describes it — and a check that fires on
+    innocuous content teaches callers to skim past it, which is the failure the
+    exit-code split above exists to prevent.
+    """
+    (repo / "docs.md").write_text(
+        "The `placeholders` field names added lines that look like a stub.\n"
+        "A placeholder completion must be rejected.\n",
+        encoding="utf-8",
+    )
+    code, payload = run(repo)
+    assert payload["placeholders"] == []
+    assert payload["actionable_total"] == 0
+    assert code == 0, payload
 
 
 def test_skip_marker_in_a_test_is_weakening(repo: Path) -> None:

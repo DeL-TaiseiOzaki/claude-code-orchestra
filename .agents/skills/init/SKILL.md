@@ -128,10 +128,18 @@ Re-run the closing gate, and report the JSON verdicts rather than a claim:
 
 ```bash
 python3 .agents/skills/init/detect_stack.py
+python3 .agents/skills/_shared/validate_doc.py --contract design-doc --file .agents/docs/DESIGN.md
+python3 .agents/skills/_shared/validate_doc.py --contract state-doc --file .agents/STATE.md
 ```
 
-It must exit `0` with `ok: true` — the two writes must not have broken shared
-state. Then review `.agents/rules/` for irrelevant stack-specific rules, but do
+All three must exit `0` with `ok: true`. `detect_stack.py` confirms shared state
+and the discovery symlinks still resolve; the two contracts confirm the documents
+this skill just wrote still have the sections every other skill reads them for —
+`exit 2` names the missing section. Checking the two documents directly is
+stricter than inferring their health from the detector, which is why the detector
+alone is no longer the gate.
+
+Then review `.agents/rules/` for irrelevant stack-specific rules, but do
 not remove them without user approval. Report the evidence you used and the
 evidence you rejected, the two updated files, any `warnings`, and your
 recommendations in Japanese.

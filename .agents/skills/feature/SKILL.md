@@ -765,10 +765,12 @@ that left the tree dirty needs.
 Read `deletions`, `placeholders`, `weakened_tests`, and `out_of_scope_files`.
 `verdict` is **always** `needs-review`: the script collects evidence and never
 accepts a delegated run on your behalf, so read the reported hunks and decide.
-Exit `0` evidence collected with no finding — still read the diff; `1` bad args
-or a `--base` that does not resolve; `2` a finding was collected or an
-expectation was violated (a missing expected file, an out-of-scope file, an
-empty scope); `3` git failed or the diff could not be written.
+Exit `0` nothing actionable and no violated expectation — deletions alone land
+here, reported but not actionable on their own, and exit `0` is still not an
+accept, so read the diff; `1` bad args or a `--base` that does not resolve;
+`2` an actionable finding (`placeholders`, `weakened_tests`) or a violated
+expectation (a missing expected file, an out-of-scope file, an empty scope);
+`3` git failed or the diff could not be written.
 
 Use `.agents/skills/_shared/gather_diff.py --base {ref}` when you want the full
 patch to read: `scope_empty: true` with exit `2` means the delegated run changed

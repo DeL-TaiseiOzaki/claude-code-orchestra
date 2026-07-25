@@ -26,11 +26,13 @@ Usage:
     python3 verify_delegation.py --label implement --now 2026-07-25T09:00:00
 
 Exit codes:
-    0  evidence collected, no finding and no violated expectation
-       (still ``needs-review``: read the diff)
+    0  evidence collected, nothing actionable, no violated expectation.
+       Deletions alone land here: they are reported in every payload but are
+       not actionable on their own. Exit 0 is NOT an accept — ``verdict`` is
+       always ``needs-review`` and the diff still has to be read.
     1  bad arguments, or a --base that does not resolve
-    2  a finding was collected, or an expectation was violated
-       (missing expected file, out-of-scope file, empty scope)
+    2  an actionable finding (placeholder, weakened test), or a violated
+       expectation (missing expected file, out-of-scope file, empty scope)
     3  git failed or timed out, or the diff could not be written
 """
 
@@ -75,8 +77,16 @@ PLACEHOLDER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("pass-stub", re.compile(r"^\s*pass\s*(#.*)?$")),
     ("ellipsis-stub", re.compile(r"^\s*\.\.\.\s*$")),
     (
+        # "placeholder" as a bare English word matches any prose that discusses
+        # placeholders — including this file and the Guardrails section that
+        # documents this check. Only the forms that state an intent to stub are
+        # evidence: a returned or assigned placeholder value, or "for now".
         "placeholder-text",
-        re.compile(r"\b(placeholder|stub for now|for now, return)\b", re.I),
+        re.compile(
+            r"(stub for now|for now,\s*return"
+            r"|(\breturn|=|:)\s*[\"']?[a-z_]*placeholder[a-z_]*)",
+            re.I,
+        ),
     ),
     ("swallowed-exception", re.compile(r"except\b[^:]*:\s*pass\b")),
     ("swallowed-exception", re.compile(r"catch\s*\([^)]*\)\s*\{\s*\}")),
@@ -408,11 +418,22 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     except OSError as exc:
         return _fail(f"cannot write the captured diff: {exc}", EXIT_EXTERNAL)
 
-    findings = len(deletions) + len(placeholders) + len(weakened)
-    violations = bool(outside or missing or scope_empty)
+    # Deletions are evidence, not a verdict: any removed non-blank line counts,
+    # so a real diff almost always has some. Letting them drive the exit code
+    # made exit 2 the routine outcome, which teaches callers that this script's
+    # failure is noise — a worse state than the unverified delegation it
+    # replaced. Only the two cheating patterns and a violated expectation are
+    # actionable; deletions are always reported and always need the reviewer's
+    # eyes, which is what `verdict` is for.
+    actionable = len(placeholders) + len(weakened)
+    expectations_violated = len(outside) + len(missing) + int(scope_empty)
+    needs_action = bool(actionable or expectations_violated)
     rel_diff = os.path.relpath(diff_path, root)
     payload = {
-        "ok": not (findings or violations),
+        # `ok` reports whether collection succeeded, nothing more. A clean
+        # collection that found something still exits 2; a collection that
+        # could not run at all is the only `ok: false`.
+        "ok": True,
         "verdict": VERDICT,
         "base": args.base,
         "changed_files": all_files,
@@ -424,19 +445,21 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         "weakened_tests": weakened,
         "out_of_scope_files": outside,
         "missing_expected_files": missing,
-        "findings_total": findings,
+        "findings_total": len(deletions) + actionable,
+        "actionable_total": actionable,
+        "expectations_violated": expectations_violated,
         "not_automated": list(NOT_AUTOMATED),
         "diff_file": rel_diff,
         "artifacts": [rel_diff],
     }
-    if findings or violations:
+    if needs_action:
         payload["error"] = (
-            f"{findings} finding(s) and "
-            f"{len(outside) + len(missing) + int(scope_empty)} violated expectation(s); "
+            f"{actionable} actionable finding(s) and "
+            f"{expectations_violated} violated expectation(s); "
             "read the diff and decide — this script never accepts a delegated change"
         )
     _emit(payload)
-    return EXIT_OK if payload["ok"] else EXIT_FINDINGS
+    return EXIT_FINDINGS if needs_action else EXIT_OK
 
 
 if __name__ == "__main__":

@@ -125,6 +125,25 @@ follow them too, so callers can handle all of them identically:
 - **Standard library only.** No third-party imports, so the scripts run wherever
   `python3` does.
 
+### Carve-outs
+
+Exactly two clauses have a documented exception:
+
+| Clause | Exception | Why |
+|--------|-----------|-----|
+| Exactly one JSON object on stdout | `checkpointing/checkpoint.py`'s success path prints a human-readable report | It generates files, and the report says what it wrote. `--json` gives callers the machine-readable form. |
+| Injectable clock `--now ISO8601` | `update-lib-docs/lib_inventory.py` keeps `--today YYYY-MM-DD` | It stamps nothing; the date is an *input* it compares against, and the strict format is pinned by its tests. |
+
+**A third carve-out requires a `TEMPLATE_DESIGN_LOG.md` entry**, in the same
+commit, naming the clause, the script, and the failure mode the exception does
+not reintroduce. This is not ceremony: the `--project-root` exemption for the two
+shell scripts was justified in this file by a rationale that was simply untrue of
+a sibling shell script, and that undocumented-in-substance carve-out is what kept
+three real defects — invalid JSON output, a `bash -c` with no timeout, and a
+documented-but-dead flag — untestable and therefore invisible for as long as it
+stood. An exception argued in a commit message is forgotten; one argued in the
+design log is reviewable.
+
 ### What is machine-enforced
 
 `tests/test_shared_script_contract.py` discovers every `.py` and `.sh` helper

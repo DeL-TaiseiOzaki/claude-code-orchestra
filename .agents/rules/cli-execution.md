@@ -137,9 +137,18 @@ under `.agents/logs/delegation/` and named by `diff_file`.
 
 The payload reports `deletions`, `placeholders`, `weakened_tests`,
 `out_of_scope_files` and `missing_expected_files`, plus `changed_files`,
-`untracked_files`, `unreadable_files` and `scope_empty`. Exit codes: `0` nothing
-collected · `1` bad arguments or an unresolvable `--base` · `2` a finding or a
+`untracked_files`, `unreadable_files`, `scope_empty`, `findings_total`,
+`actionable_total` and `expectations_violated`. Exit codes: `0` nothing
+actionable and no violated expectation · `1` bad arguments or an unresolvable
+`--base` · `2` an actionable finding (`placeholders`, `weakened_tests`) or a
 violated expectation · `3` git failed or the diff could not be written.
+
+**Deletions do not drive the exit code.** Any removed non-blank line counts as
+one, so a real diff almost always has some; letting them decide the exit status
+made `2` the routine outcome, and a check that fails routinely teaches callers
+that its failure is noise — a worse state than the unverified delegation it
+replaced. Deletions are reported in full in every payload and are covered by
+`verdict`, not by the exit code.
 
 **Exit `0` is not an accept.** `verdict` is `needs-review` on every path and
 there is deliberately no `clean` branch: the pattern list is heuristic, a
