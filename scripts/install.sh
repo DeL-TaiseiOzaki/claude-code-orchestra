@@ -220,6 +220,23 @@ collect_conflicts() {
         fi
     done
 
+    # Native discovery paths are project-owned until we link them: a target repo
+    # may already keep its own subagents/skills there. Anything that is not
+    # already the exact link we are about to create counts as a conflict, so it
+    # is reported and backed up instead of being destroyed by the link step.
+    local entry native_path target
+    for entry in "${NATIVE_DISCOVERY_LINKS[@]}"; do
+        native_path="${entry%%:*}"
+        target="${entry##*:}"
+        if [[ -L "${TARGET_ROOT}/${native_path}" ]] \
+            && [[ "$(readlink -- "${TARGET_ROOT}/${native_path}")" == "${target}" ]]; then
+            continue
+        fi
+        if [[ -e "${TARGET_ROOT}/${native_path}" || -L "${TARGET_ROOT}/${native_path}" ]]; then
+            CONFLICTS+=("${native_path}")
+        fi
+    done
+
     if [[ ${#CONFLICTS[@]} -eq 0 ]]; then
         return 0
     fi
