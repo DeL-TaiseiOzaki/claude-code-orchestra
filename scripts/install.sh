@@ -13,13 +13,21 @@ TEMPLATE_OWNED_DIRS=(
     ".agents/workflows"
 )
 LEGACY_NATIVE_PATHS=(
-    ".claude/agents"
     ".claude/checkpoints"
     ".claude/docs"
     ".claude/hooks"
     ".claude/logs"
     ".claude/rules"
-    ".claude/skills"
+)
+# Native discovery symlinks: product-native runtimes (Claude Code) auto-discover
+# subagents and skills only from their own directories, which are not
+# configurable to point elsewhere. To keep .agents/ the single physical source
+# while still getting native auto-discovery, each entry links a native path to
+# its canonical .agents/ directory. Format: "<native-path>:<relative-target>".
+# The relative target is resolved from inside the native path's parent (.claude).
+NATIVE_DISCOVERY_LINKS=(
+    ".claude/agents:../.agents/agents"
+    ".claude/skills:../.agents/skills"
 )
 TEMPLATE_OWNED_FILES=(
     ".agents/INDEX.md"
@@ -148,6 +156,8 @@ validate_destination_paths() {
         "${PROJECT_FILES_IF_MISSING[@]}"
         "AGENTS.md"
         "CLAUDE.md"
+        ".claude/agents"
+        ".claude/skills"
         ".claude/settings.json"
         ".claude/settings.orchestra.json"
         ".claude/orchestra-version"
@@ -299,6 +309,22 @@ repair_claude_entrypoint() {
     info "Restored CLAUDE.md -> AGENTS.md"
 }
 
+link_native_discovery_dirs() {
+    local entry native_path target link
+    for entry in "${NATIVE_DISCOVERY_LINKS[@]}"; do
+        native_path="${entry%%:*}"
+        target="${entry##*:}"
+        link="${TARGET_ROOT}/${native_path}"
+        if [[ -L "${link}" && "$(readlink -- "${link}")" == "${target}" ]]; then
+            continue
+        fi
+        rm -rf -- "${link}"
+        mkdir -p "$(dirname -- "${link}")"
+        ln -s "${target}" "${link}"
+        info "Linked ${native_path} -> ${target}"
+    done
+}
+
 copy_project_files_if_missing() {
     local path destination
     for path in "${PROJECT_FILES_IF_MISSING[@]}"; do
@@ -418,6 +444,7 @@ main() {
     copy_project_files_if_missing
     install_agent_files
     repair_claude_entrypoint
+    link_native_discovery_dirs
     install_settings
     install_version_marker
     ensure_gitignore_entries

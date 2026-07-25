@@ -118,7 +118,11 @@ def test_install_adds_complete_template_without_overwriting_project_version(
     assert {path.name for path in (target / ".claude").iterdir()} == {
         "orchestra-version",
         "settings.json",
+        "agents",
+        "skills",
     }
+    assert (target / ".claude/agents").is_symlink()
+    assert (target / ".claude/skills").is_symlink()
     assert {path.name for path in (target / ".codex").iterdir()} == {"config.toml"}
     assert (target / "scripts/install.sh").is_file()
     assert (target / "scripts/update.sh").is_file()
@@ -279,14 +283,26 @@ def test_update_uses_namespaced_version_file_and_preserves_project_version(
     ) == "0.3.1\n"
 
 
-def test_install_keeps_native_directories_to_settings_only(tmp_path: Path) -> None:
+def test_install_creates_native_discovery_symlinks(tmp_path: Path) -> None:
     target = tmp_path / "project"
     init_git_repo(target)
 
     result = run_install(target)
 
     assert result.returncode == 0, result.stderr
-    assert not any(path.is_symlink() for path in (target / ".claude").iterdir())
+    # The only symlinks in .claude are the native discovery links into .agents/;
+    # .codex keeps none. No shared content is physically duplicated.
+    claude_symlinks = {
+        path.name: path.readlink().as_posix()
+        for path in (target / ".claude").iterdir()
+        if path.is_symlink()
+    }
+    assert claude_symlinks == {
+        "agents": "../.agents/agents",
+        "skills": "../.agents/skills",
+    }
+    assert (target / ".claude/agents/general-purpose-opus.md").is_file()
+    assert (target / ".claude/skills/context-loader/SKILL.md").is_file()
     assert not any(path.is_symlink() for path in (target / ".codex").iterdir())
     assert ".agents/hooks/" in (target / ".claude/settings.json").read_text(
         encoding="utf-8"
@@ -341,7 +357,14 @@ def test_update_removes_legacy_native_runtime_paths(tmp_path: Path) -> None:
     update_result = run_update(target, template)
 
     assert update_result.returncode == 0, update_result.stderr
-    assert not link.exists()
+    # A corrupted .claude/skills is healed back into the discovery symlink, and
+    # .claude/agents is (re)created, so Claude Code keeps auto-discovering the
+    # canonical .agents/ content. .codex/skills stays removed (Codex resolves
+    # skills through config.toml path= instead).
+    assert link.is_symlink()
+    assert link.readlink().as_posix() == "../.agents/skills"
+    assert (target / ".claude/agents").is_symlink()
+    assert (target / ".claude/agents").readlink().as_posix() == "../.agents/agents"
     assert not codex_skills.exists()
     assert {path.name for path in (target / ".codex").iterdir()} == {"config.toml"}
     migrated_settings = claude_settings.read_text(encoding="utf-8")

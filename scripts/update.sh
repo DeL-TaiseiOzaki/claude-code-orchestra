@@ -56,14 +56,23 @@ SAFE_FILES=(
 # radius scoped to template-owned locations.
 DEPRECATED_PATHS=(
     ".gemini"
-    ".claude/agents"
     ".claude/checkpoints"
     ".claude/docs"
     ".claude/hooks"
     ".claude/logs"
     ".claude/rules"
-    ".claude/skills"
     ".codex/skills"
+)
+
+# Native discovery symlinks kept in sync on every update. Product-native
+# runtimes (Claude Code) auto-discover subagents and skills only from their own
+# directories, which cannot be configured to point elsewhere. Linking those
+# native paths to the canonical .agents/ directories gives native
+# auto-discovery while .agents/ stays the single physical source.
+# Format: "<native-path>:<relative-target>" (target resolved from .claude/).
+NATIVE_DISCOVERY_LINKS=(
+    ".claude/agents:../.agents/agents"
+    ".claude/skills:../.agents/skills"
 )
 
 LEGACY_PROJECT_DIRS=(
@@ -602,6 +611,29 @@ repair_claude_entrypoint() {
     UPDATED_FILES+=("CLAUDE.md -> AGENTS.md")
 }
 
+# Recreate/heal the native discovery symlinks so Claude Code auto-discovers the
+# canonical .agents/ subagents and skills. migrate_legacy_native_data already
+# skips symlinks, so an already-healed link is left untouched; a stale real
+# directory or a corrupted link is replaced with the correct symlink.
+link_native_discovery_dirs() {
+    header "Linking Native Discovery Directories"
+
+    local entry native_path target link
+    for entry in "${NATIVE_DISCOVERY_LINKS[@]}"; do
+        native_path="${entry%%:*}"
+        target="${entry##*:}"
+        link="${PROJECT_ROOT}/${native_path}"
+        if [[ -L "${link}" && "$(readlink -- "${link}")" == "${target}" ]]; then
+            info "Verified ${native_path} -> ${target}"
+            continue
+        fi
+        rm -rf -- "${link}"
+        mkdir -p "$(dirname -- "${link}")"
+        ln -s "${target}" "${link}"
+        UPDATED_FILES+=("${native_path} -> ${target}")
+    done
+}
+
 # =============================================================================
 # Phase 5: Native settings migration and diff
 # =============================================================================
@@ -733,6 +765,7 @@ main() {
     sync_safe_dirs
     sync_safe_files
     repair_claude_entrypoint
+    link_native_discovery_dirs
     migrate_native_settings_paths
     check_settings_files
     update_version

@@ -303,10 +303,22 @@ check_native_boundaries() {
 
     local forbidden_path
     for forbidden_path in \
-        .claude/agents .claude/checkpoints .claude/docs .claude/hooks \
-        .claude/logs .claude/rules .claude/skills .codex/skills .codex/AGENTS.md; do
+        .claude/checkpoints .claude/docs .claude/hooks \
+        .claude/logs .claude/rules .codex/skills .codex/AGENTS.md; do
         if [[ -e "${ROOT}/${forbidden_path}" || -L "${ROOT}/${forbidden_path}" ]]; then
             echo "  Shared content remains in a native directory: ${forbidden_path}"
+            ok=false
+        fi
+    done
+
+    # Native discovery symlinks must be symlinks into the canonical .agents/
+    # directories (never real directories that would fork the SSOT).
+    local discovery_link discovery_target
+    for discovery_link in agents skills; do
+        discovery_target="../.agents/${discovery_link}"
+        if [[ ! -L "${ROOT}/.claude/${discovery_link}" ]] ||
+            [[ "$(readlink -- "${ROOT}/.claude/${discovery_link}")" != "${discovery_target}" ]]; then
+            echo "  Native discovery symlink missing or wrong: .claude/${discovery_link} -> ${discovery_target}"
             ok=false
         fi
     done
@@ -315,6 +327,7 @@ check_native_boundaries() {
     while IFS= read -r native_entry; do
         case "${native_entry}" in
             settings.json|settings.local.json|settings.orchestra.json|orchestra-version) ;;
+            agents|skills) ;;
             *) echo "  Unexpected .claude entry: ${native_entry}"; ok=false ;;
         esac
     done < <(find "${ROOT}/.claude" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)

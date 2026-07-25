@@ -39,6 +39,30 @@ Always respond in the following order.
 - Prefer incremental, minimal diffs for large changes
 - Include a migration plan whenever compatibility may break
 
+## Cross-CLI Subagent Invocation
+
+Any CLI agent can drive any other as a subagent by shelling out to its
+non-interactive (headless) mode. All runtimes read the shared `AGENTS.md`
+contract and the canonical `.agents/` capabilities, so a delegated call inherits
+the same mission, routing, and guardrails regardless of which CLI runs it.
+
+| Callee | Headless command | Machine-readable output |
+|--------|------------------|-------------------------|
+| Claude Code | `claude -p "<prompt>"` | `--output-format json` (includes a session id for chaining) |
+| Codex | `codex exec "<prompt>" < /dev/null` | stdout; always redirect stdin to avoid the EOF hang |
+| Gemini CLI | `gemini -p "<prompt>"` | `--output-format json` |
+
+Rules:
+
+- Pass the prompt as a single argument; prefer a timeout and capture stdout to
+  `.agents/logs/` so a stall or crash stays diagnosable.
+- Pin the model explicitly when the tier matters (`--model` / `CODEX_MODEL`).
+- The caller MUST independently verify the callee's result per the Guardrails
+  below — a delegated CLI is never trusted on its self-report.
+- Prefer the project's own delegation skills (`codex-system`,
+  `general-purpose-opus`) over ad-hoc shell-outs when one already covers the
+  task.
+
 ## Internal Context References
 
 Refer to the following as needed:
