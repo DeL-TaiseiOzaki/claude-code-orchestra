@@ -211,7 +211,7 @@ def test_paths_match_spec_table_for_team_execute(tmp_path: Path) -> None:
         "review_security": f".agents/docs/research/review-security-{slug}.md",
         "review_quality": f".agents/docs/research/review-quality-{slug}.md",
         "review_tests": f".agents/docs/research/review-tests-{slug}.md",
-        "diff_file": ".agents/logs/review-diff.patch",
+        "diff_file": f".agents/logs/review-diff-{slug}.patch",
         "team_dir": f".agents/logs/agent-teams/team-execute-{slug}/",
     }
 

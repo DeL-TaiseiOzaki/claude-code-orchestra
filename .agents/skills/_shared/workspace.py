@@ -105,7 +105,7 @@ PATH_TEMPLATES: dict[str, dict[str, str]] = {
         "review_security": ".agents/docs/research/review-security-{slug}.md",
         "review_quality": ".agents/docs/research/review-quality-{slug}.md",
         "review_tests": ".agents/docs/research/review-tests-{slug}.md",
-        "diff_file": ".agents/logs/review-diff.patch",
+        "diff_file": ".agents/logs/review-diff-{slug}.patch",
         "team_dir": _TEAM_DIR,
     },
     "plan": {

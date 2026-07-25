@@ -460,16 +460,21 @@ to the reviewers as known risk areas.
 ### 3. Gather the diff
 
 ```bash
-python3 .agents/skills/_shared/gather_diff.py --base main
+python3 .agents/skills/_shared/gather_diff.py --base main --out {paths.diff_file}
 ```
+
+Always pass `--out {paths.diff_file}`. The script's own default is a single
+fixed path, so two reviews running at once would overwrite each other's patch —
+the resolved `diff_file` is slug-keyed and cannot collide.
 
 Uncommitted work is **in scope by default**: Phase 1 never commits, and the
 predecessor of this script compared committed history only — with the teammates'
 edits still in the working tree it reported `changed_files: []` and exit 0, and
 the three reviewers below then reviewed nothing and reported a clean review.
 
-It writes the full patch to `.agents/logs/review-diff.patch` (the resolved
-`diff_file`, kept out of context) and prints one JSON object:
+It writes the full patch to the resolved `diff_file`
+(`.agents/logs/review-diff-{slug}.patch`, kept out of context) and prints one
+JSON object:
 
 - `changed_files[]` — the review scope: committed, staged, unstaged and
   untracked, deduplicated. `committed_files[]`, `worktree_files[]` and
@@ -491,8 +496,8 @@ Exit codes: `0` scope collected and non-empty · `1` bad arguments or `--out`
 outside the project root · `2` not a git repository, base ref not found, or
 `scope_empty` · `3` git failed or the patch could not be written.
 `--no-include-uncommitted` restores the committed-only view;
-`--base`/`--out` override the defaults (`main`,
-`.agents/logs/review-diff.patch`).
+`--base`/`--out` override the defaults (`main`, and a single fixed patch path
+that this skill always overrides with the slug-keyed `diff_file`).
 
 Pass the `changed_files` list and `diff_file` path to the reviewers in Step 2-2.
 
