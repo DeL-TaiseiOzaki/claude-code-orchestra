@@ -159,8 +159,15 @@ def test_shared_runtime_docs_use_canonical_agents_paths() -> None:
         ".agents/rules/agents-md-zones.md",
     )
     violations: list[str] = []
+    reviews_dir = REPO_ROOT / ".agents" / "docs" / "reviews"
     for path in (REPO_ROOT / ".agents").rglob("*"):
         if not path.is_file() or path.suffix not in {".md", ".py", ".sh"}:
+            continue
+        # Review notes are evidence records, not runtime documentation: an audit
+        # finding has to be able to quote the legacy path it found, and a
+        # proposal has to be able to name a script that does not exist yet.
+        # Same rationale as check.sh's logs/checkpoints/research exclusions.
+        if reviews_dir in path.parents:
             continue
         content = path.read_text(encoding="utf-8")
         if any(stale_path in content for stale_path in stale_paths):

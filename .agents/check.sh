@@ -363,13 +363,16 @@ check "Native runtime boundaries" check_native_boundaries
 # --------------------------------------------------------------------------
 check_skill_scripts() {
     local ok=true
-    # Generated content is not documentation: run logs, checkpoints, and
-    # project research can quote any path and must not drive this check.
+    # Generated content is not documentation: run logs, checkpoints, project
+    # research, and review notes can quote any path and must not drive this
+    # check. Review notes in particular record audit findings and proposals, so
+    # they name scripts that do not exist yet by design.
     local -a doc_scope=(
         --include='*.md'
         --exclude-dir=logs
         --exclude-dir=checkpoints
         --exclude-dir=research
+        --exclude-dir=reviews
     )
 
     # 8a) Every .agents/skills/**.py|.sh path mentioned in shared markdown resolves.
