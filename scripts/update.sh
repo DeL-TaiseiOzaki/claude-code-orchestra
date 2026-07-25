@@ -379,7 +379,7 @@ migrate_legacy_native_data() {
 # =============================================================================
 # Phase 3: Safe files (full overwrite)
 # =============================================================================
-# Stage-and-swap keeps a crash (Ctrl-C, power loss, rsync failure) from ever
+# Stage-and-swap keeps a crash (Ctrl-C, power loss, copy failure) from ever
 # leaving a SAFE_DIR half-updated. Each directory is staged and swapped
 # independently: a mid-run interruption may leave later SAFE_DIRS un-synced
 # (the update is simply incomplete and re-runnable), but it can never corrupt
@@ -410,7 +410,13 @@ sync_safe_dirs() {
         CURRENT_LIVE_DIR="${dst}"
         SWAP_IN_PROGRESS=false
 
-        rsync -a --delete "${src}" "${staging}/"
+        # `cp -a` rather than rsync: the staging directory was just created
+        # empty, so rsync's --delete had nothing to delete and its only job
+        # here was an attribute-preserving tree copy. rsync is absent from
+        # minimal images (containers, CI runners), where the updater died with
+        # exit 127 partway through; cp ships with coreutils everywhere.
+        # The trailing "." copies dotfiles too and preserves symlinks.
+        cp -a "${src}." "${staging}/"
 
         if [[ -d "${dst}" ]]; then
             SWAP_IN_PROGRESS=true

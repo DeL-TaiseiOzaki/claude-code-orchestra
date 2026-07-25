@@ -31,6 +31,7 @@ swallowed. Both failure modes are worse than the split.
 | `work-log-format.md` | Canonical work-log template for Agent Teams teammates (format doc, not a script). |
 | `workspace.py` | Resolve, create, and verify a skill's slug, team name, and artifact paths. Single source of truth for cross-phase naming. |
 | `codex_consult.py` | Invoke the Codex CLI safely: prompt via file or stdin, stdin closed, stdout/stderr captured to `.agents/logs/codex/`, full diagnostics as JSON. |
+| `cli_consult.py` | Invoke a peer CLI agent (Claude Code, Gemini CLI) as a subagent under the same contract, read-only unless `--write-access`. Cross-CLI rules: `.agents/rules/cli-execution.md`. |
 | `validate_doc.py` | Validate a markdown document (work log, lib doc, spike/bug/review report) against a named `## ` section contract. |
 | `append_state_block.py` | Append a `## Current Feature/Bug Fix/Project` block to `.agents/STATE.md`. |
 | `update_design.py` | Append Key Decisions rows and/or section content to `.agents/docs/DESIGN.md`. |

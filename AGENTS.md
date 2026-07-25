@@ -120,5 +120,7 @@ task before acting.
 - Other native settings point directly at `.agents/` (hooks via
   `settings.json`, Codex skills via `config.toml` `path=`). Do not mirror rules,
   hooks, docs, logs, or checkpoints into product-native directories.
-- Cross-CLI subagent calls use headless mode: `claude -p`, `codex exec`,
-  `gemini -p` — see `.agents/rules/cli-execution.md`.
+- Cross-CLI subagent calls go through the shared wrappers
+  (`.agents/skills/_shared/cli_consult.py` for Claude Code and Gemini,
+  `codex_consult.py` for Codex), never a raw headless shell-out — see
+  `.agents/rules/cli-execution.md`.
