@@ -419,3 +419,181 @@ def test_cli_arg_passthrough_reaches_the_callee(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
     assert argv[argv.index("--max-turns") + 1] == "8"
+
+
+# --- prompt persistence, injectable clock, collisions, guarded writes --------
+
+
+def test_prompt_is_persisted_next_to_the_response_even_from_stdin(
+    tmp_path: Path,
+) -> None:
+    """A consult must stay diagnosable: on the --prompt-stdin path the prompt
+    that was actually sent used to exist nowhere at all."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_cli(bin_dir, "gemini", stdout="an answer")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "gemini", "--prompt-stdin", "--label", "stdin-case"],
+        path_prefix=bin_dir,
+        stdin_input="Objective: only ever on stdin",
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    prompt_file = payload["prompt_file"]
+    assert not Path(prompt_file).is_absolute()
+    assert (tmp_path / prompt_file).read_text(
+        encoding="utf-8"
+    ) == "Objective: only ever on stdin"
+    assert prompt_file[: -len(".prompt.md")] == payload["response_file"][: -len(".md")]
+
+
+def test_now_pins_the_log_filenames(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_cli(bin_dir, "gemini", stdout="ok")
+    prompt_file = write_prompt(tmp_path, "Objective: pinned clock")
+
+    result = run_cli_consult(
+        tmp_path,
+        [
+            "--cli",
+            "gemini",
+            "--prompt-file",
+            str(prompt_file),
+            "--label",
+            "pinned",
+            "--now",
+            "2026-07-25T10:00:00+00:00",
+        ],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["response_file"] == ".agents/logs/gemini/20260725T100000Z-pinned.md"
+    assert payload["prompt_file"] == (
+        ".agents/logs/gemini/20260725T100000Z-pinned.prompt.md"
+    )
+
+
+def test_unparseable_now_is_bad_args(tmp_path: Path) -> None:
+    prompt_file = write_prompt(tmp_path, "Objective: bad clock")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "claude", "--prompt-file", str(prompt_file), "--now", "yesterday"],
+    )
+
+    assert result.returncode == 1, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "ISO 8601" in payload["error"]
+
+
+def test_same_second_and_label_cannot_overwrite_an_earlier_response(
+    tmp_path: Path,
+) -> None:
+    """Second-granularity names plus the default --label consult meant two
+    parallel consults silently destroyed one another's answer."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    prompt_file = write_prompt(tmp_path, "Objective: collide")
+    same_second = ["--now", "2026-07-25T10:00:00+00:00"]
+    base = ["--cli", "gemini", "--prompt-file", str(prompt_file), *same_second]
+
+    write_fake_cli(bin_dir, "gemini", stdout="first answer")
+    first = run_cli_consult(tmp_path, base, path_prefix=bin_dir)
+    write_fake_cli(bin_dir, "gemini", stdout="second answer")
+    second = run_cli_consult(tmp_path, base, path_prefix=bin_dir)
+
+    assert first.returncode == 0, first.stdout
+    assert second.returncode == 0, second.stdout
+    first_file = json.loads(first.stdout)["response_file"]
+    second_file = json.loads(second.stdout)["response_file"]
+    assert first_file != second_file
+    assert (tmp_path / first_file).read_text(encoding="utf-8") == "first answer"
+    assert (tmp_path / second_file).read_text(encoding="utf-8") == "second answer"
+
+
+def test_unwritable_log_directory_is_json_and_exit_3(tmp_path: Path) -> None:
+    """`.agents/logs` as a regular file used to produce a bare
+    NotADirectoryError traceback and exit 1, which the shared exit vocabulary
+    reads as 'bad arguments'."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_cli(bin_dir, "claude", stdout=claude_envelope("hi"))
+    prompt_file = write_prompt(tmp_path, "Objective: unwritable logs")
+    (tmp_path / ".agents").mkdir()
+    (tmp_path / ".agents" / "logs").write_text("not a directory", encoding="utf-8")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "claude", "--prompt-file", str(prompt_file)],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 3, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "cannot create log directory" in payload["error"]
+    assert payload["artifacts"] == []
+    assert result.stderr == ""
+
+
+def test_unwritable_prompt_file_is_json_and_exit_3(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_cli(bin_dir, "claude", stdout=claude_envelope("hi"))
+    prompt_file = write_prompt(tmp_path, "Objective: unwritable prompt copy")
+    blocked = tmp_path / ".agents" / "logs" / "claude"
+    blocked.mkdir(parents=True)
+    (blocked / "20260725T100000Z-blocked.prompt.md").mkdir()
+
+    result = run_cli_consult(
+        tmp_path,
+        [
+            "--cli",
+            "claude",
+            "--prompt-file",
+            str(prompt_file),
+            "--label",
+            "blocked",
+            "--now",
+            "2026-07-25T10:00:00+00:00",
+        ],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 3, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "cannot write" in payload["error"]
+    assert result.stderr == ""
+
+
+def test_success_reports_artifacts_and_a_verified_response(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_cli(bin_dir, "claude", stdout=claude_envelope("body"), stderr="warn\n")
+    prompt_file = write_prompt(tmp_path, "Objective: artifacts")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "claude", "--prompt-file", str(prompt_file)],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["response_verified"] is True
+    assert payload["artifacts"] == [
+        payload["prompt_file"],
+        payload["response_file"],
+        payload["stderr_file"],
+    ]
+    for relative in payload["artifacts"]:
+        assert not Path(relative).is_absolute()
+        assert (tmp_path / relative).is_file()

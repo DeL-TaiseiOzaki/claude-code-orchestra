@@ -198,13 +198,35 @@ def test_both_prompt_sources_is_bad_args(tmp_path: Path) -> None:
     assert "exactly one" in payload["error"]
 
 
-def test_neither_prompt_source_is_bad_args(tmp_path: Path) -> None:
+def test_neither_prompt_source_falls_back_to_the_label_path(tmp_path: Path) -> None:
+    """Five skills hand-typed `.agents/logs/codex/prompt-{label}.md` 23 times.
+    With neither flag, the wrapper reads exactly that path itself."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_codex(bin_dir, stdout="ok\n", argv_log=argv_log)
+    default_prompt = tmp_path / ".agents" / "logs" / "codex" / "prompt-design.md"
+    default_prompt.parent.mkdir(parents=True)
+    default_prompt.write_text("Objective: from the label path", encoding="utf-8")
+
+    result = run_codex_consult(tmp_path, ["--label", "design"], path_prefix=bin_dir)
+
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["ok"] is True
+    recorded_argv = json.loads(argv_log.read_text(encoding="utf-8"))
+    assert recorded_argv[-1] == "Objective: from the label path"
+
+
+def test_neither_prompt_source_and_no_default_file_is_bad_args(tmp_path: Path) -> None:
     result = run_codex_consult(tmp_path, [])
 
     assert result.returncode == 1, result.stdout
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
-    assert "exactly one" in payload["error"]
+    # The error names the path it looked for, so the caller can either create
+    # it or pass a source explicitly.
+    assert "prompt-consult.md" in payload["error"]
+    assert "--prompt-stdin" in payload["error"]
 
 
 def test_prompt_stdin_reads_prompt_from_stdin(tmp_path: Path) -> None:
@@ -374,3 +396,179 @@ def test_malformed_config_override_is_bad_args(tmp_path: Path) -> None:
         )
         assert result.returncode == 1, result.stderr
         assert json.loads(result.stdout)["ok"] is False
+
+
+# --- prompt persistence, injectable clock, collisions, guarded writes --------
+
+
+def test_prompt_is_persisted_next_to_the_response_even_from_stdin(
+    tmp_path: Path,
+) -> None:
+    """codex-system/SKILL.md promises the prompt sits next to the response.
+    On the --prompt-stdin path the prompt used to exist nowhere at all."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_codex(bin_dir, stdout="an answer\n")
+
+    result = run_codex_consult(
+        tmp_path,
+        ["--prompt-stdin", "--label", "stdin-case"],
+        path_prefix=bin_dir,
+        stdin_input="Objective: only ever on stdin",
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    prompt_file = payload["prompt_file"]
+    assert not Path(prompt_file).is_absolute()
+    assert prompt_file.endswith(".prompt.md")
+    assert (tmp_path / prompt_file).read_text(
+        encoding="utf-8"
+    ) == "Objective: only ever on stdin"
+    # The prompt and the response share one stem, so a reader finds the pair.
+    assert prompt_file[: -len(".prompt.md")] == payload["response_file"][: -len(".md")]
+
+
+def test_now_pins_the_log_filenames(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_codex(bin_dir, stdout="ok\n")
+    prompt_file = write_prompt(tmp_path, "Objective: pinned clock")
+
+    result = run_codex_consult(
+        tmp_path,
+        [
+            "--prompt-file",
+            str(prompt_file),
+            "--label",
+            "pinned",
+            "--now",
+            "2026-07-25T10:00:00+00:00",
+        ],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["response_file"] == ".agents/logs/codex/20260725T100000Z-pinned.md"
+    assert payload["prompt_file"] == (
+        ".agents/logs/codex/20260725T100000Z-pinned.prompt.md"
+    )
+
+
+def test_unparseable_now_is_bad_args(tmp_path: Path) -> None:
+    prompt_file = write_prompt(tmp_path, "Objective: bad clock")
+
+    result = run_codex_consult(
+        tmp_path, ["--prompt-file", str(prompt_file), "--now", "yesterday"]
+    )
+
+    assert result.returncode == 1, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "ISO 8601" in payload["error"]
+
+
+def test_same_second_and_label_cannot_overwrite_an_earlier_response(
+    tmp_path: Path,
+) -> None:
+    """Second-granularity names plus the default --label consult meant two
+    parallel consults silently destroyed one another's answer."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    prompt_file = write_prompt(tmp_path, "Objective: collide")
+    same_second = ["--now", "2026-07-25T10:00:00+00:00"]
+
+    write_fake_codex(bin_dir, stdout="first answer\n")
+    first = run_codex_consult(
+        tmp_path, ["--prompt-file", str(prompt_file), *same_second], path_prefix=bin_dir
+    )
+    write_fake_codex(bin_dir, stdout="second answer\n")
+    second = run_codex_consult(
+        tmp_path, ["--prompt-file", str(prompt_file), *same_second], path_prefix=bin_dir
+    )
+
+    assert first.returncode == 0, first.stdout
+    assert second.returncode == 0, second.stdout
+    first_file = json.loads(first.stdout)["response_file"]
+    second_file = json.loads(second.stdout)["response_file"]
+    assert first_file != second_file
+    assert (tmp_path / first_file).read_text(encoding="utf-8") == "first answer\n"
+    assert (tmp_path / second_file).read_text(encoding="utf-8") == "second answer\n"
+
+
+def test_unwritable_log_directory_is_json_and_exit_3(tmp_path: Path) -> None:
+    """`.agents/logs` as a regular file used to produce a bare
+    NotADirectoryError traceback and exit 1, which the shared exit vocabulary
+    reads as 'bad arguments'."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_codex(bin_dir, stdout="ok\n")
+    prompt_file = write_prompt(tmp_path, "Objective: unwritable logs")
+    (tmp_path / ".agents").mkdir()
+    (tmp_path / ".agents" / "logs").write_text("not a directory", encoding="utf-8")
+
+    result = run_codex_consult(
+        tmp_path, ["--prompt-file", str(prompt_file)], path_prefix=bin_dir
+    )
+
+    assert result.returncode == 3, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "cannot create log directory" in payload["error"]
+    assert payload["artifacts"] == []
+    assert result.stderr == ""
+
+
+def test_unwritable_prompt_file_is_json_and_exit_3(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_codex(bin_dir, stdout="ok\n")
+    prompt_file = write_prompt(tmp_path, "Objective: unwritable prompt copy")
+    # A directory sitting exactly where the prompt copy must go: the write
+    # raises OSError, which must surface as JSON rather than a traceback.
+    blocked = tmp_path / ".agents" / "logs" / "codex"
+    blocked.mkdir(parents=True)
+    (blocked / "20260725T100000Z-blocked.prompt.md").mkdir()
+
+    result = run_codex_consult(
+        tmp_path,
+        [
+            "--prompt-file",
+            str(prompt_file),
+            "--label",
+            "blocked",
+            "--now",
+            "2026-07-25T10:00:00+00:00",
+        ],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 3, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "cannot write" in payload["error"]
+    assert result.stderr == ""
+
+
+def test_success_reports_artifacts_and_a_verified_response(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_codex(bin_dir, stdout="body\n", stderr="a warning\n")
+    prompt_file = write_prompt(tmp_path, "Objective: artifacts")
+
+    result = run_codex_consult(
+        tmp_path, ["--prompt-file", str(prompt_file)], path_prefix=bin_dir
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["response_verified"] is True
+    assert payload["artifacts"] == [
+        payload["prompt_file"],
+        payload["response_file"],
+        payload["stderr_file"],
+    ]
+    for relative in payload["artifacts"]:
+        assert not Path(relative).is_absolute()
+        assert (tmp_path / relative).is_file()
