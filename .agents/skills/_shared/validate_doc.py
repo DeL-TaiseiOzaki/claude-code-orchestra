@@ -12,7 +12,13 @@ MODE=existing / MODE=greenfield variant.
 Each contract's required headings are taken verbatim from the template (or, for
 ``plan-doc``, the SKILL.md output format) that declares them;
 ``tests/test_validate_doc.py`` validates those templates against their contract
-so the two cannot drift apart. A contract may additionally require
+so the two cannot drift apart. ``design-doc`` and ``state-doc`` have no separate
+template: their reference document *is* the seed
+``.agents/docs/DESIGN.md`` / ``.agents/STATE.md`` that ``scripts/install.sh``
+copies into a project, and both are project-owned and mutable afterwards, so
+each requires only the sections their writers (``update_design.py``,
+``append_state_block.py``, ``refresh_guard.py``) depend on rather than every
+heading the seed happens to contain. A contract may additionally require
 machine-readable metadata lines (``lib-doc`` requires the
 ``> **Last Updated**:`` / ``> **Version Checked**:`` blockquote that
 ``update-lib-docs/lib_inventory.py`` parses); those are reported in
@@ -242,6 +248,37 @@ CONTRACTS: dict[str, Resolver] = {
             "7. How to Resume Work",
         ]
     ),
+    # .agents/docs/DESIGN.md — the document install.sh seeds into every project
+    # and the structure update_design.py's typed targets locate by heading, so
+    # a DESIGN.md missing one of these makes /init or /design-tracker exit 2.
+    # Only the `##` sections are required: the `### Agent Roles` table is
+    # meaningful for an agent-orchestration project and absent from an ordinary
+    # one, and `### In Scope` / `### Out of Scope` are a rendering choice inside
+    # `## スコープ` that no writer depends on. Each name is the Japanese heading
+    # prefix, so a document that dropped the English gloss still passes.
+    "design-doc": _static(
+        [
+            "背景・目的",
+            "スコープ",
+            "機能要件",
+            "非機能要件",
+            "アーキテクチャ",
+            "技術選定",
+            "制約",
+            "Key Decisions",
+            "TODO / Open Questions",
+        ]
+    ),
+    # .agents/STATE.md — project-owned and mutable, so this contract requires
+    # only what must always be there: `## Progress Tracker`, whose presence
+    # append_state_block.py and refresh_guard.py both hard-enforce (exactly one
+    # occurrence, or exit 2), and `## Main Agent`, the one fact the file exists
+    # to carry (load_context.py and collect_repo_state.py read it by heading).
+    # `## Repository Identity` is deliberately *not* required: it is /init-owned
+    # and append_state_block.py inserts it when absent, so a state file that has
+    # not been through /init is legitimately without it. Working blocks
+    # (`## Current Feature`, …) come and go and are never required.
+    "state-doc": _static(["Main Agent", "Progress Tracker"]),
 }
 
 # Required machine-readable metadata lines, per contract: contract -> field
@@ -275,7 +312,13 @@ class JsonArgumentParser(argparse.ArgumentParser):
     without breaking the "exactly one JSON object on stdout" rule."""
 
     def error(self, message: str) -> NoReturn:
-        print(json.dumps({"ok": False, "error": message}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {"ok": False, "error": message, "artifacts": []},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         sys.exit(EXIT_BAD_INPUT)
 
 
@@ -469,6 +512,12 @@ def main() -> int:
         result, exit_code = check_dir(
             args.dir, args.contract, args.project_root, args.expect_files
         )
+
+    # This tool is read-only: it never creates or modifies a file, so the
+    # shared contract's touch list is always empty. It is still reported, so a
+    # caller can parse `artifacts` uniformly across every bundled script
+    # instead of special-casing the validators.
+    result["artifacts"] = []
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return exit_code

@@ -27,7 +27,8 @@ metadata:
 
 ## Prerequisites
 
-- Phase 1: `/feature` is complete and the plan has been approved by the user;
+- Phase 1: `/feature` **or `/plan`** is complete and the plan has been approved
+  by the user;
   architecture is documented in `.agents/docs/DESIGN.md`; task list has been created.
 - Phase 2 (or `--review-only`): implementation is complete. "All tests pass" is
   **not** taken on trust here: Step 2-1 runs `verify.sh` and collects diff
@@ -38,14 +39,17 @@ metadata:
 ### Inputs
 
 Read these before designing the team so execution stays aligned with the plan
-produced by `/feature`:
+produced by `/feature` or `/plan`:
 
 - **`.agents/STATE.md`** — current project context and decisions
 - **`.agents/docs/DESIGN.md`** — architecture and design decisions from the Architect
 - **`.agents/docs/research/`** — Researcher findings and library constraints
 - **`PROGRESS.md`** (repo root) — rolling summary of recent sessions and next actions
+- **`.agents/docs/plans/{slug}.md`** — the approved implementation plan, when the
+  plan came from `/plan` (validated there with `validate_doc.py --contract
+  plan-doc`; `/plan` hands over the slug as `Next: /team-execute with slug {slug}`)
 
-Use the **same `slug` `/feature` resolved** so work logs
+Use the **same `slug` `/feature` or `/plan` resolved** so work logs
 (`.agents/logs/agent-teams/{team-name}/`) and research/design files line up
 across phases. Step 1-1 resolves the workspace for a full run; Step 2-1
 re-resolves it for a `--review-only` entry.
@@ -77,7 +81,8 @@ Phase 2: REVIEW
 
 ### Resolve the Workspace
 
-Resolve this run's paths once, reusing the same `slug` `/feature` resolved:
+Resolve this run's paths once, reusing the same `slug` `/feature` or `/plan`
+resolved:
 
 ```bash
 python3 .agents/skills/_shared/workspace.py \

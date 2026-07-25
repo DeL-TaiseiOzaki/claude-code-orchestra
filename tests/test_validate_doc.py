@@ -11,7 +11,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 VALIDATE_DOC = REPO_ROOT / ".agents" / "skills" / "_shared" / "validate_doc.py"
 
 # Per-file result shape — identical across every contract (role_variant is
-# null for contracts without variants).
+# null for contracts without variants). ``artifacts`` is the shared contract's
+# touch list, always empty here: this tool only reads.
 FILE_RESULT_KEYS = {
     "ok",
     "file",
@@ -20,6 +21,7 @@ FILE_RESULT_KEYS = {
     "sections_missing",
     "metadata_missing",
     "warnings",
+    "artifacts",
 }
 
 # Directory-mode payload shape — stable whether or not --expect-files is given
@@ -32,6 +34,7 @@ DIR_RESULT_KEYS = {
     "files_failed",
     "expect_files",
     "warnings",
+    "artifacts",
 }
 
 IMPLEMENTER_LOG = """\
@@ -311,6 +314,23 @@ NEW_CONTRACT_EXPECTATIONS = {
         "# Project Guide\n## 1. What is this project?\n- x\n",
         ["3. Recent Work", "5. Capabilities", "7. How to Resume Work"],
     ),
+    "design-doc": (
+        "# Design Document\n## 背景・目的 (Background & Purpose)\np\n",
+        [
+            "スコープ",
+            "機能要件",
+            "非機能要件",
+            "アーキテクチャ",
+            "技術選定",
+            "制約",
+            "Key Decisions",
+            "TODO / Open Questions",
+        ],
+    ),
+    "state-doc": (
+        "# Agent State\n## Main Agent\n\nClaude Code\n",
+        ["Progress Tracker"],
+    ),
 }
 
 
@@ -567,6 +587,7 @@ def test_dir_mode_empty_dir(tmp_path: Path) -> None:
         "warnings": [
             "no *.md files found: pass --expect-files N to make this a failure"
         ],
+        "artifacts": [],
     }
 
 
@@ -780,6 +801,7 @@ def test_file_not_found(tmp_path: Path) -> None:
         "ok": False,
         "file": str(missing),
         "error": "file does not exist",
+        "artifacts": [],
     }
 
 
@@ -792,6 +814,7 @@ def test_dir_not_found(tmp_path: Path) -> None:
         "ok": False,
         "dir": str(missing),
         "error": "directory does not exist",
+        "artifacts": [],
     }
 
 
@@ -898,6 +921,26 @@ def test_file_result_keys_are_stable_across_contracts(tmp_path: Path) -> None:
     assert set(failing_result.keys()) == FILE_RESULT_KEYS
 
 
+def test_artifacts_is_always_empty_because_this_tool_only_reads(
+    tmp_path: Path,
+) -> None:
+    """The shared contract's touch list is reported on every path, including the
+    error ones, so a caller never has to special-case the validators — and it is
+    empty, because a validator that wrote a file would be a different tool."""
+    doc = _write(tmp_path / "good.md", IMPLEMENTER_LOG)
+    team_dir = tmp_path / "team"
+    team_dir.mkdir()
+
+    for args in (
+        ("--contract", "work-log", "--file", str(doc)),
+        ("--contract", "work-log", "--dir", str(team_dir)),
+        ("--contract", "work-log", "--file", str(tmp_path / "missing.md")),
+        ("--contract", "bogus", "--file", str(doc)),
+    ):
+        payload = json.loads(run_validate_doc(*args).stdout)
+        assert payload["artifacts"] == [], args
+
+
 def test_output_is_indent2_json(tmp_path: Path) -> None:
     doc = _write(tmp_path / "good.md", IMPLEMENTER_LOG)
     result = run_validate_doc("--contract", "work-log", "--file", str(doc))
@@ -968,6 +1011,12 @@ REFERENCE_TEMPLATES: dict[str, tuple[tuple[str, str | None, str | None], ...]] =
         ),
     ),
     "guide": ((".agents/skills/catchup/references/guide-template.md", None, None),),
+    # These two have no separate template: the seed document install.sh copies
+    # into a project *is* the reference, so the contract is pinned to the live
+    # file. A section renamed in either document without updating the contract
+    # is then a test failure instead of a runtime surprise.
+    "design-doc": ((".agents/docs/DESIGN.md", None, None),),
+    "state-doc": ((".agents/STATE.md", None, None),),
 }
 
 # `{placeholder}` tokens as the templates write them.
@@ -1123,3 +1172,106 @@ def test_deeper_heading_level_still_satisfies_the_contract(tmp_path: Path) -> No
 
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["sections_missing"] == []
+
+
+# --- design-doc / state-doc: contracts for the two project-owned documents ----
+
+
+def test_state_doc_accepts_a_minimal_pre_init_state_file(tmp_path: Path) -> None:
+    """`## Repository Identity` is /init-owned and append_state_block.py inserts
+    it when absent, so a state file that has not been through /init is
+    legitimate. A contract stricter than the writers guarantee would reject it
+    and teach agents that the check is wrong."""
+    body = (
+        "# Agent State\n\n## Main Agent\n\nClaude Code\n\n"
+        "## Progress Tracker\n\nRolling summary: [PROGRESS.md](../PROGRESS.md)\n"
+    )
+    doc = _write(tmp_path / "STATE.md", body)
+
+    result = run_validate_doc("--contract", "state-doc", "--file", str(doc))
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["sections_missing"] == []
+
+
+def test_state_doc_accepts_working_blocks_appended_by_a_skill(tmp_path: Path) -> None:
+    """Working blocks come and go; their presence must not change the verdict."""
+    body = (
+        "# Agent State\n\n## Main Agent\n\nCodex\n\n"
+        "## Repository Identity\n\nA thing.\n\n"
+        "## Progress Tracker\n\n[PROGRESS.md](../PROGRESS.md)\n\n"
+        "## Current Feature: auth\n\n### Goal\n\nShip it.\n"
+    )
+    doc = _write(tmp_path / "STATE.md", body)
+
+    result = run_validate_doc("--contract", "state-doc", "--file", str(doc))
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_design_doc_does_not_require_the_agent_roles_table(tmp_path: Path) -> None:
+    """`### Agent Roles` is meaningful for an agent-orchestration project and
+    absent from an ordinary one, so it is not part of the contract."""
+    body = (
+        "# Design Document\n"
+        "## 背景・目的 (Background & Purpose)\np\n"
+        "## スコープ (Scope)\ns\n"
+        "## 機能要件 (Functional Requirements)\nf\n"
+        "## 非機能要件 (Non-Functional Requirements)\nn\n"
+        "## アーキテクチャ (Architecture)\na\n"
+        "## 技術選定 (Tech Stack & Rationale)\nt\n"
+        "## 制約 (Constraints)\nc\n"
+        "## Key Decisions\nk\n"
+        "## TODO / Open Questions\no\n"
+    )
+    doc = _write(tmp_path / "DESIGN.md", body)
+
+    result = run_validate_doc("--contract", "design-doc", "--file", str(doc))
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["sections_missing"] == []
+
+
+def test_design_doc_accepts_headings_without_the_english_gloss(tmp_path: Path) -> None:
+    """The contract names the Japanese heading prefix, so `## 制約` alone is as
+    valid as `## 制約 (Constraints)`."""
+    body = (
+        "# Design Document\n## 背景・目的\np\n## スコープ\ns\n## 機能要件\nf\n"
+        "## 非機能要件\nn\n## アーキテクチャ\na\n## 技術選定\nt\n## 制約\nc\n"
+        "## Key Decisions\nk\n## TODO / Open Questions\no\n"
+    )
+    doc = _write(tmp_path / "DESIGN.md", body)
+
+    result = run_validate_doc("--contract", "design-doc", "--file", str(doc))
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_design_doc_rejects_a_document_missing_a_writer_target(tmp_path: Path) -> None:
+    """update_design.py locates `## 技術選定` by heading; without it the typed
+    `tech_choices` write exits 2. The contract catches that before the write."""
+    body = (
+        "# Design Document\n## 背景・目的\np\n## スコープ\ns\n## 機能要件\nf\n"
+        "## 非機能要件\nn\n## アーキテクチャ\na\n## 制約\nc\n"
+        "## Key Decisions\nk\n## TODO / Open Questions\no\n"
+    )
+    doc = _write(tmp_path / "DESIGN.md", body)
+
+    result = run_validate_doc("--contract", "design-doc", "--file", str(doc))
+
+    assert result.returncode == 2, result.stderr
+    assert json.loads(result.stdout)["sections_missing"] == ["技術選定"]
+
+
+@pytest.mark.parametrize(
+    ("contract", "rel_path"),
+    [("design-doc", ".agents/docs/DESIGN.md"), ("state-doc", ".agents/STATE.md")],
+)
+def test_contract_accepts_this_repository_s_live_document(
+    contract: str, rel_path: str
+) -> None:
+    """The seed documents are also this repository's live ones: a contract that
+    rejects the file it exists to check would be unusable from day one."""
+    result = run_validate_doc("--contract", contract, "--file", rel_path)
+
+    assert result.returncode == 0, result.stdout

@@ -112,21 +112,53 @@ Applies to any long-duration executor (Tier 2 `sol` and above). Because
 ### (a) Independent Verification of Completion Reports
 
 The caller MUST run the acceptance checks from the original prompt AND inspect
-`git diff` for:
+the delegated run's diff for:
 - Unapproved deletions (files or significant code blocks removed without
   justification in the prompt).
 - Stub or placeholder completions (e.g. `pass`, `TODO`, `NotImplementedError`
   left where real logic was requested).
 - Out-of-scope changes (files modified that were not mentioned in the task).
 
+Collecting that evidence is mechanical, so it is scripted — reading these three
+paragraphs and doing it by hand is exactly what gets skipped when the run looks
+successful:
+
+```bash
+python3 .agents/skills/_shared/verify_delegation.py \
+  --base HEAD --expect-files src/a.py --forbid-outside src --forbid-outside tests \
+  --label implement
+```
+
+`--base` is the ref the delegated work started from (default `HEAD`, i.e.
+uncommitted work); `--expect-files PATH` (repeatable) names a path the task was
+supposed to change; `--forbid-outside PATH` (repeatable) restricts the change to
+those paths. The full diff — uncommitted and untracked work included — is written
+under `.agents/logs/delegation/` and named by `diff_file`.
+
+The payload reports `deletions`, `placeholders`, `weakened_tests`,
+`out_of_scope_files` and `missing_expected_files`, plus `changed_files`,
+`untracked_files`, `unreadable_files` and `scope_empty`. Exit codes: `0` nothing
+collected · `1` bad arguments or an unresolvable `--base` · `2` a finding or a
+violated expectation · `3` git failed or the diff could not be written.
+
+**Exit `0` is not an accept.** `verdict` is `needs-review` on every path and
+there is deliberately no `clean` branch: the pattern list is heuristic, a
+legitimate test deletion exists, and only the agent that wrote the prompt knows
+what the task authorised. `ok` reports whether *collection* succeeded. The
+`not_automated` field names what no heuristic detects — hard-coded return values
+substituted for real logic (b3 below) — instead of pretending full coverage. Read
+the diff and decide.
+
 ### (b) Cheating Detection
 
 Reject completion if any of the following are detected:
-- Tests were deleted, skipped (`@pytest.mark.skip`), or weakened (assertions
-  removed or loosened) to make the suite pass.
-- Exceptions silently swallowed (bare `except: pass` or equivalent) to hide
-  failures.
-- Hardcoded return values substituted for real implementation logic.
+- b1: Tests were deleted, skipped (`@pytest.mark.skip`), or weakened (assertions
+  removed or loosened) to make the suite pass. → `weakened_tests`
+- b2: Exceptions silently swallowed (bare `except: pass` or equivalent) to hide
+  failures. → `placeholders`
+- b3: Hardcoded return values substituted for real implementation logic. → not
+  detected by any script; the reviewer's own judgment on the diff, which is why
+  the script never accepts.
 
 ### (c) False Completion Response Protocol
 

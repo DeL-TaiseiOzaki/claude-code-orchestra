@@ -61,7 +61,7 @@ Resolve this bug's deterministic workspace once. The title becomes file and dire
 python3 .agents/skills/_shared/workspace.py --skill troubleshoot --title "{short English title}" --create
 ```
 
-This prints one JSON object: `slug`, `team_name`, and `paths` (`bug_report`, `context`, `root_cause`, `impact`, `state_input`, `team_dir`). Exit 0 resolved/created; 1 bad args; 2 applies only to `--verify` (used later in Phase 3); 3 the workspace directories could not be created. Use `{slug}`, `{team_name}`, and every `paths.*` value from this JSON verbatim for the rest of this skill -- do not re-derive them by hand in a later phase.
+This prints one JSON object: `slug`, `team_name`, and `paths` (`bug_report`, `context`, `root_cause`, `impact`, `diagnosis`, `state_input`, `team_dir`). Exit 0 resolved/created; 1 bad args; 2 applies only to `--verify` (used later in Phase 3); 3 the workspace directories could not be created. Use `{slug}`, `{team_name}`, and every `paths.*` value from this JSON verbatim for the rest of this skill -- do not re-derive them by hand in a later phase.
 
 ### Step 1: Gather Error Details from User
 
@@ -607,12 +607,14 @@ Exit code 2 means the state structure is invalid; stop before writing.
 
 Compose the diagnosis and fix plan following the template contract in
 `references/diagnosis-template.md`. Write the composed presentation to
-`.agents/logs/troubleshoot-{slug}-diagnosis.md` and validate its structure
-before presenting it:
+`{paths.diagnosis}` (resolved in Phase 1 Step 0, never hand-built) and validate
+its structure before presenting it:
 
 ```bash
 python3 .agents/skills/_shared/validate_doc.py --contract diagnosis \
-  --file .agents/logs/troubleshoot-{slug}-diagnosis.md
+  --file {paths.diagnosis}
+python3 .agents/skills/_shared/workspace.py --skill troubleshoot \
+  --slug {slug} --verify --require diagnosis
 ```
 
 `references/diagnosis-template.md` is the section source of truth (the
@@ -638,14 +640,16 @@ Paths resolved once in Phase 1 Step 0 (`.agents/skills/_shared/workspace.py --sk
 | `.agents/STATE.md` (updated) | Lead | Cross-session bug fix context |
 | Task list (internal) | Lead | Fix implementation tracking |
 
-Run artifacts under `.agents/logs/` (not part of `--verify`, keyed by `{slug}`
-so successive runs do not overwrite each other):
+Run artifacts under `.agents/logs/`, keyed by `{slug}` so successive runs do not
+overwrite each other. The repro logs are not part of `--verify`; the diagnosis is
+checkable on demand with `--require diagnosis` (it is not a default required key,
+because in Phases 1-2 it does not exist yet):
 
 | File | Author | Purpose |
 |------|--------|---------|
 | `.agents/logs/troubleshoot-repro-{slug}-initial.log` | `repro.py` | Phase 1 failure capture |
 | `.agents/logs/troubleshoot-repro-{slug}-fix-verify.log` | `repro.py` | Phase 3 fix-verification capture |
-| `.agents/logs/troubleshoot-{slug}-diagnosis.md` | Lead | Phase 3 presentation, validated with `--contract diagnosis` |
+| `{paths.diagnosis}` | Lead | Phase 3 presentation, validated with `--contract diagnosis` and `--require diagnosis` |
 
 ---
 

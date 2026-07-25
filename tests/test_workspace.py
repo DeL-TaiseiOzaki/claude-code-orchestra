@@ -107,7 +107,16 @@ def test_required_keys_match_spec() -> None:
         "team-execute": ("review_security", "review_quality", "review_tests"),
         "plan": ("plan_doc",),
         "research-lib": ("lib_doc",),
+        "design-tracker": ("design_input",),
     }
+
+
+def test_diagnosis_is_not_a_default_required_key() -> None:
+    """The diagnosis report is a Phase 3 deliverable. Making it required by
+    default would make every Phase 1-2 `--verify` run fail on a document that
+    is not supposed to exist yet, so Phase 3 asks for it with --require."""
+    assert "diagnosis" in workspace.PATH_TEMPLATES["troubleshoot"]
+    assert "diagnosis" not in workspace.REQUIRED_KEYS["troubleshoot"]
 
 
 def test_every_skill_has_a_template_for_each_required_key() -> None:
@@ -189,6 +198,7 @@ def test_paths_match_spec_table_for_troubleshoot(tmp_path: Path) -> None:
         "context": f".agents/docs/research/troubleshoot-{slug}-context.md",
         "root_cause": f".agents/docs/research/troubleshoot-{slug}-root-cause.md",
         "impact": f".agents/docs/research/troubleshoot-{slug}-impact.md",
+        "diagnosis": f".agents/logs/troubleshoot-{slug}-diagnosis.md",
         "state_input": f".agents/logs/state-input-{slug}.json",
         "team_dir": f".agents/logs/agent-teams/troubleshoot-{slug}/",
     }
@@ -218,6 +228,94 @@ def test_paths_match_spec_table_for_research_lib(tmp_path: Path) -> None:
     )
     assert data["slug"] == "ruamel.yaml"
     assert data["paths"] == {"lib_doc": ".agents/docs/libraries/ruamel.yaml.md"}
+
+
+def test_paths_match_spec_table_for_design_tracker(tmp_path: Path) -> None:
+    data = parsed(
+        run_workspace(tmp_path, "--skill", "design-tracker", "--title", "Adopt DuckDB")
+    )
+    assert data["paths"] == {
+        "design_input": ".agents/logs/design-input-adopt-duckdb.json"
+    }
+    assert data["dirs"] == [".agents/logs"]
+
+
+def test_design_tracker_input_path_is_per_invocation(tmp_path: Path) -> None:
+    """Two concurrent recordings must not share one input file: the writer
+    reads it after the caller writes it, so a shared path silently swaps one
+    decision's input for another's."""
+    first = parsed(
+        run_workspace(tmp_path, "--skill", "design-tracker", "--title", "Use ReAct")
+    )
+    second = parsed(
+        run_workspace(tmp_path, "--skill", "design-tracker", "--title", "Use DuckDB")
+    )
+    assert first["paths"]["design_input"] != second["paths"]["design_input"]
+
+
+def test_design_tracker_verify_checks_the_input_file(tmp_path: Path) -> None:
+    resolved = parsed(
+        run_workspace(tmp_path, "--skill", "design-tracker", "--slug", "duckdb")
+    )
+    target = tmp_path / resolved["paths"]["design_input"]
+
+    missing = run_workspace(
+        tmp_path, "--skill", "design-tracker", "--slug", "duckdb", "--verify"
+    )
+    assert missing.returncode == 2, missing.stderr
+    assert parsed(missing)["verify"]["missing"] == ["design_input"]
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        '{"decisions": [{"decision": "Use DuckDB", "rationale": "embedded"}]}\n',
+        encoding="utf-8",
+    )
+    present = run_workspace(
+        tmp_path, "--skill", "design-tracker", "--slug", "duckdb", "--verify"
+    )
+    assert present.returncode == 0, present.stderr
+    assert parsed(present)["verify"]["ok"] is True
+
+
+def test_require_diagnosis_checks_the_phase_3_report(tmp_path: Path) -> None:
+    resolved = parsed(run_workspace(tmp_path, "--skill", "troubleshoot", "--slug", "e"))
+    for key in workspace.REQUIRED_KEYS["troubleshoot"]:
+        target = tmp_path / resolved["paths"][key]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("x" * 25, encoding="utf-8")
+
+    without = run_workspace(
+        tmp_path, "--skill", "troubleshoot", "--slug", "e", "--verify"
+    )
+    assert without.returncode == 0, without.stderr
+
+    with_require = run_workspace(
+        tmp_path,
+        "--skill",
+        "troubleshoot",
+        "--slug",
+        "e",
+        "--verify",
+        "--require",
+        "diagnosis",
+    )
+    assert with_require.returncode == 2, with_require.stderr
+    assert parsed(with_require)["verify"]["missing"] == ["diagnosis"]
+
+    diagnosis = tmp_path / resolved["paths"]["diagnosis"]
+    diagnosis.parent.mkdir(parents=True, exist_ok=True)
+    diagnosis.write_text("## Diagnosis Report: e\n" + "x" * 25, encoding="utf-8")
+    filled = run_workspace(
+        tmp_path,
+        "--skill",
+        "troubleshoot",
+        "--slug",
+        "e",
+        "--verify",
+        "--require",
+        "diagnosis",
+    )
+    assert filled.returncode == 0, filled.stderr
 
 
 # --- --teammate --------------------------------------------------------------

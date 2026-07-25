@@ -86,12 +86,18 @@ Choosing the section stays judgment. Rendering the row does not.
 
 Use a **per-invocation** input path, never a shared one: this skill can run
 concurrently with other work (and inside a subagent), and two recordings sharing
-one input file overwrite each other. Derive the path from the decision topic:
+one input file overwrite each other. Resolve the path from the shared workspace
+registry rather than deriving it by hand, so the slug rule is the same one every
+other skill uses:
 
 ```bash
-slug="$(printf '%s' "{topic}" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-')"
-input=".agents/logs/design-input-${slug}.json"
+python3 .agents/skills/_shared/workspace.py \
+  --skill design-tracker --title "{decision topic}" --create
 ```
+
+That prints one JSON object whose `paths.design_input` is
+`.agents/logs/design-input-{slug}.json`. Use it verbatim as `${input}` below.
+Exit 0 resolved/created · 1 bad args · 3 `.agents/logs/` could not be created.
 
 Example input (use only the keys you need):
 

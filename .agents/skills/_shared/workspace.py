@@ -13,6 +13,9 @@ Usage:
     python3 workspace.py --skill spike --slug duckdb --verify --require prototype_dir
     python3 workspace.py --skill team-execute --slug auth --teammate backend
     python3 workspace.py --skill research-lib --title "ruamel.yaml"
+    python3 workspace.py --skill design-tracker --title "Adopt DuckDB"
+    python3 workspace.py --skill troubleshoot --slug login-500 --verify \
+        --require diagnosis
 
 Exit codes:
     0  resolved (preview) or created successfully
@@ -43,6 +46,7 @@ SKILL_CHOICES = (
     "team-execute",
     "plan",
     "research-lib",
+    "design-tracker",
 )
 
 MIN_NONEMPTY_CHARS = 20
@@ -89,6 +93,11 @@ PATH_TEMPLATES: dict[str, dict[str, str]] = {
         "context": ".agents/docs/research/troubleshoot-{slug}-context.md",
         "root_cause": ".agents/docs/research/troubleshoot-{slug}-root-cause.md",
         "impact": ".agents/docs/research/troubleshoot-{slug}-impact.md",
+        # Phase 3 deliverable, validated with `validate_doc.py --contract
+        # diagnosis`. Deliberately not in REQUIRED_KEYS: phases 1-2 --verify
+        # runs would then fail on a document that does not exist yet, so
+        # phase 3 asks for it explicitly with `--require diagnosis`.
+        "diagnosis": ".agents/logs/troubleshoot-{slug}-diagnosis.md",
         "state_input": ".agents/logs/state-input-{slug}.json",
         "team_dir": _TEAM_DIR,
     },
@@ -105,6 +114,14 @@ PATH_TEMPLATES: dict[str, dict[str, str]] = {
     "research-lib": {
         "lib_doc": ".agents/docs/libraries/{slug}.md",
     },
+    # /design-tracker records a decision through update_design.py, whose input
+    # is a typed JSON file. The path must be per-invocation: the skill is
+    # reached from any design conversation and runs inside subagents, so a
+    # single shared .agents/logs/design-input.json is a race in which one
+    # recording silently overwrites another's input before the writer reads it.
+    "design-tracker": {
+        "design_input": ".agents/logs/design-input-{slug}.json",
+    },
 }
 
 REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
@@ -114,6 +131,7 @@ REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
     "team-execute": ("review_security", "review_quality", "review_tests"),
     "plan": ("plan_doc",),
     "research-lib": ("lib_doc",),
+    "design-tracker": ("design_input",),
 }
 
 
@@ -329,7 +347,10 @@ def main() -> int:
     # text. JsonArgumentParser covers whatever argparse still rejects first.
     parser.add_argument(
         "--skill",
-        help=("feature | spike | troubleshoot | team-execute | plan | research-lib"),
+        help=(
+            "feature | spike | troubleshoot | team-execute | plan | "
+            "research-lib | design-tracker"
+        ),
     )
     parser.add_argument(
         "--title",
