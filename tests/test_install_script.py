@@ -191,6 +191,93 @@ def test_force_install_backs_up_conflicts_before_replacing_them(
     assert not (target / ".agents/rules/custom.md").exists()
 
 
+def test_install_refuses_to_destroy_existing_native_subagents_and_skills(
+    tmp_path: Path,
+) -> None:
+    """A repo that already uses Claude Code natively keeps its own subagents and
+    skills in .claude/. Linking those paths must never silently delete them."""
+    target = tmp_path / "project"
+    init_git_repo(target)
+    existing_agent = target / ".claude/agents/my-agent.md"
+    existing_agent.parent.mkdir(parents=True)
+    existing_agent.write_text("user's own subagent\n", encoding="utf-8")
+    existing_skill = target / ".claude/skills/my-skill/SKILL.md"
+    existing_skill.parent.mkdir(parents=True)
+    existing_skill.write_text("user's own skill\n", encoding="utf-8")
+
+    result = run_install(target)
+
+    assert result.returncode == 2
+    assert "--force" in result.stderr
+    assert existing_agent.read_text(encoding="utf-8") == "user's own subagent\n"
+    assert existing_skill.read_text(encoding="utf-8") == "user's own skill\n"
+    assert not (target / "AGENTS.md").exists()
+
+
+def test_force_install_backs_up_existing_native_subagents_and_skills(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "project"
+    init_git_repo(target)
+    existing_agent = target / ".claude/agents/my-agent.md"
+    existing_agent.parent.mkdir(parents=True)
+    existing_agent.write_text("user's own subagent\n", encoding="utf-8")
+
+    result = run_install(target, "--force")
+
+    assert result.returncode == 0, result.stderr
+    backups = list(target.glob(".orchestra-backup-*"))
+    assert len(backups) == 1
+    assert (backups[0] / ".claude/agents/my-agent.md").read_text(
+        encoding="utf-8"
+    ) == "user's own subagent\n"
+    assert (target / ".claude/agents").is_symlink()
+    assert (target / ".claude/agents").readlink().as_posix() == "../.agents/agents"
+
+
+def test_existing_correct_discovery_link_is_not_treated_as_a_conflict(
+    tmp_path: Path,
+) -> None:
+    """A path that is already exactly the link we would create carries no user
+    data, so it must not abort the install the way real content does."""
+    target = tmp_path / "project"
+    init_git_repo(target)
+    (target / ".claude").mkdir()
+    (target / ".claude/agents").symlink_to("../.agents/agents")
+
+    result = run_install(target)
+
+    assert result.returncode == 0, result.stderr
+    assert (target / ".claude/agents").is_symlink()
+    assert (target / ".claude/agents").readlink().as_posix() == "../.agents/agents"
+    assert (target / ".claude/agents/general-purpose-opus.md").is_file()
+
+
+def test_update_backs_up_native_discovery_content_instead_of_deleting_it(
+    tmp_path: Path,
+) -> None:
+    template = build_template_repo(tmp_path)
+    target = tmp_path / "project"
+    init_git_repo(target)
+    assert run_install(target, script=template / "scripts/install.sh").returncode == 0
+
+    link = target / ".claude/agents"
+    link.unlink()
+    link.mkdir()
+    (link / "downstream-agent.md").write_text("downstream agent\n", encoding="utf-8")
+
+    update_result = run_update(target, template)
+
+    assert update_result.returncode == 0, update_result.stderr
+    assert link.is_symlink()
+    assert link.readlink().as_posix() == "../.agents/agents"
+    backups = list(target.glob(".orchestra-backup-native-discovery-*"))
+    assert len(backups) == 1
+    assert (backups[0] / ".claude/agents/downstream-agent.md").read_text(
+        encoding="utf-8"
+    ) == "downstream agent\n"
+
+
 def test_install_preserves_existing_settings_and_writes_merge_candidate(
     tmp_path: Path,
 ) -> None:

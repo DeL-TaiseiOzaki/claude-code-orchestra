@@ -618,7 +618,7 @@ repair_claude_entrypoint() {
 link_native_discovery_dirs() {
     header "Linking Native Discovery Directories"
 
-    local entry native_path target link
+    local entry native_path target link backup_root=""
     for entry in "${NATIVE_DISCOVERY_LINKS[@]}"; do
         native_path="${entry%%:*}"
         target="${entry##*:}"
@@ -627,11 +627,25 @@ link_native_discovery_dirs() {
             info "Verified ${native_path} -> ${target}"
             continue
         fi
-        rm -rf -- "${link}"
+        # Real content here is project-owned (a repo that kept its own
+        # subagents/skills natively, or a link corrupted into a file). Preserve
+        # it before replacing, so the link step can never destroy user data.
+        if [[ -e "${link}" || -L "${link}" ]]; then
+            if [[ -z "${backup_root}" ]]; then
+                backup_root="${PROJECT_ROOT}/.orchestra-backup-native-discovery-$(date +%Y%m%d%H%M%S)-$$"
+            fi
+            mkdir -p "${backup_root}/$(dirname -- "${native_path}")"
+            cp -a -- "${link}" "${backup_root}/${native_path}"
+            rm -rf -- "${link}"
+        fi
         mkdir -p "$(dirname -- "${link}")"
         ln -s "${target}" "${link}"
         UPDATED_FILES+=("${native_path} -> ${target}")
     done
+
+    if [[ -n "${backup_root}" ]]; then
+        warn "Existing native discovery content was backed up: ${backup_root}"
+    fi
 }
 
 # =============================================================================
