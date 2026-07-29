@@ -46,6 +46,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 # Stable prefix order; any rule file not listed here is appended alphabetically.
 PREFERRED_RULE_ORDER = [
     "coding-principles",
+    "delegation",
     "dev-environment",
     "language",
     "security",

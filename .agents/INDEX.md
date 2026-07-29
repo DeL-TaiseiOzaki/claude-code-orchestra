@@ -14,6 +14,7 @@
 |-------------------------------|-----------------------|-----------------------------------------------|------------------------------------|
 | Root agent contract           | normative             | `AGENTS.md`                                  | Mission, routing, catalogs, execution, quality, language, ownership |
 | Tier definitions              | normative             | `.agents/rules/tiers.md`                            | 3-tier hierarchy (default/sol/fable) |
+| Delegation-first policy       | normative             | `.agents/rules/delegation.md`                       | Self-handle list, mandatory triggers, route table, subagent prompt contract |
 | CLI executor extension        | normative             | `.agents/rules/cli-execution.md`                           | Response, handoff, and verification rules |
 | Shared rules                  | normative             | `.agents/rules/`                              | Coding, testing, security, routing, and state rules |
 | Shared skills                 | normative             | `.agents/skills/`                             | Workflow and deterministic helper implementations |

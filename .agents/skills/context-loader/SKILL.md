@@ -34,9 +34,9 @@ The JSON reports `{ok, read_order, rules, state, design, progress, libraries,
 missing, unreadable, warnings}`. `read_order` is the exact ordered list of
 repo-relative paths to read, in this order:
 
-1. the rule files in `.agents/rules/` (coding principles, dev environment,
-   language, security, testing, tiers, CLI execution, Codex delegation, and any
-   newly added rule file);
+1. the rule files in `.agents/rules/` (coding principles, delegation, dev
+   environment, language, security, testing, tiers, CLI execution, Codex
+   delegation, and any newly added rule file);
 2. `.agents/STATE.md` — the active main agent and current working blocks;
 3. `PROGRESS.md` — the rolling record of the latest five checkpoints, and the
    session-to-session continuity `/feature` reads first;
@@ -67,12 +67,35 @@ Read each path in `read_order`. Then check the rest of the report:
 Exit code 2 means `.agents/rules/` or `.agents/STATE.md` is missing entirely or
 unreadable — treat this as a hard stop, not a warning.
 
-### Step 3: Execute Task
+### Step 3: Route the Task Before Touching It
 
-With the loaded context, execute the requested task following:
+`.agents/rules/delegation.md` was just loaded, and it applies from here on: the
+default is to delegate, and working alone is the exception. Before the first
+`Read`, `Grep`, or `Edit` of the actual task, decide the route out loud:
+
+1. Does the whole task fall on the **Self-Handle List** (answer from loaded
+   context · one known file, ~20 lines or fewer · a named gate or a
+   skill-bundled lead script · user interaction)? If yes, do it directly.
+2. Otherwise name the route from the rule's table — `general-purpose-sonnet`,
+   `general-purpose-opus`, `codex-debugger`, Codex, `fable-advisor` — or the
+   skill that owns the workflow, and delegate with all six elements of the
+   Subagent Prompt Contract.
+3. Split independent units and launch them **in one message** so they run in
+   parallel.
+
+Deciding the route after investigating is the anti-pattern the rule names: the
+investigation was itself the delegable work. When both routes look defensible,
+delegate.
+
+### Step 4: Execute or Delegate the Task
+
+With the loaded context, execute the route chosen in Step 3, following:
 - Coding principles from rules
 - Design decisions from DESIGN.md
 - Library constraints from docs
+
+If the work was delegated, verification stays here: run the acceptance checks
+and inspect the diff before reporting the result as done.
 
 ## Key Rules
 
@@ -90,4 +113,6 @@ After loading context, briefly confirm in Japanese:
 - the `missing`, `unreadable`, and `warnings` arrays **quoted verbatim** from the
   JSON — not paraphrased, not summarised as "no issues";
 - `design.placeholder` and `progress.entries` as reported;
+- **the route chosen in Step 3** — the subagent, Codex, or skill that will do
+  the work, or, when handling it directly, which Self-Handle List item applies;
 - ready to execute the task.

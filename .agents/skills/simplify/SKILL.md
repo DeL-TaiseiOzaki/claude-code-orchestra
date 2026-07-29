@@ -67,6 +67,50 @@ command with its exit code, and re-run with `--allow-no-gates` so the payload
 carries `allow_no_gates: true`. Do not edit code first and decide how to verify
 it afterwards.
 
+### Steps 1-4 Are Delegated
+
+Reading the target files, checking library behaviour, and applying the edits are
+all past the triggers in `.agents/rules/delegation.md` — an unread file, a
+codebase sweep, external lookup, more than ~30 lines of output. The lead keeps
+Step 0, Step 5, and the "is this actually simpler" judgment; everything between
+them is delegated, one delegation per scope entry, launched in parallel when the
+scopes are independent:
+
+```
+Task tool:
+  subagent_type: "general-purpose-sonnet"   # general-purpose-opus when the code carries
+                                            # security, concurrency, or data-integrity risk
+  prompt: |
+    Objective: Simplify {scope path} without changing observable behaviour.
+
+    Scope:
+    - Edit only these paths: {the same --scope entries passed in Step 0}.
+    - Refactor only. No new features, no API changes, no dependency changes.
+    - Do not modify, skip, or weaken any test.
+
+    Inputs:
+    - Read .agents/rules/coding-principles.md first.
+    - Library constraints: .agents/docs/libraries/ (check every library the target uses;
+      WebSearch only what those notes do not answer).
+    - Apply the Simplification Principles and the patterns in
+      .agents/skills/simplify/SKILL.md (early return, extract function).
+
+    Acceptance checks — run before returning:
+      bash .agents/skills/_shared/verify.sh
+
+    Output shape:
+    ## Hotspots found (file:line -> problem)
+    ## Changes applied (file:line -> what and why it reads better)
+    ## Library constraints that shaped or blocked a change
+    ## Anything deliberately left alone
+
+    Context discipline: return the summary only; do not paste diffs or file bodies.
+```
+
+The reference material below is what the delegate follows — and what the lead
+applies directly when the target is a single already-open file of roughly 20
+lines or fewer (Self-Handle List item 2).
+
 ### 1. Analyze Target Code
 
 - Read the file(s) to understand current structure
