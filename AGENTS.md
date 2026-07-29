@@ -37,7 +37,11 @@ live in `.agents/rules/tiers.md`.
 
 ## Routing Policy
 
-- Minor fixes and short questions → main agent directly.
+**Delegate by default; direct execution is the exception.** The main agent works
+alone only on the closed Self-Handle List in `.agents/rules/delegation.md`:
+answers from already-loaded context, a single known file edited by ~20 lines or
+fewer, named gates and skill-bundled lead scripts, and user-facing interaction.
+
 - Routine, clear implementation → `general-purpose-sonnet`.
 - Ambiguous, security-, concurrency-, data-integrity-, or migration-sensitive
   implementation → `general-purpose-opus`, consulting Codex as needed.
@@ -47,10 +51,15 @@ live in `.agents/rules/tiers.md`.
 - Unknown root cause → `codex-debugger`.
 - Repeatedly stuck or high-stakes arbitration → `fable-advisor`.
 
-Delegate when output is likely to exceed 10 lines, three or more files require
-substantial reading, or current external information must be verified. Detailed
-Codex triggers and handoff requirements live in
-`.agents/rules/codex-delegation.md`.
+Delegate as soon as any trigger fires — do not investigate first and then
+decide: a third file must be read, an unread file must be opened, output is
+likely to exceed ~30 lines, locations are unknown, external information must be
+verified, or a root cause is unproven. Independent units are delegated in
+parallel in one message. Delegation moves the work, never the accountability:
+run the acceptance checks and inspect the diff before reporting done. The full
+policy, route table, and subagent prompt contract live in
+`.agents/rules/delegation.md`; Codex-specific triggers and handoff requirements
+in `.agents/rules/codex-delegation.md`.
 
 ## Skill Catalog
 

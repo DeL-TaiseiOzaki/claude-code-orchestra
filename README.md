@@ -164,6 +164,12 @@ Use the routing policy and execution patterns in root `AGENTS.md`.
 Product-specific delegation mechanics remain in `.agents/rules/` and the
 corresponding canonical agent or skill definitions.
 
+The posture is **delegation-first**: `.agents/rules/delegation.md` makes direct
+execution by the main agent the exception, limited to a closed Self-Handle List,
+and names the triggers, route table, and subagent prompt contract that every
+skill follows. Delegating moves the work, not the accountability — the caller
+still runs the acceptance checks and inspects the diff.
+
 ## Directory Structure
 
 `.agents/` owns shared policy, runtime content, project context, and state.
@@ -190,7 +196,7 @@ point directly to canonical capabilities under `.agents/`.
 │   ├── skills/                  # Shared workflow skills and deterministic helpers
 │   │   └── _shared/             # Bundled runtime: helpers every skill may depend on
 │   ├── hooks/                   # Claude hook implementations (canonical)
-│   ├── rules/                   # Shared policy, tiers, CLI, coding, testing, and security rules
+│   ├── rules/                   # Shared policy: delegation, tiers, CLI, coding, testing, security
 │   ├── docs/                    # Design, handoff, research, review, and library documents
 │   ├── logs/                    # Runtime logs (git-ignored)
 │   ├── checkpoints/             # Session checkpoints (git-ignored)

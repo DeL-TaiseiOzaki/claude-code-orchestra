@@ -2,6 +2,10 @@
 
 **Codex CLI handles planning, design, and complex code implementation.**
 
+> Scope: this rule decides *when Codex specifically*. Whether the main agent may
+> keep a task at all is decided first by `.agents/rules/delegation.md`, whose
+> default is to delegate.
+
 > Preflight: ensure codex CLI is current (see codex-system skill).
 
 ## Two Roles of Codex

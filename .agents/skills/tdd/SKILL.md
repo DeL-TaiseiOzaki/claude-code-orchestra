@@ -23,6 +23,24 @@ is *not* judgment is whether a run came out the way you expected: every test run
 in this skill goes through `.agents/skills/_shared/run_tests.py`, which turns
 "confirm failure" / "confirm success" into an exit code.
 
+## Who Does What (delegation-first)
+
+Per `.agents/rules/delegation.md`, the lead does not write the cycles by hand.
+The split is fixed:
+
+| Work | Owner |
+|------|-------|
+| Requirement clarification, test-case list, boundary values | Lead (judgment, Self-Handle List item 5) |
+| Writing the tests and the production code, cycle by cycle | `general-purpose-sonnet` |
+| Cycles with ambiguous design, cross-cutting invariants, or security / concurrency / data-integrity risk | `general-purpose-opus` |
+| A Red that is red for the wrong reason, or a Green that will not go green after one retry | `codex-debugger` |
+| Every `run_tests.py` / `verify.sh` gate and the final report | Lead — verification never delegates |
+
+Only a *single trivial cycle* on a file already open in context stays with the
+lead (Self-Handle List item 2). Two or more cycles, or a module the lead has not
+read, is delegated. Independent modules are delegated **in parallel in one
+message**; they share no test file, so nothing serializes them.
+
 ## The Red/Green Invariant
 
 ```bash
@@ -83,6 +101,52 @@ Which cases to write, and which boundary values matter, is domain reasoning —
 never delegate it to a script.
 
 ### Phase 2: Red-Green-Refactor
+
+#### Step 0: Hand the Cycles Off
+
+Delegate the Red-Green-Refactor loop with the six-element prompt contract from
+`.agents/rules/delegation.md`. One delegation per module, all launched together:
+
+```
+Task tool:
+  subagent_type: "general-purpose-sonnet"   # or general-purpose-opus, see the table above
+  prompt: |
+    Objective: Implement {module} by strict TDD, one test case at a time.
+
+    Scope:
+    - Write only tests/test_{module}.py and src/{module}.py. Touch nothing else.
+    - Do not modify existing tests, and never skip, delete, or weaken an assertion.
+
+    Inputs:
+    - Test cases to implement, in this order: {the Phase 1 list}
+    - Read .agents/rules/coding-principles.md and .agents/rules/testing.md first.
+    - Existing conventions to follow: {paths of comparable modules}
+
+    Acceptance checks — run these yourself, per cycle, and never skip Red:
+      python3 .agents/skills/_shared/run_tests.py \
+        --target tests/test_{module}.py --expect fail --label red-{n}
+      python3 .agents/skills/_shared/run_tests.py \
+        --target tests/test_{module}.py --expect pass --label green-{n}
+    A Red that exits 2 with observed=passed/collection_error/no_tests_collected
+    is not a Red: fix the test, not the production code, and re-run.
+
+    Output shape:
+    ## Cycles completed (case -> red label -> green label)
+    ## Files changed
+    ## Deviations from the requested test cases, and why
+    ## Anything that did not go green
+
+    Context discipline: return this summary only; the run logs stay in
+    .agents/logs/ and are referenced by label, not pasted.
+```
+
+Then verify rather than trust: re-run `run_tests.py --expect pass` yourself and
+read the diff. A reported cycle with no matching `run_tests.py` exit `0` did not
+happen. If a cycle came back unfinished, escalate it (`general-purpose-opus` or
+`codex-debugger`) instead of re-sending the same prompt to the same tier.
+
+The steps below are the contract the delegate follows — and what the lead runs
+directly in the single-trivial-cycle case.
 
 #### Step 1: Write First Test (Red)
 
