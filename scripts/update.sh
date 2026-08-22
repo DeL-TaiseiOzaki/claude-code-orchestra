@@ -41,6 +41,7 @@ SAFE_FILES=(
     ".agents/change_main.md"
     ".agents/docs/CODEX_HANDOFF_PLAYBOOK.md"
     ".agents/docs/libraries/.gitkeep"
+    ".agents/docs/plans/.gitkeep"
     ".agents/docs/reviews/.gitkeep"
     "scripts/install.sh"
     "scripts/update.sh"

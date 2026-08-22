@@ -584,3 +584,30 @@ def test_update_rolls_back_safe_dir_on_mid_swap_failure(tmp_path: Path) -> None:
     )
     assert restored_listing == original_listing
     assert (target / ".agents/INDEX.md").read_text(encoding="utf-8") == original_index
+
+
+def test_a_freshly_installed_project_passes_its_own_consistency_check(
+    tmp_path: Path,
+) -> None:
+    """`.agents/check.sh` ships with the template, so it must pass where it lands.
+
+    It passed in this repository and failed in every downstream project:
+    `INDEX.md` names `.agents/docs/plans/`, whose marker file is tracked here
+    but was absent from both distribution lists, so check 1 reported
+    `Missing: .agents/docs/plans/` on a clean install. A check that only holds
+    in the repository that authors it is not a check.
+    """
+    target = tmp_path / "project"
+    init_git_repo(target)
+
+    assert run_install(target).returncode == 0
+
+    result = subprocess.run(
+        ["bash", str(target / ".agents/check.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "FAIL" not in result.stdout
