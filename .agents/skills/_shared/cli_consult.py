@@ -72,7 +72,7 @@ DEFAULT_TIMEOUT = 900
 LABEL_RE = re.compile(r"^[a-z0-9-]+$")
 
 # Per-callee headless contract. `read_only` / `write` are the native permission
-# flags this wrapper maps --write-access onto; `install_hint` is what a caller
+# flags this wrapper maps its access choice onto; `install_hint` is what a caller
 # sees when the CLI is missing.
 CLI_SPECS: dict[str, dict] = {
     "claude": {

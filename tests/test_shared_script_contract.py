@@ -326,7 +326,7 @@ SUCCESS_CASES: dict[Path, tuple[Callable[[Path], None], list[str]]] = {
 }
 
 SUCCESS_EXEMPT: dict[Path, str] = {
-    # Needs a fake codex/claude/gemini executable on PATH.
+    # Needs a fake codex/claude/agy executable on PATH.
     SKILLS_DIR / "_shared" / "codex_consult.py": "tests/test_codex_consult.py",
     SKILLS_DIR / "_shared" / "cli_consult.py": "tests/test_cli_consult.py",
     # Needs typed JSON input built against the script's own schema.
