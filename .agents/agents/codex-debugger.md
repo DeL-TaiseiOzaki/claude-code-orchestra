@@ -52,8 +52,14 @@ Respond with:
 3. Specific fix (code diff or exact changes)
 4. How to prevent this in the future
 EOF
-python3 .agents/skills/_shared/codex_consult.py --prompt-file "${prompt_file}" --label error-analysis --sandbox danger-full-access
+python3 .agents/skills/_shared/codex_consult.py --prompt-file "${prompt_file}" \
+  --label error-analysis --caller codex-debugger --sandbox read-only
 ```
+
+Diagnosis is a read: `--sandbox read-only` keeps this step from editing the
+code it is still trying to explain, and Step 3 is where the fix is applied
+deliberately. `--caller codex-debugger` makes any edit traceable back to this
+agent.
 
 ### Step 3: Apply and Verify the Fix
 

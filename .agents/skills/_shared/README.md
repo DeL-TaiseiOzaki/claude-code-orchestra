@@ -30,8 +30,9 @@ swallowed. Both failure modes are worse than the split.
 |------|-------------|
 | `work-log-format.md` | Canonical work-log template for Agent Teams teammates (format doc, not a script). |
 | `workspace.py` | Resolve, create, and verify a skill's slug, team name, and artifact paths. Single source of truth for cross-phase naming. |
-| `codex_consult.py` | Invoke the Codex CLI safely: prompt from `--prompt-file`, stdin, or the label's default path; stdin closed; prompt, stdout, and stderr captured to `.agents/logs/codex/` under a collision-free stem; full diagnostics as JSON. |
-| `cli_consult.py` | Invoke a peer CLI agent (Claude Code, Gemini CLI) as a subagent under the same contract, read-only unless `--write-access`. Cross-CLI rules: `.agents/rules/cli-execution.md`. |
+| `codex_consult.py` | Invoke the Codex CLI safely: prompt from `--prompt-file`, stdin, or the label's default path; stdin closed; prompt, stdout, and stderr captured to `.agents/logs/codex/` under a collision-free stem; `--sandbox` defaults to the project's own `danger-full-access` and is always sent explicitly; full diagnostics as JSON. |
+| `cli_consult.py` | Invoke a peer CLI agent (Claude Code, Antigravity) as a subagent under the same contract, unrestricted unless `--read-only`. Cross-CLI rules: `.agents/rules/cli-execution.md`. |
+| `edit_provenance.py` | Snapshot the repository's dirty set before a delegated run and diff it afterwards, so the consult wrappers can report the files the callee actually created, changed, or deleted — committed work included, pre-existing dirt excluded. |
 | `validate_doc.py` | Validate a markdown document (work log, lib doc, plan, brief, diagnosis, guide, checkpoint summary, PROGRESS, spike/bug report) against a named `## ` section contract; `--expect-files N` makes "nobody wrote one" a failure. |
 | `append_state_block.py` | Typed writers for `.agents/STATE.md`: `--type feature\|bug-fix\|project` appends a `## Current …` work block, `--type repository-identity` replaces the `## Repository Identity` body `/init` owns. Writer Safety Contract. |
 | `update_design.py` | Typed writers for `.agents/docs/DESIGN.md`: rows for Key Decisions, requirements, NFRs, tech choices, and agent roles, plus named section appends. Idempotent; `--require-change` makes a `no-op` exit `2`. Writer Safety Contract. |
@@ -123,7 +124,13 @@ follow them too, so callers can handle all of them identically:
   clear" — that single pattern produced a review of nothing reported as a clean
   review, and a validator that passed because no file existed to validate.
 - **Standard library only.** No third-party imports, so the scripts run wherever
-  `python3` does.
+  `python3` does. A sibling module inside `_shared/` is not a third-party
+  dependency and is allowed: Python puts a script's own directory on
+  `sys.path`, so the portability this clause protects is unaffected, and the
+  alternative — copying a helper into both consult wrappers — is exactly the
+  drift the bundled runtime exists to prevent. The sibling must still satisfy
+  every other clause here, so it cannot become a back door for an unchecked
+  helper.
 
 ### Carve-outs
 

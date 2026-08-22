@@ -1,6 +1,6 @@
 """Behavioral tests for the cross-CLI subagent wrapper.
 
-Every test puts a fake `claude` / `gemini` executable first on PATH, so the
+Every test puts a fake `claude` / `agy` executable first on PATH, so the
 wrapper's real argv, access mapping, and JSON contract are exercised without
 any CLI installed.
 """
@@ -122,7 +122,7 @@ def test_claude_success_reports_result_and_session_id(tmp_path: Path) -> None:
     assert payload["ok"] is True
     assert payload["cli"] == "claude"
     assert payload["session_id"] == "abc-123"
-    assert payload["write_access"] is False
+    assert payload["write_access"] is True
     assert payload["error"] is None
     # The envelope's `result` is the response, not the transport wrapper.
     assert payload["response_head"] == "The answer body"
@@ -135,30 +135,31 @@ def test_claude_success_reports_result_and_session_id(tmp_path: Path) -> None:
 
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
     assert argv[1:4] == ["-p", "--output-format", "json"]
-    # Read-only by default, and the prompt is the final argv element.
+    # Unrestricted by default, and the prompt is the final argv element.
     assert "--permission-mode" in argv and argv[
         argv.index("--permission-mode") + 1
-    ] == ("plan")
+    ] == ("bypassPermissions")
     assert argv[-1] == "Objective: review the design"
 
 
-def test_claude_write_access_switches_permission_mode(tmp_path: Path) -> None:
+def test_claude_read_only_switches_permission_mode(tmp_path: Path) -> None:
+    """--read-only is the opt-in now; it must reach the callee's own flag."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     argv_log = tmp_path / "argv.json"
     write_fake_cli(bin_dir, "claude", stdout=claude_envelope("done"), argv_log=argv_log)
-    prompt_file = write_prompt(tmp_path, "Implement the fix")
+    prompt_file = write_prompt(tmp_path, "Review the design")
 
     result = run_cli_consult(
         tmp_path,
-        ["--cli", "claude", "--prompt-file", str(prompt_file), "--write-access"],
+        ["--cli", "claude", "--prompt-file", str(prompt_file), "--read-only"],
         path_prefix=bin_dir,
     )
 
     assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout)["write_access"] is True
+    assert json.loads(result.stdout)["write_access"] is False
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
-    assert argv[argv.index("--permission-mode") + 1] == "acceptEdits"
+    assert argv[argv.index("--permission-mode") + 1] == "plan"
 
 
 def test_claude_is_error_envelope_fails_even_on_exit_zero(tmp_path: Path) -> None:
@@ -205,42 +206,60 @@ def test_claude_unparseable_stdout_is_kept_verbatim(tmp_path: Path) -> None:
     assert payload["session_id"] is None
 
 
-# --- Gemini callee ----------------------------------------------------------
+# --- Antigravity callee -----------------------------------------------------
 
 
-def test_gemini_captures_text_output_and_approval_mode(tmp_path: Path) -> None:
+def test_antigravity_captures_text_output_verbatim(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     argv_log = tmp_path / "argv.json"
-    write_fake_cli(bin_dir, "gemini", stdout="Gemini answer\n", argv_log=argv_log)
+    write_fake_cli(bin_dir, "agy", stdout="Antigravity answer\n", argv_log=argv_log)
     prompt_file = write_prompt(tmp_path, "Objective: research")
 
     result = run_cli_consult(
         tmp_path,
-        ["--cli", "gemini", "--prompt-file", str(prompt_file), "--model", "flash"],
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file), "--model", "fast"],
         path_prefix=bin_dir,
     )
 
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
-    assert payload["cli"] == "gemini"
-    assert payload["model"] == "flash"
-    assert payload["response_head"] == "Gemini answer\n"
-    assert payload["response_file"].startswith(".agents/logs/gemini/")
+    assert payload["cli"] == "antigravity"
+    assert payload["model"] == "fast"
+    assert payload["response_head"] == "Antigravity answer\n"
+    assert payload["response_file"].startswith(".agents/logs/antigravity/")
+    assert payload["write_access"] is True
 
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
     assert argv[1] == "-p"
-    assert argv[argv.index("--approval-mode") + 1] == "default"
-    assert argv[argv.index("--model") + 1] == "flash"
+    assert argv[argv.index("--model") + 1] == "fast"
+    # Headless is already unrestricted: there is no permission flag to send,
+    # and inventing one would misreport what the callee is actually doing.
+    assert not [arg for arg in argv if "approval" in arg or "permission" in arg]
 
 
-def test_gemini_rejects_resume(tmp_path: Path) -> None:
+def test_antigravity_refuses_read_only_it_cannot_enforce(tmp_path: Path) -> None:
+    """Accepting the flag and running unrestricted anyway would be the lie."""
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file), "--read-only"],
+    )
+
+    assert result.returncode == 1
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "--read-only" in payload["error"]
+
+
+def test_antigravity_rejects_resume(tmp_path: Path) -> None:
     """A flag the callee has no equivalent for is an argument error, not a run."""
     prompt_file = write_prompt(tmp_path, "Objective: x")
 
     result = run_cli_consult(
         tmp_path,
-        ["--cli", "gemini", "--prompt-file", str(prompt_file), "--resume", "abc"],
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file), "--resume", "abc"],
     )
 
     assert result.returncode == 1
@@ -255,12 +274,12 @@ def test_gemini_rejects_resume(tmp_path: Path) -> None:
 def test_nonzero_exit_captures_stderr_file(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    write_fake_cli(bin_dir, "gemini", stdout="partial", stderr="boom\n", exit_code=4)
+    write_fake_cli(bin_dir, "agy", stdout="partial", stderr="boom\n", exit_code=4)
     prompt_file = write_prompt(tmp_path, "Objective: x")
 
     result = run_cli_consult(
         tmp_path,
-        ["--cli", "gemini", "--prompt-file", str(prompt_file)],
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file)],
         path_prefix=bin_dir,
     )
 
@@ -324,11 +343,11 @@ def test_prompt_stdin_is_accepted(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     argv_log = tmp_path / "argv.json"
-    write_fake_cli(bin_dir, "gemini", stdout="ok", argv_log=argv_log)
+    write_fake_cli(bin_dir, "agy", stdout="ok", argv_log=argv_log)
 
     result = run_cli_consult(
         tmp_path,
-        ["--cli", "gemini", "--prompt-stdin"],
+        ["--cli", "antigravity", "--prompt-stdin"],
         path_prefix=bin_dir,
         stdin_input="Objective: piped prompt",
     )
@@ -376,7 +395,7 @@ def test_bad_label_is_rejected_before_running(tmp_path: Path) -> None:
 
 
 def test_permission_flags_cannot_be_smuggled_through_cli_arg(tmp_path: Path) -> None:
-    """--write-access must stay the single visible statement of access."""
+    """The wrapper's own flag must stay the single statement of access."""
     prompt_file = write_prompt(tmp_path, "Objective: x")
 
     for smuggled in ("--permission-mode", "--yolo", "--approval-mode=yolo"):
@@ -392,7 +411,7 @@ def test_permission_flags_cannot_be_smuggled_through_cli_arg(tmp_path: Path) -> 
         )
         assert result.returncode == 1, smuggled
         payload = json.loads(result.stdout)
-        assert "--write-access" in payload["error"], smuggled
+        assert "--read-only" in payload["error"], smuggled
 
 
 def test_cli_arg_passthrough_reaches_the_callee(tmp_path: Path) -> None:
@@ -431,11 +450,11 @@ def test_prompt_is_persisted_next_to_the_response_even_from_stdin(
     that was actually sent used to exist nowhere at all."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    write_fake_cli(bin_dir, "gemini", stdout="an answer")
+    write_fake_cli(bin_dir, "agy", stdout="an answer")
 
     result = run_cli_consult(
         tmp_path,
-        ["--cli", "gemini", "--prompt-stdin", "--label", "stdin-case"],
+        ["--cli", "antigravity", "--prompt-stdin", "--label", "stdin-case"],
         path_prefix=bin_dir,
         stdin_input="Objective: only ever on stdin",
     )
@@ -453,14 +472,14 @@ def test_prompt_is_persisted_next_to_the_response_even_from_stdin(
 def test_now_pins_the_log_filenames(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    write_fake_cli(bin_dir, "gemini", stdout="ok")
+    write_fake_cli(bin_dir, "agy", stdout="ok")
     prompt_file = write_prompt(tmp_path, "Objective: pinned clock")
 
     result = run_cli_consult(
         tmp_path,
         [
             "--cli",
-            "gemini",
+            "antigravity",
             "--prompt-file",
             str(prompt_file),
             "--label",
@@ -473,9 +492,12 @@ def test_now_pins_the_log_filenames(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert payload["response_file"] == ".agents/logs/gemini/20260725T100000Z-pinned.md"
+    assert (
+        payload["response_file"]
+        == ".agents/logs/antigravity/20260725T100000Z-pinned.md"
+    )
     assert payload["prompt_file"] == (
-        ".agents/logs/gemini/20260725T100000Z-pinned.prompt.md"
+        ".agents/logs/antigravity/20260725T100000Z-pinned.prompt.md"
     )
 
 
@@ -502,11 +524,11 @@ def test_same_second_and_label_cannot_overwrite_an_earlier_response(
     bin_dir.mkdir()
     prompt_file = write_prompt(tmp_path, "Objective: collide")
     same_second = ["--now", "2026-07-25T10:00:00+00:00"]
-    base = ["--cli", "gemini", "--prompt-file", str(prompt_file), *same_second]
+    base = ["--cli", "antigravity", "--prompt-file", str(prompt_file), *same_second]
 
-    write_fake_cli(bin_dir, "gemini", stdout="first answer")
+    write_fake_cli(bin_dir, "agy", stdout="first answer")
     first = run_cli_consult(tmp_path, base, path_prefix=bin_dir)
-    write_fake_cli(bin_dir, "gemini", stdout="second answer")
+    write_fake_cli(bin_dir, "agy", stdout="second answer")
     second = run_cli_consult(tmp_path, base, path_prefix=bin_dir)
 
     assert first.returncode == 0, first.stdout

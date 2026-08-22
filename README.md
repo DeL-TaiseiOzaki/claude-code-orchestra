@@ -120,6 +120,10 @@ and `general-purpose-opus` pin their own model aliases in frontmatter. Unspecifi
 subagents default to Sonnet through `.claude/settings.json`
 (`env.CLAUDE_CODE_SUBAGENT_MODEL`).
 
+Peer CLI agents are reached through `.agents/skills/_shared/cli_consult.py`,
+which supports Claude Code (`--cli claude`) and Antigravity (`--cli
+antigravity`, headless `agy -p`). Gemini CLI support was removed.
+
 ## Architecture
 
 The normative, tool-neutral orchestration policy and the complete agent/skill
@@ -150,9 +154,9 @@ below is a non-normative overview of the default setup.
 │  │  └──────────────────────────────────────────────┘    │   │
 │  │                       │                              │   │
 │  │  ┌────────────────────┴─────────────────────────┐    │   │
-│  │  │ Tier 3 — Fable  (rare advisor, read-only)    │    │   │
+│  │  │ Tier 3 — Fable  (rare escalation authority)  │    │   │
 │  │  │ → Arbitration, stuck problems, final review  │    │   │
-│  │  │ → Notes to .agents/docs/reviews/             │    │   │
+│  │  │ → May land the resolution; notes to reviews/ │    │   │
 │  │  └──────────────────────────────────────────────┘    │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
@@ -224,6 +228,8 @@ point directly to canonical capabilities under `.agents/`.
 - Use templates from `@.agents/docs/CODEX_HANDOFF_PLAYBOOK.md` to standardize requests to Codex
 - `.agents/rules/codex-delegation.md` defines the "Codex-first delegation" policy and exception conditions
 - `.codex/config.toml` uses `approval_policy = "never"` to prevent blocking in non-interactive flows, and `sandbox_mode = "danger-full-access"` for unrestricted execution
+- The shared wrappers default to the same unrestricted access rather than being quietly stricter than the CLI they wrap, so what an agent may touch does not depend on which path reached it. `--sandbox read-only` (Codex) and `--read-only` (`cli_consult.py`) remain explicit opt-ins for planning and review calls
+- Since nothing confines a delegated run, every wrapper call is bracketed by `.agents/skills/_shared/edit_provenance.py` and records the files it created, changed, or deleted — with `caller` and `label` — to `.agents/logs/cli-tools.jsonl`. That log is how you answer "which subagent changed this?"
 
 ## Workflow
 

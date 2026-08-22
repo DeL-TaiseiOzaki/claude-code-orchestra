@@ -41,12 +41,18 @@ trade-offs, and code review. Write the prompt body to a file, then call the wrap
 documented in `.agents/skills/codex-system/SKILL.md`):
 
 ```bash
-# Analysis (read-only)
-python3 .agents/skills/_shared/codex_consult.py --prompt-file {path} --label {slug} --sandbox read-only
+# Analysis: read-only is an explicit opt-in, because the default is not
+python3 .agents/skills/_shared/codex_consult.py --prompt-file {path} --label {slug} \
+  --caller general-purpose-opus --sandbox read-only
 
-# Implementation work (can write files)
-python3 .agents/skills/_shared/codex_consult.py --prompt-file {path} --label {slug} --sandbox danger-full-access
+# Implementation work (unrestricted, the default)
+python3 .agents/skills/_shared/codex_consult.py --prompt-file {path} --label {slug} \
+  --caller general-purpose-opus
 ```
+
+Always pass `--caller general-purpose-opus`: it is what makes the files the
+run edited traceable back to you in `.agents/logs/cli-tools.jsonl` rather than
+to "some Codex call".
 
 ## Working Protocol
 

@@ -306,14 +306,14 @@ def test_cli_tools_includes_every_tool_and_counts_bad_lines(project: Path) -> No
     (logs / "cli-tools.jsonl").write_text(
         json.dumps({"tool": "codex", "prompt": "design"})
         + "\n"
-        + json.dumps({"tool": "gemini", "prompt": "research"})
+        + json.dumps({"tool": "antigravity", "prompt": "research"})
         + "\nnot json\n",
         encoding="utf-8",
     )
 
     cli = json.loads(run(project).stdout)["cli_tools"]
 
-    assert [item["tool"] for item in cli["items"]] == ["codex", "gemini"]
+    assert [item["tool"] for item in cli["items"]] == ["codex", "antigravity"]
     assert cli["skipped_lines"] == 1
     assert cli["error"] is None
 
