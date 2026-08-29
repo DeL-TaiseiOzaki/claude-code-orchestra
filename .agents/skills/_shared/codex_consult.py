@@ -16,11 +16,26 @@ stays diagnosable after the fact. With neither ``--prompt-file`` nor
 ``--prompt-stdin``, the prompt is read from the label's conventional path,
 ``.agents/logs/codex/prompt-{label}.md``.
 
+``--sandbox`` defaults to ``danger-full-access``, the same value
+``.codex/config.toml`` sets, so the access Codex has does not depend on
+whether it was reached through this wrapper or directly. The flag is still
+sent explicitly on every call, so what was granted is readable in the command
+rather than inherited from a config file, and ``--sandbox read-only`` remains
+the right choice for planning and review consultations.
+
+Because the default is unrestricted, every run is bracketed by an
+``edit_provenance`` snapshot and the resulting ``edits`` object names the
+files Codex actually created, changed, or deleted — including files it
+committed. Together with ``caller`` and ``label`` that turns "some agent
+rewrote this" into an answerable question.
+
 Usage:
     python3 codex_consult.py --prompt-file prompt.txt --label design-review
     python3 codex_consult.py --label design-review   # reads prompt-design-review.md
     echo "Objective: ..." | python3 codex_consult.py --prompt-stdin
     python3 codex_consult.py --prompt-file p.txt --config model_reasoning_effort=low
+    python3 codex_consult.py --prompt-file p.txt --sandbox read-only  # review call
+    python3 codex_consult.py --prompt-file p.txt --caller general-purpose-opus
 
 Exit codes:
     0  codex exec exited 0 and its output was saved and verified
@@ -43,11 +58,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn
 
+import edit_provenance
+
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
 DEFAULT_MODEL = "gpt-5.6-sol"
 DEFAULT_TIMEOUT = 600
 SANDBOX_CHOICES = ["read-only", "workspace-write", "danger-full-access"]
+# The wrapper's default is the project's default: `.codex/config.toml` sets
+# `sandbox_mode = "danger-full-access"`, and a wrapper that quietly substituted
+# something stricter meant the granted access depended on which of the two
+# paths a caller took. The flag is still always sent explicitly, so the value
+# in force is visible in the call rather than inherited from a config file.
+DEFAULT_SANDBOX = "danger-full-access"
 LABEL_RE = re.compile(r"^[a-z0-9-]+$")
 INSTALL_HINT = "install with `npm install -g @openai/codex@latest`"
 
@@ -246,10 +269,19 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         help="[a-z0-9-] slug used in log filenames (default: consult)",
     )
     parser.add_argument(
+        "--caller",
+        default=None,
+        help=(
+            "Name of the agent making this call (default: $ORCHESTRA_CALLER). "
+            "Recorded with the edit set so a change can be traced back to the "
+            "subagent that asked for it."
+        ),
+    )
+    parser.add_argument(
         "--sandbox",
         choices=SANDBOX_CHOICES,
-        default="read-only",
-        help="Codex sandbox mode (default: read-only)",
+        default=DEFAULT_SANDBOX,
+        help=f"Codex sandbox mode (default: {DEFAULT_SANDBOX}, matching .codex/config.toml). Pass --sandbox read-only for planning and review calls.",
     )
     parser.add_argument(
         "--model",
@@ -360,6 +392,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     model = args.model if args.model is not None else env_model
     sandbox = args.sandbox
     write_access = sandbox != "read-only"
+    caller = args.caller or os.environ.get("ORCHESTRA_CALLER") or None
 
     # --- codex must be resolvable on PATH before we attempt to run it ---
     if shutil.which("codex") is None:
@@ -414,6 +447,11 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     stderr_text = ""
     exit_code: int | None = None
 
+    # Provenance brackets the call as tightly as possible: work already in the
+    # tree when the snapshot is taken hashes identically afterwards and is not
+    # attributed to this run.
+    before_snapshot, _ = edit_provenance.take_snapshot(project_root)
+
     start = time.monotonic()
     try:
         result = subprocess.run(
@@ -442,6 +480,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         )
         return EXIT_NOT_FOUND
     duration_sec = round(time.monotonic() - start, 3)
+    edits = edit_provenance.edits_since(project_root, before_snapshot)
 
     artifacts = [
         _repo_relative(prompt_path, project_root),
@@ -472,8 +511,11 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             "ok": ok,
             "exit_code": exit_code,
             "model": model,
+            "caller": caller,
+            "label": args.label,
             "sandbox": sandbox,
             "write_access": write_access,
+            "edits": edits,
             "timed_out": timed_out,
             "duration_sec": duration_sec,
             "prompt_file": _repo_relative(prompt_path, project_root),

@@ -29,8 +29,9 @@ logs. Delegate these unless the user explicitly requests otherwise.
 - `codex-debugger`: root-cause analysis for errors and failed checks.
 - Codex CLI / Tier 2 `sol`: design, planning, complex implementation, and deep
   debugging. Its work must be independently verified.
-- `fable-advisor` / Tier 3 `fable`: rare, read-only arbitration, unblocking, and
-  final review of large changes; never implements.
+- `fable-advisor` / Tier 3 `fable`: rare arbitration, unblocking, and final
+  review of large changes; may land the resolution when handing it back down
+  would repeat the failure that escalated to it.
 
 Full definitions live in `.agents/agents/`; stable role and permission details
 live in `.agents/rules/tiers.md`.
@@ -130,6 +131,9 @@ task before acting.
   `settings.json`, Codex skills via `config.toml` `path=`). Do not mirror rules,
   hooks, docs, logs, or checkpoints into product-native directories.
 - Cross-CLI subagent calls go through the shared wrappers
-  (`.agents/skills/_shared/cli_consult.py` for Claude Code and Gemini,
-  `codex_consult.py` for Codex), never a raw headless shell-out — see
+  (`.agents/skills/_shared/cli_consult.py` for Claude Code and Antigravity,
+  `codex_consult.py` for Codex), never a raw headless shell-out. The wrappers
+  grant unrestricted access by default — matching the CLIs' own configuration
+  rather than quietly differing from it — and record what each run edited, so
+  a change can be traced back to the subagent that made it. See
   `.agents/rules/cli-execution.md`.

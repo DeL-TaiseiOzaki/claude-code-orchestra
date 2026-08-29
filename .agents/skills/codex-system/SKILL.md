@@ -43,13 +43,13 @@ Delegation policy — when to consult, when NOT to, and trigger criteria — liv
 > Invoke Codex through the wrapper — `.agents/skills/_shared/codex_consult.py` — instead of calling `codex exec` directly. `codex exec` itself waits for stdin EOF and hangs indefinitely when stdin is left open (e.g. background shells); the wrapper always runs it with stdin closed, so callers never need `< /dev/null`. It also passes the prompt as a single argv element (no shell, so nested quotes in the prompt body never break it), captures stdout/stderr to timestamped files under `.agents/logs/codex/`, and reports one JSON result instead of silently discarding stderr.
 
 ```
-python3 .agents/skills/_shared/codex_consult.py (--prompt-file PATH | --prompt-stdin) [--label L] [--sandbox {read-only,workspace-write,danger-full-access}] [--model M] [--timeout N] [--cwd DIR] [--project-root DIR] [--skip-git-repo-check] [--config KEY=VALUE]
+python3 .agents/skills/_shared/codex_consult.py (--prompt-file PATH | --prompt-stdin) [--label L] [--caller AGENT] [--sandbox {read-only,workspace-write,danger-full-access}] [--model M] [--timeout N] [--cwd DIR] [--project-root DIR] [--skip-git-repo-check] [--config KEY=VALUE]
 ```
 
-> **Consulting a peer CLI instead of Codex.** Claude Code and Gemini CLI go through `.agents/skills/_shared/cli_consult.py --cli {claude,gemini} --prompt-file PATH`, read-only unless `--write-access` (`--resume SESSION` is Claude-only; `--cli-arg` forwards a native flag; default timeout 900 s; same four exit codes as below). Never shell out to a CLI directly — the wrapper-only rule and the per-callee permission mapping live in `.agents/rules/cli-execution.md`. Codex's sandbox and `--config` semantics stay here because they are Codex-specific; everything cross-CLI is in that rule file.
+> **Consulting a peer CLI instead of Codex.** Claude Code and Antigravity go through `.agents/skills/_shared/cli_consult.py --cli {claude,antigravity} --prompt-file PATH`, unrestricted unless `--read-only` — which Antigravity refuses, because its headless mode auto-approves every tool call and the restriction cannot be enforced from the caller (`--resume SESSION` is Claude-only; `--cli-arg` forwards a native flag; default timeout 900 s; same four exit codes as below). Never shell out to a CLI directly — the wrapper-only rule and the per-callee permission mapping live in `.agents/rules/cli-execution.md`. Codex's sandbox and `--config` semantics stay here because they are Codex-specific; everything cross-CLI is in that rule file.
 
 - Write the prompt body (Objective / Constraints / Relevant files / Acceptance checks / Output format) to a file and pass it via `--prompt-file`; use `--prompt-stdin` to pipe a short prompt instead. Any path works — the ad-hoc snippets below use `mktemp`, while skills write to `.agents/logs/codex/prompt-{label}.md` so the prompt sits next to the response the wrapper writes for it, which is what makes a disappointing answer diagnosable afterwards.
-- `--sandbox` defaults to `read-only`. Pass `--sandbox danger-full-access` explicitly for implementation calls — see Sandbox Modes below.
+- `--sandbox` defaults to `danger-full-access`, matching `.codex/config.toml`. Pass `--sandbox read-only` explicitly for planning and review calls — see Sandbox Modes below.
 - `--model` defaults to `$CODEX_MODEL`, else `gpt-5.6-sol`. `--label` is a `[a-z0-9-]+` slug used in the log filenames (default `consult`). `--timeout` defaults to 600 seconds. `--skip-git-repo-check` covers the non-Git working directory case — see `references/troubleshooting.md`.
 - `--config KEY=VALUE` (repeatable) forwards a Codex config override, e.g. `--config model_reasoning_effort=low` for a cheap question. Keys naming a sandbox or approval setting are refused: `--sandbox` must stay the single visible statement of what Codex is allowed to touch.
 - The wrapper prints exactly one JSON object: `{ok, exit_code, model, sandbox, write_access, timed_out, duration_sec, response_file, stderr_file, response_chars, response_head, error}`. `response_head` is only a ~400-char preview — read the file at `response_file` for the full response, and `stderr_file` (non-null whenever Codex wrote to stderr) when diagnosing a failure.
@@ -155,10 +155,12 @@ It reports `deletions`, `placeholders`, `weakened_tests`, `out_of_scope_files`, 
 
 | Mode | Sandbox | Use Case |
 |------|---------|----------|
-| Analysis | `read-only` | Design review, debugging, trade-off analysis |
-| Implementation | `danger-full-access` | Implementation, fixes, refactoring |
+| Analysis | `read-only` (explicit opt-in) | Design review, debugging, trade-off analysis |
+| Implementation | `danger-full-access` (default) | Implementation, fixes, refactoring |
 
-The wrapper's own default is `read-only`, so pass `--sandbox danger-full-access` explicitly for every implementation call. This is intentionally stricter than a bare `codex exec` invocation: `codex exec` alone would inherit the project's `.codex/config.toml` default of `danger-full-access` when no `--sandbox` flag is given, but the wrapper always sends an explicit `--sandbox` value and never lets that config default apply silently.
+The wrapper's own default is `danger-full-access`, the same value `.codex/config.toml` sets, so an implementation call needs no flag and an analysis call must pass `--sandbox read-only` explicitly. The wrapper used to default to `read-only` — deliberately stricter than a bare `codex exec` — which meant the access Codex had depended on whether it was reached through the wrapper or directly, and neither call site said so. Aligning the two removes that divergence; what has *not* changed is that the wrapper always sends `--sandbox` explicitly, so the granted access is readable in the command rather than inherited from a config file, and `--config` keys naming a sandbox or approval setting stay refused.
+
+Because the default is unrestricted, every call is bracketed by an edit snapshot and the JSON result carries an `edits` object naming the files Codex created, changed, or deleted, plus `caller` and `label`. Pass `--caller <your agent name>` so `.agents/logs/cli-tools.jsonl` records *which subagent* asked for a change, not only which CLI made it.
 
 ## Task Templates
 
@@ -278,11 +280,11 @@ When the `openai/codex-plugin-cc` plugin is installed, these slash commands are 
 | Delegate investigation/fix | `/codex:rescue` |
 | Background work + tracking | Plugin `--background` |
 | Ad-hoc design question | `codex_consult.py` (direct) |
-| Unrestricted implementation | `codex_consult.py --sandbox danger-full-access` + [Verify Before Trusting](#verify-before-trusting) |
+| Unrestricted implementation | `codex_consult.py` (the default) + [Verify Before Trusting](#verify-before-trusting) |
 | Subagent delegation | `codex_consult.py` via general-purpose-opus |
-| Consulting Claude Code or Gemini | `cli_consult.py --cli {claude,gemini}` |
+| Consulting Claude Code or Antigravity | `cli_consult.py --cli {claude,antigravity}` |
 
-Plugin routes (the first four rows) leave no wrapper log and no `cli-tools.jsonl` entry; the `codex_consult.py` routes do. Whichever route made the change, a write-access run is verified the same way.
+Plugin routes (the first four rows) leave no wrapper log, no `cli-tools.jsonl` entry, and no record of which files they changed; the `codex_consult.py` routes leave all three. Whichever route made the change, an unrestricted run is verified the same way.
 
 ## Why Codex?
 

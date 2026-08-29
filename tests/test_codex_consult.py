@@ -98,8 +98,10 @@ def test_success_writes_response_and_reports_head(tmp_path: Path) -> None:
     assert payload["ok"] is True
     assert payload["exit_code"] == 0
     assert payload["model"] == "gpt-5.6-sol"
-    assert payload["sandbox"] == "read-only"
-    assert payload["write_access"] is False
+    # The wrapper's default matches .codex/config.toml rather than being
+    # quietly stricter than the CLI a caller would have run by hand.
+    assert payload["sandbox"] == "danger-full-access"
+    assert payload["write_access"] is True
     assert payload["timed_out"] is False
     assert payload["error"] is None
     assert "Codex response body" in payload["response_head"]
@@ -572,3 +574,111 @@ def test_success_reports_artifacts_and_a_verified_response(tmp_path: Path) -> No
     for relative in payload["artifacts"]:
         assert not Path(relative).is_absolute()
         assert (tmp_path / relative).is_file()
+
+
+# --- provenance: which subagent changed which files --------------------------
+
+
+def init_git_repo(root: Path) -> None:
+    subprocess.run(
+        ["git", "init", "-q", "."],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        timeout=60,
+    )
+    (root / "existing.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "-A"], cwd=root, check=True, capture_output=True, timeout=60
+    )
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+        ],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        timeout=60,
+    )
+
+
+def write_editing_fake_codex(bin_dir: Path, target: Path) -> None:
+    """A fake codex that edits a file, the way a real unrestricted run would."""
+    script = bin_dir / "codex"
+    script.write_text(
+        "#!/usr/bin/env python3\n"
+        "import pathlib\n"
+        f"pathlib.Path({str(target)!r}).write_text('written by the callee\\n')\n"
+        "print('TL;DR done')\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+
+
+def test_the_files_the_callee_edited_are_reported(tmp_path: Path) -> None:
+    """Unrestricted access is only acceptable because the edit is recorded."""
+    init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_editing_fake_codex(bin_dir, tmp_path / "existing.py")
+    prompt_file = write_prompt(tmp_path, "Objective: fix it")
+
+    result = run_codex_consult(
+        tmp_path,
+        ["--prompt-file", str(prompt_file), "--caller", "general-purpose-opus"],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["caller"] == "general-purpose-opus"
+    assert payload["label"] == "consult"
+    assert payload["edits"]["tracked"] is True
+    assert payload["edits"]["changed_files"] == ["existing.py"]
+    assert payload["edits"]["files_total"] == 1
+
+
+def test_caller_falls_back_to_the_environment(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_codex(bin_dir, stdout="ok\n")
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_codex_consult(
+        tmp_path,
+        ["--prompt-file", str(prompt_file)],
+        path_prefix=bin_dir,
+        env_overrides={"ORCHESTRA_CALLER": "feature-lead"},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["caller"] == "feature-lead"
+
+
+def test_read_only_is_still_available_as_an_explicit_opt_in(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_codex(bin_dir, stdout="ok\n", argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, "Objective: review")
+
+    result = run_codex_consult(
+        tmp_path,
+        ["--prompt-file", str(prompt_file), "--sandbox", "read-only"],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["sandbox"] == "read-only"
+    assert payload["write_access"] is False
+    argv = json.loads(argv_log.read_text(encoding="utf-8"))
+    # Always sent explicitly, whichever value is in force.
+    assert argv[argv.index("--sandbox") + 1] == "read-only"

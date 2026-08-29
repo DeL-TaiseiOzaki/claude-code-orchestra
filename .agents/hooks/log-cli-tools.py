@@ -7,7 +7,12 @@ a shared wrapper (`.agents/skills/_shared/codex_consult.py`, `cli_consult.py`)
 or as a bare `codex exec` command. Logs are stored in
 .agents/logs/cli-tools.jsonl
 
-All agents (Claude Code, subagents, Codex, Gemini) can read this log.
+All agents (Claude Code, subagents, Codex, Antigravity) can read this log.
+
+Each entry carries the wrapper's own provenance fields, so the log answers
+'which subagent edited what' and not only 'who was asked what': `caller`
+and `label` identify the delegation, `access` records what the callee was
+allowed to touch, and `edits` names the files it actually touched.
 """
 
 import json
@@ -130,6 +135,42 @@ def truncate_text(text: str, max_length: int = 2000) -> str:
     return text[:max_length] + f"... [truncated, {len(text)} total chars]"
 
 
+def describe_access(result: dict | None) -> str | None:
+    """Name the access the callee was granted, in the callee's own vocabulary.
+
+    Codex reports a sandbox mode; the peer-CLI wrapper reports a boolean. Both
+    answer the same question, so the log stores one comparable string instead
+    of two shapes a reader has to branch on.
+    """
+    if not result:
+        return None
+    sandbox = result.get("sandbox")
+    if isinstance(sandbox, str):
+        return sandbox
+    write_access = result.get("write_access")
+    if isinstance(write_access, bool):
+        return "unrestricted" if write_access else "read-only"
+    return None
+
+
+def summarize_edits(result: dict | None) -> dict | None:
+    """Keep the edit set itself, minus the fields a reader cannot act on."""
+    edits = (result or {}).get("edits")
+    if not isinstance(edits, dict):
+        return None
+    return {
+        key: edits.get(key)
+        for key in (
+            "tracked",
+            "changed_files",
+            "created_files",
+            "deleted_files",
+            "files_total",
+            "committed",
+        )
+    }
+
+
 def log_entry(entry: dict) -> None:
     """Append entry to JSONL log file."""
     LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -184,6 +225,10 @@ def process_bash(data: dict) -> str | None:
             "tool": cli,
             "via": wrapper_file,
             "model": entry_model,
+            "caller": (result or {}).get("caller"),
+            "label": (result or {}).get("label"),
+            "access": describe_access(result),
+            "edits": summarize_edits(result),
             "prompt": truncate_text(prompt),
             "response": truncate_text(response) if response else "",
             "response_file": (result or {}).get("response_file"),
@@ -203,6 +248,12 @@ def process_bash(data: dict) -> str | None:
         "tool": "codex",
         "via": "codex exec (direct; the shared wrapper is the mandated path)",
         "model": extract_model(command),
+        "caller": None,
+        "label": None,
+        # A direct invocation reports nothing about itself; the missing
+        # provenance is the reason the wrapper is mandated.
+        "access": None,
+        "edits": None,
         "prompt": truncate_text(prompt),
         "response": truncate_text(output) if output else "",
         "response_file": None,

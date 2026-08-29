@@ -318,6 +318,7 @@ def _prep_git_repo(root: Path) -> None:
 
 SUCCESS_CASES: dict[Path, tuple[Callable[[Path], None], list[str]]] = {
     SKILLS_DIR / "_shared" / "verify.sh": (_prep_nothing, ["--allow-no-gates"]),
+    SKILLS_DIR / "_shared" / "edit_provenance.py": (_prep_git_repo, ["--snapshot"]),
     SKILLS_DIR / "context-loader" / "load_context.py": (_prep_agent_docs, []),
     SKILLS_DIR / "catchup" / "collect_repo_state.py": (_prep_git_repo, []),
     SKILLS_DIR / "troubleshoot" / "repro.py": (_prep_nothing, ["true"]),
@@ -325,7 +326,7 @@ SUCCESS_CASES: dict[Path, tuple[Callable[[Path], None], list[str]]] = {
 }
 
 SUCCESS_EXEMPT: dict[Path, str] = {
-    # Needs a fake codex/claude/gemini executable on PATH.
+    # Needs a fake codex/claude/agy executable on PATH.
     SKILLS_DIR / "_shared" / "codex_consult.py": "tests/test_codex_consult.py",
     SKILLS_DIR / "_shared" / "cli_consult.py": "tests/test_cli_consult.py",
     # Needs typed JSON input built against the script's own schema.
@@ -497,6 +498,14 @@ def test_documented_exit_codes_are_from_the_shared_vocabulary(script: Path) -> N
 
 
 # --- 12. standard library only ----------------------------------------------
+#
+# A sibling module inside `_shared/` is not a third-party dependency: Python
+# puts the script's own directory on sys.path, so importing one keeps the
+# "runs wherever python3 does" property this clause exists to protect. The
+# alternative — copying a helper into both consult wrappers — is the drift the
+# bundled runtime was created to prevent. A sibling must still satisfy every
+# other clause here, so it cannot become a back door for an unchecked helper.
+SHARED_MODULES = {path.stem for path in (SKILLS_DIR / "_shared").glob("*.py")}
 
 
 @pytest.mark.parametrize("script", PYTHON_SCRIPTS, ids=_script_id)
@@ -516,7 +525,7 @@ def test_no_third_party_imports(script: Path) -> None:
         else:
             continue
         for root in roots:
-            assert root in sys.stdlib_module_names, (
+            assert root in sys.stdlib_module_names or root in SHARED_MODULES, (
                 f"{_script_id(script)} imports non-stdlib {root!r}"
             )
 

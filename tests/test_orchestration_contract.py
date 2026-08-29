@@ -211,7 +211,7 @@ def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
     """Regression guard: the cross-CLI section used to hand callers a raw
     `codex exec "<prompt>" < /dev/null` idiom, contradicting the rule (enforced
     by tests/test_shared_script_contract.py) that Codex is reached only through
-    the wrapper — and leaving `claude -p` / `gemini -p` with no hardened path
+    the wrapper — and leaving `claude -p` / `agy -p` with no hardened path
     at all."""
     content = read_repo_file(".agents/rules/cli-execution.md")
     section = content.split("## Cross-CLI Subagent Invocation", 1)[1].split("\n## ", 1)[
@@ -223,13 +223,13 @@ def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
         ".agents/skills/_shared/codex_consult.py",
     ):
         assert wrapper in section, f"cross-CLI section does not route through {wrapper}"
-    for raw_idiom in ('codex exec "', 'claude -p "', 'gemini -p "'):
+    for raw_idiom in ('codex exec "', 'claude -p "', 'agy -p "'):
         assert raw_idiom not in section, (
             f"cross-CLI section still recommends the raw idiom {raw_idiom!r}"
         )
     # Access must be stated per callee, in both directions.
     assert "read-only" in section.lower()
-    assert "--write-access" in section
+    assert "--read-only" in section
 
     root = read_repo_file("AGENTS.md")
     assert "cli_consult.py" in root

@@ -57,7 +57,7 @@ a stalled call has no deadline.
 |--------|-----------|-------|
 | Claude Code | `python3 .agents/skills/_shared/cli_consult.py --cli claude --prompt-file <path>` | Wraps `claude -p --output-format json`; returns the envelope's `result` as the response and its `session_id` for chaining via `--resume` |
 | Codex | `python3 .agents/skills/_shared/codex_consult.py --prompt-file <path>` | Wraps `codex exec`; sandbox modes and `--config` overrides are validated there. Flags and exit codes: `.agents/skills/codex-system/SKILL.md` |
-| Gemini CLI | `python3 .agents/skills/_shared/cli_consult.py --cli gemini --prompt-file <path>` | Wraps `gemini -p`; Gemini's own `--output-format json` has known gaps (google-gemini/gemini-cli #9009, #9281), so text output is captured verbatim and the exit code is the success signal |
+| Antigravity | `python3 .agents/skills/_shared/cli_consult.py --cli antigravity --prompt-file <path>` | Wraps `agy -p`; text output is captured verbatim and the exit code is the success signal. Its headless mode auto-approves every tool call, so it cannot be confined from the caller and refuses `--read-only` |
 
 Both wrappers share one contract: prompt via `--prompt-file`/`--prompt-stdin`
 as a single argv element (no shell), stdin closed, a timeout, stdout and stderr
@@ -67,29 +67,54 @@ codes `0` ok / `1` bad args / `2` CLI not on PATH / `3` failed or timed out.
 
 Rules:
 
-- **Access is read-only by default and granted explicitly.** Each wrapper maps
-  one flag onto the callee's native permission surface, so the granted access
-  is always visible in the call and can never be widened by a passthrough
-  argument:
+- **Access is unrestricted by default, stated explicitly, and restricted by
+  opt-in.** The wrapper default matches what the callee's own configuration
+  already grants — `.codex/config.toml` sets `sandbox_mode =
+  "danger-full-access"` — so the access an agent has no longer depends on
+  which of the two paths reached it. A wrapper that substituted something
+  stricter than the CLI a caller would have run by hand made the two disagree,
+  and the disagreement was invisible from the call site.
 
-  | Callee | Read-only (default) | Write access |
-  |--------|--------------------|--------------|
-  | Claude Code | `--permission-mode plan` | `cli_consult.py --write-access` → `--permission-mode acceptEdits` |
-  | Codex | `codex_consult.py --sandbox read-only` | `--sandbox workspace-write` / `danger-full-access` |
-  | Gemini CLI | `--approval-mode default` (a tool call needing confirmation errors out) | `cli_consult.py --write-access` → `--approval-mode yolo` |
+  The flag is still always sent explicitly, so what was granted is readable in
+  the command rather than inherited from a config file, and it can never be
+  widened *or narrowed* by a passthrough argument:
+
+  | Callee | Default (unrestricted) | Read-only opt-in |
+  |--------|------------------------|------------------|
+  | Claude Code | `--permission-mode bypassPermissions` | `cli_consult.py --read-only` → `--permission-mode plan` |
+  | Codex | `codex_consult.py` default `--sandbox danger-full-access` | `--sandbox read-only` (or `workspace-write` for a middle ground) |
+  | Antigravity | headless auto-approves every tool call; nothing to pass | **not supported** — `--read-only` is refused rather than accepted and ignored |
+
+  Planning, design, and review consultations should still pass the read-only
+  opt-in where the callee supports it. Unrestricted is the default because it
+  is the truth about the environment, not because every call needs it.
+
+- **Every run records what it edited.** Because the default is unrestricted,
+  the question that matters is no longer "what was it allowed to touch?" but
+  "what did it touch?". Both wrappers bracket the call with
+  `.agents/skills/_shared/edit_provenance.py` and report an `edits` object
+  naming the files the callee created, changed, or deleted — including files
+  it committed — alongside `caller` and `label`. Pass `--caller <your agent
+  name>` (or export `ORCHESTRA_CALLER`) so the log answers *which subagent*
+  made a change, not only *which CLI*. Work already uncommitted in the tree
+  when the call starts is excluded, so it is never misattributed to the
+  callee.
 
 - Pin the model with `--model` when the tier matters (Codex reads `CODEX_MODEL`;
   omitting `--model` for a peer CLI keeps that CLI's own default).
 - Bound the call: keep the wrapper's timeout, and cap agentic turns for
   long-running peers where the callee supports it (e.g.
-  `--cli-arg --max-turns --cli-arg 8` for Claude Code).
+  `--cli-arg --max-turns --cli-arg 8` for Claude Code). With no sandbox in the
+  way, the turn cap and the timeout are what bound a run that goes wrong.
 - The caller MUST independently verify the callee's result per the Guardrails
   below — a delegated CLI is never trusted on its self-report. This applies in
   both directions: a Codex main agent verifies a `claude -p` result exactly as a
   Claude main agent verifies a `codex exec` result.
 - Every wrapper call is appended to `.agents/logs/cli-tools.jsonl` by the
-  `log-cli-tools.py` hook, so any runtime can read what was delegated and what
-  came back.
+  `log-cli-tools.py` hook, so any runtime can read what was delegated, what
+  came back, and which files it changed (`caller`, `label`, `access`, `edits`).
+  A direct `codex exec` is logged too, but with all four of those fields
+  `null` — the missing provenance is the reason the wrapper is mandated.
 - Prefer the project's own delegation skills (`codex-system`,
   `general-purpose-opus`) over an ad-hoc wrapper call when one already covers
   the task.
@@ -107,7 +132,11 @@ Refer to the following as needed:
 ## Guardrails (Completion Verification)
 
 Applies to any long-duration executor (Tier 2 `sol` and above). Because
-`approval_policy` is `"never"`, verification replaces approval.
+`approval_policy` is `"never"` and the wrappers default to unrestricted
+access, verification is the *only* control on a delegated run — nothing stops
+the edit, so everything depends on catching it afterwards. The `edits` object
+in the wrapper's own payload tells you which files to look at; the guardrails
+below tell you what to look for in them.
 
 ### (a) Independent Verification of Completion Reports
 

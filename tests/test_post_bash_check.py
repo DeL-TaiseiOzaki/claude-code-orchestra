@@ -164,11 +164,16 @@ def test_peer_cli_wrapper_call_logs_its_callee(tmp_path: Path) -> None:
     hooks_dir = build_isolated_hooks_dir(tmp_path)
     log_file = hooks_dir.parent / "logs" / "cli-tools.jsonl"
     wrapper_result = json.dumps(
-        {"ok": False, "exit_code": 1, "cli": "gemini", "error": "gemini exited with 1"}
+        {
+            "ok": False,
+            "exit_code": 1,
+            "cli": "antigravity",
+            "error": "antigravity exited with 1",
+        }
     )
     payload = bash_hook_input(
         command=(
-            "python3 .agents/skills/_shared/cli_consult.py --cli gemini "
+            "python3 .agents/skills/_shared/cli_consult.py --cli antigravity "
             "--prompt-stdin --label research"
         ),
         stdout=wrapper_result,
@@ -180,7 +185,7 @@ def test_peer_cli_wrapper_call_logs_its_callee(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     entries = [json.loads(line) for line in log_file.read_text().splitlines()]
     assert len(entries) == 1
-    assert entries[0]["tool"] == "gemini"
+    assert entries[0]["tool"] == "antigravity"
     assert entries[0]["via"] == "cli_consult.py"
     assert entries[0]["prompt"] == "[prompt supplied on stdin]"
     assert entries[0]["success"] is False

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Invoke a peer CLI agent (Claude Code, Gemini CLI) as a subagent.
+"""Invoke a peer CLI agent (Claude Code, Antigravity) as a subagent.
 
 This is the cross-CLI counterpart of ``codex_consult.py``: whichever runtime is
 the active main agent, it drives the others through their headless mode with
 one hardened contract instead of a hand-written shell-out. A raw
-``claude -p`` / ``gemini -p`` call has the same four failure modes the Codex
+``claude -p`` / ``agy -p`` call has the same four failure modes the Codex
 wrapper removes: an open stdin can block on EOF in a non-TTY shell, stderr
 redirected away makes a crashed CLI indistinguishable from an empty answer, a
 prompt with nested quotes breaks the shell command, and a stalled call has no
@@ -16,8 +16,18 @@ Codex is deliberately NOT accepted here: its sandbox modes and ``--config``
 overrides need dedicated validation, so it keeps its own wrapper and there is
 exactly one implementation per callee CLI.
 
-Access is read-only unless ``--write-access`` is passed, mapped onto each CLI's
-native permission flag, so the granted access is always visible in the call.
+Access is unrestricted unless ``--read-only`` is passed, mapped onto each
+CLI's native permission flag, so the granted access is always visible in the
+call rather than inherited from whatever the callee's own configuration
+happens to say. A callee whose headless mode cannot be confined — Antigravity
+auto-approves every tool call — refuses ``--read-only`` instead of accepting
+it and running unrestricted anyway.
+
+Because the default is unrestricted, every run is bracketed by an
+``edit_provenance`` snapshot and the resulting ``edits`` object names the
+files the callee actually created, changed, or deleted, including files it
+committed. With ``caller`` and ``label`` alongside it, a change in the tree
+can be traced back to the subagent that asked for it.
 
 The prompt that was actually sent is always persisted next to the response
 (``{stem}.prompt.md``), including on the ``--prompt-stdin`` path, so a consult
@@ -25,8 +35,9 @@ stays diagnosable after the fact.
 
 Usage:
     python3 cli_consult.py --cli claude --prompt-file p.txt --label design-review
-    echo "Objective: ..." | python3 cli_consult.py --cli gemini --prompt-stdin
-    python3 cli_consult.py --cli claude --prompt-file p.txt --write-access
+    echo "Objective: ..." | python3 cli_consult.py --cli antigravity --prompt-stdin
+    python3 cli_consult.py --cli claude --prompt-file p.txt --read-only
+    python3 cli_consult.py --cli claude --prompt-file p.txt --caller feature-lead
     python3 cli_consult.py --cli claude --prompt-file p.txt \
         --cli-arg=--max-turns --cli-arg 8
 
@@ -53,41 +64,46 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn
 
+import edit_provenance
+
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
 DEFAULT_TIMEOUT = 900
 LABEL_RE = re.compile(r"^[a-z0-9-]+$")
 
 # Per-callee headless contract. `read_only` / `write` are the native permission
-# flags this wrapper maps --write-access onto; `install_hint` is what a caller
+# flags this wrapper maps its access choice onto; `install_hint` is what a caller
 # sees when the CLI is missing.
 CLI_SPECS: dict[str, dict] = {
     "claude": {
         "base": ["claude", "-p", "--output-format", "json"],
         "read_only": ["--permission-mode", "plan"],
-        "write": ["--permission-mode", "acceptEdits"],
+        "write": ["--permission-mode", "bypassPermissions"],
         "model_flag": "--model",
         "resume_flag": "--resume",
         "install_hint": "install with `npm install -g @anthropic-ai/claude-code`",
     },
-    "gemini": {
-        # Gemini's own JSON output has known gaps (google-gemini/gemini-cli
-        # #9009, #9281), so its text output is captured verbatim instead and
-        # the exit code is the success signal.
-        "base": ["gemini", "-p"],
-        # `default` is the read-only setting: a tool call that would need
-        # confirmation errors out instead of being auto-approved.
-        "read_only": ["--approval-mode", "default"],
-        "write": ["--approval-mode", "yolo"],
+    "antigravity": {
+        # Antigravity's headless mode auto-approves every tool call, including
+        # `write_file` (google-antigravity/antigravity-cli#45). That made it
+        # unusable while the wrappers were read-only by default; under an
+        # unrestricted default it simply means `read_only` has no
+        # implementation to map onto, which `--read-only` reports as an error
+        # rather than granting write access under a read-only-looking flag.
+        "base": ["agy", "-p"],
+        "read_only": None,
+        "write": [],
         "model_flag": "--model",
         "resume_flag": None,
-        "install_hint": "install with `npm install -g @google/gemini-cli`",
+        "install_hint": "install the Antigravity CLI so that `agy` is on PATH",
     },
 }
 
 # Passthrough arguments are forwarded verbatim, so the flags that decide what
-# the callee may touch are refused: --write-access must stay the single visible
-# statement of access, not something a passthrough can quietly contradict.
+# the callee may touch are refused: the wrapper's own access flag must stay the
+# single visible statement of access, not something a passthrough can quietly
+# contradict. This still matters now that the default is unrestricted — the
+# denylist is about where access is *declared*, not about which way it points.
 CLI_ARG_DENYLIST = (
     "permission-mode",
     "approval-mode",
@@ -248,8 +264,8 @@ def validate_cli_args(cli_args: list[str]) -> str | None:
         stripped = raw.lstrip("-").split("=", 1)[0].lower()
         if any(denied in stripped for denied in CLI_ARG_DENYLIST):
             return (
-                f"--cli-arg {raw!r} is refused: pass --write-access instead so "
-                "the granted access stays visible in the call"
+                f"--cli-arg {raw!r} is refused: use --read-only (or its "
+                "absence) so the granted access stays visible in the call"
             )
     return None
 
@@ -312,9 +328,21 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         help="[a-z0-9-] slug used in log filenames (default: consult)",
     )
     parser.add_argument(
-        "--write-access",
+        "--read-only",
         action="store_true",
-        help="Allow the callee to modify files (default: read-only)",
+        help=(
+            "Deny the callee write access (default: unrestricted). Not every "
+            "callee can enforce this; one that cannot refuses the flag."
+        ),
+    )
+    parser.add_argument(
+        "--caller",
+        default=None,
+        help=(
+            "Name of the agent making this call (default: $ORCHESTRA_CALLER). "
+            "Recorded with the edit set so a change can be traced back to the "
+            "subagent that asked for it."
+        ),
     )
     parser.add_argument(
         "--model",
@@ -347,7 +375,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             "Forward one extra argument to the callee (repeatable). A value "
             "starting with '-' must use the '=' form, which argparse can "
             "read: --cli-arg=--max-turns --cli-arg 8. Permission and sandbox "
-            "flags are refused; use --write-access."
+            "flags are refused; use --read-only."
         ),
     )
     parser.add_argument(
@@ -397,6 +425,22 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         )
         return EXIT_BAD_ARGS
 
+    # Refusing is the honest answer: silently running unrestricted under a
+    # flag that says read-only would make the call itself a lie about the
+    # access it granted.
+    if args.read_only and spec["read_only"] is None:
+        _emit(
+            {
+                "ok": False,
+                "error": (
+                    f"--read-only is not supported for --cli {args.cli}: its "
+                    "headless mode auto-approves every tool call, so the "
+                    "restriction cannot be enforced from the caller"
+                ),
+            }
+        )
+        return EXIT_BAD_ARGS
+
     # --- Validate passthrough arguments ---
     cli_arg_error = validate_cli_args(args.cli_arg)
     if cli_arg_error:
@@ -419,7 +463,8 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     else:
         prompt = sys.stdin.read()
 
-    write_access = args.write_access
+    write_access = not args.read_only
+    caller = args.caller or os.environ.get("ORCHESTRA_CALLER") or None
     model = args.model
 
     # --- the callee must be resolvable on PATH before we attempt to run it ---
@@ -475,6 +520,11 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     stderr_text = ""
     exit_code: int | None = None
 
+    # Provenance brackets the call as tightly as possible: work already in the
+    # tree when the snapshot is taken hashes identically afterwards and is not
+    # attributed to this run.
+    before_snapshot, _ = edit_provenance.take_snapshot(project_root)
+
     start = time.monotonic()
     try:
         result = subprocess.run(
@@ -499,6 +549,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         _emit(_not_found_report(args.cli, model, write_access))
         return EXIT_NOT_FOUND
     duration_sec = round(time.monotonic() - start, 3)
+    edits = edit_provenance.edits_since(project_root, before_snapshot)
 
     session_id: str | None = None
     reported_error = False
@@ -541,7 +592,10 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             "exit_code": exit_code,
             "cli": args.cli,
             "model": model,
+            "caller": caller,
+            "label": args.label,
             "write_access": write_access,
+            "edits": edits,
             "session_id": session_id,
             "timed_out": timed_out,
             "duration_sec": duration_sec,

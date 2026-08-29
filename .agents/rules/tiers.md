@@ -38,18 +38,30 @@ and referenced by workflows, skills, and configuration.
   mirrored in `.codex/config.toml`).
 - **Guardrails**: See `.agents/rules/cli-execution.md` section "Guardrails (Completion Verification)".
 
-## Tier 3 -- `fable` (Rare Advisor / Reviewer)
+## Tier 3 -- `fable` (Rare Escalation / Final Authority)
 
 - **Scope**: Design arbitration, unblocking stuck problems, final review of
-  large changes. Never implements code.
+  large changes -- and implementing the resolution when it is faster and safer
+  to land the fix than to hand it back down a tier that already failed twice.
 - **Selection criteria**: Escalation only -- used when lower tiers are stuck,
   conflicting, or a high-stakes decision requires independent judgment.
-- **Permission boundary**: Read-only access; outputs review notes to
-  `.agents/docs/reviews/` only.
+  Scarcity is what keeps the signal high; the widened permission does not
+  widen the scope.
+- **Permission boundary**: Full filesystem access, same as Tier 2. Review
+  notes still belong in `.agents/docs/reviews/`, but that is now a convention
+  about where judgment is recorded, not a restriction on what can be written.
+  A read-only advisor could only ever describe a fix, which meant every
+  escalation ended by delegating the resolution back to the tier that had
+  already failed at it.
 - **Inputs**: Context summary, competing proposals or stuck-state description.
-- **Outputs**: Judgment, arbitration decision, review notes.
+- **Outputs**: Judgment, arbitration decision, review notes, and -- when it
+  implements -- a diff subject to the same completion verification as any
+  other tier.
 - **Model**: Claude `fable-advisor` agent
   (`.agents/agents/fable-advisor.md`).
+- **Guardrails**: See `.agents/rules/cli-execution.md` section "Guardrails
+  (Completion Verification)". Fable's judgment is not self-certifying: a
+  change it lands is verified like any other.
 
 ## Fable Differentiation
 
@@ -59,4 +71,4 @@ Multiple review mechanisms exist. Their scopes are distinct:
 |----------------------------------|-------------------------------------------------|----------------------------------|
 | team-execute Phase 2 reviewers   | Per-change ship gate (security, quality, tests) | Every team-execute change        |
 | `/codex:adversarial-review`      | Code-level design challenge (external plugin)   | On-demand via codex-plugin-cc    |
-| **Fable (Tier 3)**               | RARE escalation: arbitration, unblocking, large-change final judgment | Manual escalation when stuck or high-stakes |
+| **Fable (Tier 3)**               | RARE escalation: arbitration, unblocking, large-change final judgment, and landing the resolution | Manual escalation when stuck or high-stakes |
