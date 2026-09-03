@@ -1,5 +1,5 @@
 {
-  "$schema": "https://code.claude.com/schemas/settings.json",
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "language": "japanese",
   "effortLevel": "high",
   "fastMode": false,
@@ -11,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-router.py\"",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agents/hooks/agent-router.py\"",
             "timeout": 5
           }
         ]
@@ -23,18 +23,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-codex-before-write.py\"",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agents/hooks/check-codex-before-write.py\"",
             "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "WebSearch|WebFetch",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/suggest-gemini-research.py\"",
-            "timeout": 5
           }
         ]
       }
@@ -44,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\": {\"feedback\": \"Check the shared task list for pending tasks. If all tasks are complete, verify results and report to the team lead.\"}}'"
+            "command": "echo '{\"hookSpecificOutput\": {\"feedback\": \"Before going idle: (1) Check the shared task list for pending tasks. If all tasks are complete, verify results. (2) IMPORTANT: Write your work log to .agents/logs/agent-teams/{team-name}/{your-teammate-name}.md if you have not done so yet. The work log must include: Summary, Tasks Completed, Files Modified, Key Decisions, Communication with Teammates, and Issues Encountered. (3) Report to the team lead.\"}}'"
           }
         ]
       }
@@ -54,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/log-cli-tools.py\"",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agents/hooks/log-cli-tools.py\"",
             "timeout": 5
           }
         ]
@@ -66,7 +56,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\": {\"additionalContext\": \"Context compaction triggered. Key context: Check CLAUDE.md for project rules, .claude/docs/DESIGN.md for design decisions, .claude/rules/ for coding standards.\"}}'"
+            "command": "echo '{\"hookSpecificOutput\": {\"additionalContext\": \"Context compaction triggered. Key context: AGENTS.md contains the shared mission, routing, agent and skill catalogs, and quality gates; .agents/STATE.md contains the active main agent and working state; .agents/rules/ contains detailed policy; .agents/docs/DESIGN.md contains project design. CLAUDE.md is a symlink to AGENTS.md.\"}}'"
           }
         ]
       }
@@ -77,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-codex-after-plan.py\"",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agents/hooks/check-codex-after-plan.py\"",
             "timeout": 10
           }
         ]
@@ -87,18 +77,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/error-to-codex.py\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-test-analysis.py\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/log-cli-tools.py\"",
-            "timeout": 5
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agents/hooks/post-bash-check.py\"",
+            "timeout": 15
           }
         ]
       },
@@ -107,12 +87,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint-on-save.py\"",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agents/hooks/lint-on-save.py\"",
             "timeout": 30
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-implementation-review.py\"",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.agents/hooks/post-implementation-review.py\"",
             "timeout": 10
           }
         ]
@@ -186,7 +166,6 @@
       "Bash(source:*)",
       "Bash(docker:*)",
       "Bash(docker-compose:*)",
-      "Bash(gemini:*)",
       "Bash(codex:*)",
       "Bash(pkill:*)",
       "Bash(for:*)",
@@ -214,6 +193,7 @@
   "env": {
     "EDITOR": "code --wait",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-4-6"
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
+    "CODEX_MODEL": "gpt-5.6-sol"
   }
 }

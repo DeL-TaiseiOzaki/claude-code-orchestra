@@ -2,15 +2,27 @@
 # This file enables project-specific Codex settings
 
 # Default model configuration
-model = "gpt-5.3-codex"
+model = "gpt-5.6-sol"
 model_reasoning_effort = "xhigh"
 model_reasoning_summary = "detailed"
 
 # Web search
-web_search = "enabled"
+web_search = "live"
 
 # Approval policy
-approval_policy = "on-request"
+approval_policy = "never"
+
+# Sandbox mode: default to danger-full-access so Codex can read/write anywhere
+# on the filesystem and reach the network without a caller needing to pass
+# --sandbox on every invocation (2026-07-21 decision, supersedes the
+# 2026-07-18 workspace-write default -- see TEMPLATE_DESIGN_LOG.md). Combined
+# with approval_policy = "never" below, this means Codex runs fully
+# unattended with no sandbox and no confirmation prompts. Planning/review
+# consultations should still pass an explicit `--sandbox read-only` flag to
+# avoid accidental writes during read-only tasks. Completion verification
+# (Sol Guardrails, .agents/rules/cli-execution.md section "Guardrails (Completion
+# Verification)") remains mandatory regardless of sandbox mode.
+sandbox_mode = "danger-full-access"
 
 # Feature toggles
 [features]
@@ -19,4 +31,11 @@ skills = true
 # Skills configuration - enable project skills
 [[skills.config]]
 enabled = true
-path = ".codex/skills/context-loader"
+path = ".agents/skills/context-loader"
+
+[[skills.config]]
+enabled = true
+path = ".agents/skills/design-tracker"
+
+# Response style
+verbosity = "medium"
