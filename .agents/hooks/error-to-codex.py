@@ -43,19 +43,21 @@ WEAK_ERROR_PATTERNS = [
     r"(?:Cannot|Could not|Unable to)\s",
     r"cargo error",
     # Individually ambiguous: a passing run may legitimately print "timed out
-    # (retrying)" or a deprecation notice. Only a second signal makes them a
-    # reason to stop and diagnose.
+    # (retrying)". Only further signals make them a reason to stop and diagnose.
+    # Deprecation notices are deliberately absent: a warning is by definition
+    # not an error, and pip/curl output pairs them with "Could not"/"Unable to"
+    # often enough that two-of-a-kind fired on healthy builds.
     r"(?:timeout|timed out)",
     r"(?:DNS|name) resolution",
-    r"(?:Deprecation|Future)Warning",
-    r"\bdeprecated\b",
     r"resource temporarily unavailable",
     r"returned non-zero",
     r"exit (?:code|status)\s*[1-9]",
 ]
 
 # Minimum number of weak signals required when no strong signal is present.
-MIN_WEAK_SIGNALS = 2
+# Ten weak patterns co-occur too easily for a threshold of two: a successful
+# `git show` of this repository scored eight.
+MIN_WEAK_SIGNALS = 3
 
 # Commands to ignore (not useful to debug)
 IGNORE_COMMANDS = [
@@ -92,24 +94,6 @@ SKIP_COMMANDS = [
 # Terse failures ("Error: failed") are still failures, so the floor only has
 # to exclude effectively empty output.
 MIN_OUTPUT_LENGTH = 5
-
-
-def _exit_code(tool_response: dict) -> int:
-    """Read the command's exit status from either spelling, defaulting to 0.
-
-    log-cli-tools.py reads ``exit_code``; some payload versions use the
-    camelCase ``exitCode``. A non-integer value is treated as "unknown", which
-    means "do not claim a failure".
-    """
-    for key in ("exit_code", "exitCode"):
-        value = tool_response.get(key)
-        if isinstance(value, bool):
-            continue
-        if isinstance(value, int):
-            return value
-        if isinstance(value, str) and value.strip().lstrip("-").isdigit():
-            return int(value)
-    return 0
 
 
 def should_ignore_command(command: str) -> bool:
@@ -187,18 +171,10 @@ def build_context(data: dict) -> str | None:
         return None
 
     errors = detect_errors(tool_output)
-
-    # A non-zero exit with no recognised pattern is the most dangerous case,
-    # not the safest one: the command failed and said nothing quotable about
-    # why. Checked after the ignore filters so known-benign commands and
-    # trivial outputs still stay silent.
-    exit_code = _exit_code(tool_response)
-    if errors:
-        reason = f"{len(errors)} error pattern(s) found in command output"
-    elif exit_code:
-        reason = f"command exited with code {exit_code} - likely a silent failure"
-    else:
+    if not errors:
         return None
+
+    reason = f"{len(errors)} error pattern(s) found in command output"
 
     return (
         f"[Error Detected] {reason}. "
