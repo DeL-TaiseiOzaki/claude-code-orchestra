@@ -51,9 +51,11 @@ def get_state_file_path(data: dict) -> str:
     return f"/tmp/claude-code-impl-state-{project_hash}-{session_part}.json"
 
 
-# Thresholds for suggesting review
-MIN_FILES_FOR_REVIEW = 3
-MIN_LINES_FOR_REVIEW = 100
+# Thresholds for suggesting review. Deliberately low: a review that arrives
+# after three files and a hundred lines arrives after the design is already
+# settled, which is exactly when it is most expensive to act on.
+MIN_FILES_FOR_REVIEW = 2
+MIN_LINES_FOR_REVIEW = 50
 
 
 def load_state(state_file: str) -> dict:
@@ -147,7 +149,9 @@ def main():
                     "hookEventName": "PostToolUse",
                     "additionalContext": (
                         f"[Code Review Suggestion] {reason} in this session. "
-                        "Consider having Codex review the implementation. "
+                        "You SHOULD have Codex review the implementation before "
+                        "reporting it done — it catches bugs, security issues, and "
+                        "design flaws while the change is still small. "
                         "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
                         "to consult Codex with git diff and preserve main context."
                     ),

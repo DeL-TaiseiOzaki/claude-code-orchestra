@@ -71,6 +71,27 @@ CODEX_TRIGGERS = {
         "分析して",
         "深く",
         "最適化",
+        # Proactive triggers: uncertainty and quality questions are exactly
+        # where a Codex consult is cheaper than the rework it prevents.
+        "どうすべき",
+        "良い方法",
+        "ベストプラクティス",
+        "パターン",
+        "改善",
+        "パフォーマンス",
+        "セキュリティ",
+        "テスト戦略",
+        "テスト設計",
+        "依存関係",
+        "循環",
+        "複雑",
+        "わからない",
+        "迷って",
+        "不安",
+        "自信がない",
+        "相談",
+        "意見",
+        "アドバイス",
     ],
     "en": [
         "design",
@@ -99,6 +120,29 @@ CODEX_TRIGGERS = {
         "deeply",
         "optimize",
         "performance",
+        # Proactive triggers (mirror of the Japanese list above).
+        "best practice",
+        "pattern",
+        "approach",
+        "improve",
+        "security",
+        "test strategy",
+        "test design",
+        "dependency",
+        "circular",
+        "not sure",
+        "unsure",
+        "uncertain",
+        "advice",
+        "should i",
+        "should we",
+        "what if",
+        "why does",
+        "why is",
+        "how come",
+        "alternative",
+        "option",
+        "better way",
     ],
 }
 
@@ -213,8 +257,9 @@ def main():
         data = json.load(sys.stdin)
         prompt = data.get("prompt", "")
 
-        # Skip short prompts
-        if len(prompt) < 10:
+        # Skip only trivially short prompts. Terse but loaded asks
+        # ("debug this", "なぜ?") are exactly the ones worth routing.
+        if len(prompt) < 3:
             sys.exit(0)
 
         agent, trigger = detect_agent(prompt)
@@ -240,11 +285,13 @@ def main():
                 "hookSpecificOutput": {
                     "hookEventName": "UserPromptSubmit",
                     "additionalContext": (
-                        f"[Agent Routing] Detected '{trigger}' — this task may benefit from "
-                        "Codex CLI for planning, design, or complex implementation. Consider: "
-                        "write the prompt to a file, then `python3 .agents/skills/_shared/"
-                        "codex_consult.py --prompt-file <path> --sandbox read-only` for "
-                        "design decisions, planning, debugging, or complex analysis."
+                        f"[Agent Routing] Detected '{trigger}' — consult Codex before "
+                        "committing to an approach. Planning, design, trade-offs and "
+                        "complex implementation MUST go through Codex unless the whole "
+                        "task is on the Self-Handle List in .agents/rules/delegation.md. "
+                        "Write the prompt to a file, then `python3 .agents/skills/_shared/"
+                        "codex_consult.py --prompt-file <path> --sandbox read-only`, or "
+                        "delegate via general-purpose-opus to preserve main context."
                     ),
                 }
             }

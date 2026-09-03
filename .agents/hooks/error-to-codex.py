@@ -19,7 +19,19 @@ STRONG_ERROR_PATTERNS = [
     r"segmentation fault",
     r"core dumped",
     r"^\s*(?:TypeError|ValueError|AttributeError|ImportError|KeyError|IndexError|"
-    r"RuntimeError|SyntaxError|NameError|FileNotFoundError|PermissionError|OSError):\s",
+    r"RuntimeError|SyntaxError|NameError|FileNotFoundError|PermissionError|OSError|"
+    r"ConnectionError|ConnectionRefusedError|ConnectionResetError|TimeoutError|"
+    r"MemoryError):\s",
+    # Network failures named by errno: unambiguous, never benign prose.
+    r"\b(?:ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND)\b",
+    # Resource exhaustion.
+    r"OutOfMemoryError",
+    r"too many open files",
+    # Build / link / module resolution failures.
+    r"undefined reference to",
+    r"unresolved external symbol",
+    r"(?:compilation|build) failed",
+    r"(?:cannot find module|module not found)",
 ]
 
 # Weak signals: individually too generic (or prone to matching benign prose);
@@ -30,6 +42,16 @@ WEAK_ERROR_PATTERNS = [
     r"fatal:",
     r"(?:Cannot|Could not|Unable to)\s",
     r"cargo error",
+    # Individually ambiguous: a passing run may legitimately print "timed out
+    # (retrying)" or a deprecation notice. Only a second signal makes them a
+    # reason to stop and diagnose.
+    r"(?:timeout|timed out)",
+    r"(?:DNS|name) resolution",
+    r"(?:Deprecation|Future)Warning",
+    r"\bdeprecated\b",
+    r"resource temporarily unavailable",
+    r"returned non-zero",
+    r"exit (?:code|status)\s*[1-9]",
 ]
 
 # Minimum number of weak signals required when no strong signal is present.
@@ -67,7 +89,27 @@ SKIP_COMMANDS = [
     "codex ",
 ]
 
-MIN_OUTPUT_LENGTH = 20
+# Terse failures ("Error: failed") are still failures, so the floor only has
+# to exclude effectively empty output.
+MIN_OUTPUT_LENGTH = 5
+
+
+def _exit_code(tool_response: dict) -> int:
+    """Read the command's exit status from either spelling, defaulting to 0.
+
+    log-cli-tools.py reads ``exit_code``; some payload versions use the
+    camelCase ``exitCode``. A non-integer value is treated as "unknown", which
+    means "do not claim a failure".
+    """
+    for key in ("exit_code", "exitCode"):
+        value = tool_response.get(key)
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+            return int(value)
+    return 0
 
 
 def should_ignore_command(command: str) -> bool:
@@ -145,13 +187,23 @@ def build_context(data: dict) -> str | None:
         return None
 
     errors = detect_errors(tool_output)
-    if not errors:
+
+    # A non-zero exit with no recognised pattern is the most dangerous case,
+    # not the safest one: the command failed and said nothing quotable about
+    # why. Checked after the ignore filters so known-benign commands and
+    # trivial outputs still stay silent.
+    exit_code = _exit_code(tool_response)
+    if errors:
+        reason = f"{len(errors)} error pattern(s) found in command output"
+    elif exit_code:
+        reason = f"command exited with code {exit_code} - likely a silent failure"
+    else:
         return None
 
-    error_count = len(errors)
     return (
-        f"[Error Detected] {error_count} error pattern(s) found in command output. "
-        "**Action**: Use the `codex-debugger` subagent to analyze this error. "
+        f"[Error Detected] {reason}. "
+        "**Action**: You MUST use the `codex-debugger` subagent to analyze this "
+        "error rather than guessing at a fix. "
         "Pass the full command and error output to the subagent for Codex-powered diagnosis. "
         "Example: Task(subagent_type='codex-debugger', prompt='Analyze this error: ...')"
     )

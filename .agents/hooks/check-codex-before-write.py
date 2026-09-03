@@ -42,6 +42,23 @@ DESIGN_INDICATORS = [
     "/core/",
     "config",
     "settings",
+    # Structural / architectural roles: a file named for one of these is
+    # almost always a seam other code depends on.
+    "middleware",
+    "router",
+    "handler",
+    "service",
+    "repository",
+    "factory",
+    "strategy",
+    "adapter",
+    "decorator",
+    "observer",
+    "manager",
+    "controller",
+    "provider",
+    "registry",
+    "pipeline",
     # Code patterns in content
     "class ",
     "interface ",
@@ -51,7 +68,26 @@ DESIGN_INDICATORS = [
     "Protocol",
     "@dataclass",
     "TypedDict",
+    # Concurrency, process boundaries, and resilience: the places where a
+    # second opinion is worth the most because the bugs are non-local.
+    "async def",
+    "asyncio",
+    "threading",
+    "multiprocessing",
+    "subprocess",
+    "signal",
+    "retry",
+    "cache",
+    "singleton",
 ]
+
+# Number of function/class definitions in one payload that makes it
+# structural rather than a local edit.
+MIN_DEFINITIONS_FOR_REVIEW = 2
+
+# Content-size thresholds (characters) above which a write is worth a look.
+NEW_FILE_CONTENT_THRESHOLD = 200
+SRC_FILE_CONTENT_THRESHOLD = 50
 
 # Files that are typically simple edits (skip suggestion)
 SIMPLE_EDIT_PATTERNS = [
@@ -83,9 +119,9 @@ def should_suggest_codex(
 
     # Check content if available
     if content:
-        # New file with significant content
-        if len(content) > 500:
-            return True, "Creating new file with significant content"
+        # New file with meaningful content
+        if len(content) > NEW_FILE_CONTENT_THRESHOLD:
+            return True, "Creating new file with meaningful content"
 
         # Check for design patterns in content
         for indicator in DESIGN_INDICATORS:
@@ -95,9 +131,18 @@ def should_suggest_codex(
                     f"Content contains '{indicator}' - likely architectural code",
                 )
 
+        # Several definitions in one payload means structure is being decided,
+        # not a single line being fixed.
+        definition_count = content.count("class ") + content.count("def ")
+        if definition_count >= MIN_DEFINITIONS_FOR_REVIEW:
+            return (
+                True,
+                f"{definition_count} definitions in one write - structural change",
+            )
+
     # New files in src/ directory
     if "/src/" in file_path or file_path.startswith("src/"):
-        if content and len(content) > 200:
+        if content and len(content) > SRC_FILE_CONTENT_THRESHOLD:
             return True, "New source file - consider design review"
 
     return False, ""
@@ -123,7 +168,9 @@ def main():
                     "hookEventName": "PreToolUse",
                     "additionalContext": (
                         f"[Codex Consultation Reminder] {reason}. "
-                        "Consider consulting Codex before making this change. "
+                        "You SHOULD consult Codex before finalizing this change — it "
+                        "catches design problems, better patterns, and hidden coupling "
+                        "while they are still cheap to fix. "
                         "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
                         "to preserve main context. "
                         "(Direct call OK for quick questions: write the prompt to a file, then "

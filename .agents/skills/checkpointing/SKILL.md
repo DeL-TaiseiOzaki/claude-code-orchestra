@@ -14,6 +14,7 @@ Capture durable session context without growing the always-loaded root
 
 - `.agents/checkpoints/`: full timestamped checkpoints; never deleted by the
   compact phase.
+- `.agents/checkpoints/INDEX.md`: generated catalog of every checkpoint.
 - `PROGRESS.md`: latest five checkpoint summaries.
 - `.agents/STATE.md`: one Progress Tracker link and current working blocks.
 - `.agents/logs/`: drafts, previews, work logs, and CLI activity.
@@ -42,12 +43,16 @@ untouched.
      --summary-file .agents/logs/pending-summary.md
    ```
 
-   Exit `0` reports `result: preview` and three preview files
-   (`checkpoint-preview-*`, `progress-preview-*`, `state-preview-*` under
-   `.agents/logs/`). Exit `1` is a bad `--since` / `--now`; exit `2` is a
-   summary or shared-state contract violation; exit `3` is a timestamp
-   collision, a concurrent modification, or a write failure.
-5. Review the three previews, then write for real:
+   Exit `0` reports `result: preview` and four preview files
+   (`checkpoint-preview-*`, `index-preview-*`, `progress-preview-*`,
+   `state-preview-*` under `.agents/logs/`). Exit `1` is a bad `--since` /
+   `--now`; exit `2` is a summary or shared-state contract violation; exit `3`
+   is a timestamp collision, a concurrent modification, or a write failure.
+
+   Add `--label <slug>` when the session's commit messages would not name it
+   well; the label becomes the checkpoint's slug in the frontmatter and the
+   index.
+5. Review the four previews, then write for real:
 
    ```bash
    python3 .agents/skills/checkpointing/checkpoint.py \
@@ -57,9 +62,10 @@ untouched.
 
    `--consume-summary` deletes the draft on success, so the next session cannot
    silently embed this session's summary. `--json` emits the single payload
-   `{ok, result, checkpoint_path, prompt_path, progress_path, progress_entries,
-   state_path, state_updated, summary_validated, summary_consumed, commits,
-   files_changed, cli_consultations, agent_teams, work_logs, collector_errors,
+   `{ok, result, checkpoint_path, prompt_path, index_path, slug, tags,
+   progress_path, progress_entries, state_path, state_updated,
+   summary_validated, summary_consumed, commits, files_changed,
+   cli_consultations, agent_teams, work_logs, collector_errors,
    skipped_records, warnings, artifacts}`; without it the same facts are printed
    as prose. Quote `collector_errors` and `warnings` verbatim when reporting —
    a failed collector is not an empty session.
@@ -74,6 +80,26 @@ untouched.
 7. Review whether durable architecture decisions belong in
    `.agents/docs/DESIGN.md`; use `/design-tracker` when warranted.
 8. Run the Compact Phase below.
+
+## Finding a Past Checkpoint
+
+Three layers make retrieval cheap, so a past session is found without reading
+the directory file by file:
+
+1. **`.agents/checkpoints/INDEX.md`** — one table, newest first, with the
+   branch, tags, counts, and headline for every checkpoint. Read this first and
+   scan the tags and summary columns.
+2. **YAML frontmatter** — each checkpoint opens with `id`, `timestamp`,
+   `branch`, `slug`, `summary`, `tags`, and the session counts. Reading the
+   first ~14 lines settles relevance without parsing the document.
+3. **`PROGRESS.md`** — the five most recent summaries in full, for the common
+   case of "what happened lately".
+
+`INDEX.md` is regenerated from the checkpoints' frontmatter on every `--apply`,
+so a deleted or hand-edited checkpoint is reflected on the next run rather than
+advertised forever. Checkpoint filenames stay `YYYY-MM-DD-HHMMSS.md`: the slug
+lives in the metadata, not the path, so `PROGRESS.md` links and
+`collect_repo_state.py` keep working. Do not hand-edit `INDEX.md`.
 
 ## Compact Phase
 
@@ -129,6 +155,8 @@ be lost is reported in `sections_dropped` and aborts the run with exit `2`.
 ## Safety Gates
 
 - Root `AGENTS.md` and `CLAUDE.md` are never modified.
+- `INDEX.md` is generated, never hand-maintained; it is not a checkpoint and is
+  never listed in `PROGRESS.md`.
 - State structure must contain exactly one `# Agent State` heading and one
   `## Progress Tracker` heading.
 - Archive destinations use `.agents/docs/research/archive/`; append when a

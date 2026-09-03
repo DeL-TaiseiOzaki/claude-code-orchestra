@@ -48,6 +48,9 @@ FAILURE_PATTERNS = [
     r"FAIL:",
 ]
 
+# Failure count at which the output is reported as a multi-failure run.
+MIN_FAILURES_FOR_MULTIPLE = 3
+
 # Simple errors that don't need Codex
 SIMPLE_ERRORS = [
     "ModuleNotFoundError",  # Usually just need to install
@@ -78,15 +81,20 @@ def has_complex_failure(output: str) -> tuple[bool, str]:
             failure_count += len(matches)
             matched_patterns.append(pattern)
 
-    # Multiple failures or complex errors suggest need for Codex
-    if failure_count >= 3:
+    # Any failure in a test or build command is worth a Codex look: a red
+    # suite is the cheapest possible moment to find the root cause, and a
+    # single failure is not evidence that the cause is simple.
+    if failure_count >= MIN_FAILURES_FOR_MULTIPLE:
         return True, f"Multiple failures detected ({failure_count} issues)"
 
-    # Single failure in test output
-    if failure_count >= 1 and any(
-        p in output.lower() for p in ["traceback", "assertion"]
-    ):
-        return True, "Test failure with traceback"
+    if failure_count >= 1:
+        plural = "" if failure_count == 1 else "s"
+        if any(
+            p in output.lower()
+            for p in ["traceback", "assertion", "error", "exception"]
+        ):
+            return True, f"Test failure with error details ({failure_count} issue{plural})"
+        return True, f"Test/build failure detected ({failure_count} issue{plural})"
 
     return False, ""
 
@@ -119,9 +127,10 @@ def build_context(data: dict) -> str | None:
 
     return (
         f"[Codex Debug Suggestion] {reason}. "
-        "Consider consulting Codex for debugging analysis. "
-        "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
-        "to consult Codex with full error context and preserve main context."
+        "Use the `codex-debugger` subagent before attempting a manual fix — "
+        "deep reasoning finds root causes that surface-level fixes miss. "
+        "**Recommended**: Task(subagent_type='codex-debugger') with the full "
+        "command and test output, which also preserves main context."
     )
 
 
