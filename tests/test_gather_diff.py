@@ -23,9 +23,9 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "_shared" / "gather_diff.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "_shared" / "gather_diff.py"
 
-PATCH_PATH = Path(".agents") / "logs" / "review-diff.patch"
+PATCH_PATH = Path(".claude") / "logs" / "review-diff.patch"
 
 
 def _load_module(path: Path, name: str) -> ModuleType:
@@ -51,7 +51,7 @@ def repo(tmp_path: Path) -> Path:
     git(tmp_path, "init", "-q", "-b", "main", ".")
     git(tmp_path, "config", "user.email", "test@example.com")
     git(tmp_path, "config", "user.name", "Test")
-    (tmp_path / ".gitignore").write_text(".agents/logs/*\n", encoding="utf-8")
+    (tmp_path / ".gitignore").write_text(".claude/logs/*\n", encoding="utf-8")
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "mod.py").write_text(
         "def a():\n    return 1\n", encoding="utf-8"
@@ -195,11 +195,11 @@ def test_out_must_stay_inside_the_project_root(repo: Path) -> None:
 def test_out_is_honoured(repo: Path) -> None:
     (repo / "src" / "mod.py").write_text("def a():\n    return 2\n", encoding="utf-8")
 
-    payload = parsed(run(repo, "--out", ".agents/logs/custom.patch"))
+    payload = parsed(run(repo, "--out", ".claude/logs/custom.patch"))
 
-    assert payload["diff_file"] == ".agents/logs/custom.patch"
-    assert payload["artifacts"] == [".agents/logs/custom.patch"]
-    assert (repo / ".agents" / "logs" / "custom.patch").is_file()
+    assert payload["diff_file"] == ".claude/logs/custom.patch"
+    assert payload["artifacts"] == [".claude/logs/custom.patch"]
+    assert (repo / ".claude" / "logs" / "custom.patch").is_file()
 
 
 # --- ruff: absent tool is skipped, not failed --------------------------------

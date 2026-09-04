@@ -1,7 +1,8 @@
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ORCHESTRATION_PATH = REPO_ROOT / "AGENTS.md"
+ORCHESTRATION_PATH = REPO_ROOT / "CLAUDE.md"
+ROUTER_PATH = REPO_ROOT / "AGENTS.md"
 SHARED_RUNTIME_DIRS = (
     "rules",
     "skills",
@@ -35,42 +36,43 @@ def assert_references_in_order(content: str, references: tuple[str, ...]) -> Non
     assert positions == sorted(positions)
 
 
-def test_root_agents_is_shared_orchestration_contract() -> None:
+def test_claude_md_is_the_main_agent_orchestration_contract() -> None:
     assert ORCHESTRATION_PATH.is_file()
+    assert not ORCHESTRATION_PATH.is_symlink()
     content = ORCHESTRATION_PATH.read_text(encoding="utf-8")
 
     for heading in REQUIRED_HEADINGS:
         assert content.count(heading) == 1
 
 
-def test_root_agents_md_is_concise_complete_instruction_file() -> None:
-    content = read_repo_file("AGENTS.md")
+def test_claude_md_is_concise_complete_instruction_file() -> None:
+    content = read_repo_file("CLAUDE.md")
 
-    assert len(content.splitlines()) <= 140
+    assert len(content.splitlines()) <= 150
     for reference in (
-        ".agents/rules/",
-        ".agents/skills/",
-        ".agents/agents/",
-        ".agents/STATE.md",
-        ".agents/docs/DESIGN.md",
+        ".claude/rules/",
+        ".claude/skills/",
+        ".claude/agents/",
+        ".claude/STATE.md",
+        ".claude/docs/DESIGN.md",
     ):
         assert reference in content
     assert "Japanese" in content
-    assert ".agents/change_main.md" in content
+    assert ".claude/docs/change_main.md" in content
     assert "Claude Code" in content
     assert "verify" in content.lower()
     assert "@orchestra:" not in content
-    assert not (REPO_ROOT / ".agents/rules/orchestration.md").exists()
+    assert not (REPO_ROOT / ".claude/rules/orchestration.md").exists()
 
 
-def test_root_agents_catalogs_every_bundled_agent_and_skill() -> None:
-    content = read_repo_file("AGENTS.md")
+def test_claude_md_catalogs_every_bundled_agent_and_skill() -> None:
+    content = read_repo_file("CLAUDE.md")
     agent_names = {
-        path.stem for path in (REPO_ROOT / ".agents" / "agents").glob("*.md")
+        path.stem for path in (REPO_ROOT / ".claude" / "agents").glob("*.md")
     }
     skill_names = {
         path.parent.name
-        for path in (REPO_ROOT / ".agents" / "skills").glob("*/SKILL.md")
+        for path in (REPO_ROOT / ".claude" / "skills").glob("*/SKILL.md")
     }
 
     assert agent_names
@@ -78,23 +80,61 @@ def test_root_agents_catalogs_every_bundled_agent_and_skill() -> None:
     assert all(f"`{name}`" in content for name in agent_names | skill_names)
 
 
-def test_claude_md_is_symlink_to_root_agents_md() -> None:
-    claude_md = REPO_ROOT / "CLAUDE.md"
+def test_root_agents_md_is_the_self_contained_cli_contract() -> None:
+    """Every CLI runtime auto-loads root AGENTS.md and nothing else. When it was
+    a thin router, a delegated Codex run loaded a pointer instead of the
+    cross-CLI rules and the completion guardrails it is bound by — so the
+    sections a delegated run depends on must be in this file, not behind a link.
+    It still must not restate CLAUDE.md's own policy sections."""
+    assert ROUTER_PATH.is_file()
+    assert not ROUTER_PATH.is_symlink()
+    content = ROUTER_PATH.read_text(encoding="utf-8")
 
-    assert claude_md.is_symlink()
-    assert claude_md.resolve() == (REPO_ROOT / "AGENTS.md").resolve()
-    assert claude_md.read_text(encoding="utf-8") == read_repo_file("AGENTS.md")
+    for section in (
+        "## Required Response Structure",
+        "## Handoff Rules",
+        "## Cross-CLI Subagent Invocation",
+        "## Guardrails (Completion Verification)",
+    ):
+        assert content.count(section) == 1
+    for route in (
+        "CLAUDE.md",
+        ".agents/AGENTS.md",
+        ".codex/AGENTS.md",
+        ".claude/rules/tiers.md",
+    ):
+        assert route in content
+    for policy_heading in REQUIRED_HEADINGS:
+        assert policy_heading not in content
 
 
-def test_shared_runtime_content_is_canonical_under_agents() -> None:
+def test_contract_files_are_real_files_not_symlinks() -> None:
+    """The layout is symlink-free by design: a checkout on a filesystem or CI
+    runner that does not honour symlinks must still carry every contract."""
+    for relative_path in (
+        "CLAUDE.md",
+        "AGENTS.md",
+        ".agents/AGENTS.md",
+        ".codex/AGENTS.md",
+        ".claude/STATE.md",
+        ".claude/rules/tiers.md",
+        ".claude/docs/INDEX.md",
+        ".claude/docs/change_main.md",
+    ):
+        path = REPO_ROOT / relative_path
+        assert path.is_file()
+        assert not path.is_symlink()
+
+
+def test_shared_runtime_content_is_canonical_under_claude() -> None:
     for directory_name in SHARED_RUNTIME_DIRS:
-        canonical = REPO_ROOT / ".agents" / directory_name
+        canonical = REPO_ROOT / ".claude" / directory_name
         assert canonical.is_dir()
         assert not canonical.is_symlink()
 
 
 def test_main_agent_change_runbook_is_present_but_not_mandatory_read() -> None:
-    content = read_repo_file(".agents/change_main.md")
+    content = read_repo_file(".claude/docs/change_main.md")
 
     for heading in (
         "## Meaning of Main Agent",
@@ -104,64 +144,72 @@ def test_main_agent_change_runbook_is_present_but_not_mandatory_read() -> None:
         "## Rollback",
     ):
         assert heading in content
-    assert "Claude Code" in read_repo_file(".agents/STATE.md")
+    assert "Claude Code" in read_repo_file(".claude/STATE.md")
 
 
-def test_native_runtime_directories_only_keep_native_settings() -> None:
-    claude_real_files = {
-        path.name for path in (REPO_ROOT / ".claude").iterdir() if not path.is_symlink()
-    }
-    assert claude_real_files <= {
+def test_subagent_schema_directories_hold_no_runtime_content() -> None:
+    """`.agents/` and `.codex/` are Antigravity's and Codex's native
+    directories. Each holds that runtime's entry contract and nothing else:
+    shared policy lives under `.claude/` and is referenced by path."""
+    agents_entries = {path.name for path in (REPO_ROOT / ".agents").iterdir()}
+    assert agents_entries == {"AGENTS.md"}
+
+    codex_entries = {path.name for path in (REPO_ROOT / ".codex").iterdir()}
+    assert codex_entries == {"config.toml", "AGENTS.md"}
+
+    claude_entries = {path.name for path in (REPO_ROOT / ".claude").iterdir()}
+    assert claude_entries <= {
         "settings.json",
         "settings.local.json",
         "settings.orchestra.json",
         "orchestra-version",
+        "STATE.md",
+        "agents",
+        "skills",
+        "rules",
+        "hooks",
+        "docs",
+        "logs",
+        "checkpoints",
     }
-
-    codex_real_files = {
-        path.name for path in (REPO_ROOT / ".codex").iterdir() if not path.is_symlink()
-    }
-    assert codex_real_files == {"config.toml"}
-    # The only symlinks allowed in .claude are the native discovery links that
-    # point Claude Code's subagent/skill discovery at the canonical .agents/
-    # directories. No shared content is physically duplicated.
-    claude_symlinks = {
-        path.name: path.readlink().as_posix()
-        for path in (REPO_ROOT / ".claude").iterdir()
-        if path.is_symlink()
-    }
-    assert claude_symlinks == {
-        "agents": "../.agents/agents",
-        "skills": "../.agents/skills",
-    }
-    assert not any(path.is_symlink() for path in (REPO_ROOT / ".codex").iterdir())
+    # Nothing in the runtime layout is reached through a link.
+    for directory in (".claude", ".agents", ".codex"):
+        assert not any(path.is_symlink() for path in (REPO_ROOT / directory).iterdir())
 
 
-def test_native_settings_reference_canonical_agents_paths_directly() -> None:
+def test_native_settings_reference_canonical_claude_paths_directly() -> None:
     claude_settings = read_repo_file(".claude/settings.json")
     codex_config = read_repo_file(".codex/config.toml")
 
-    assert ".agents/hooks/" in claude_settings
-    assert ".claude/hooks/" not in claude_settings
-    assert ".agents/skills/context-loader" in codex_config
-    assert ".agents/skills/design-tracker" in codex_config
+    assert ".claude/hooks/" in claude_settings
+    assert ".agents/hooks/" not in claude_settings
+    assert ".claude/skills/context-loader" in codex_config
+    assert ".claude/skills/design-tracker" in codex_config
     assert ".codex/skills/" not in codex_config
 
 
-def test_shared_runtime_docs_use_canonical_agents_paths() -> None:
+def test_shared_runtime_docs_use_canonical_claude_paths() -> None:
     stale_paths = (
-        ".claude/skills/",
-        ".claude/rules/",
-        ".claude/agents/",
-        ".claude/docs/",
-        ".claude/logs/",
-        ".claude/checkpoints/",
-        ".agents/rules/agents-md-zones.md",
+        ".agents/skills/",
+        ".agents/rules/",
+        ".agents/agents/",
+        ".agents/docs/",
+        ".agents/logs/",
+        ".agents/checkpoints/",
+        ".agents/STATE.md",
     )
     violations: list[str] = []
-    reviews_dir = REPO_ROOT / ".agents" / "docs" / "reviews"
-    for path in (REPO_ROOT / ".agents").rglob("*"):
+    reviews_dir = REPO_ROOT / ".claude" / "docs" / "reviews"
+    checker = REPO_ROOT / "scripts" / "check.sh"
+    for path in list((REPO_ROOT / ".agents").rglob("*")) + list(
+        (REPO_ROOT / ".claude").rglob("*")
+    ):
         if not path.is_file() or path.suffix not in {".md", ".py", ".sh"}:
+            continue
+        # The consistency checker has to name the legacy paths it rejects, and
+        # the updater has to name the ones it migrates; quoting a path is the
+        # opposite of relying on it.
+        if path == checker:
             continue
         # Review notes are evidence records, not runtime documentation: an audit
         # finding has to be able to quote the legacy path it found, and a
@@ -176,9 +224,9 @@ def test_shared_runtime_docs_use_canonical_agents_paths() -> None:
     assert violations == []
 
 
-def test_skills_do_not_treat_root_agents_as_mutable_state() -> None:
+def test_skills_do_not_treat_the_root_contract_as_mutable_state() -> None:
     violations: list[str] = []
-    for path in (REPO_ROOT / ".agents" / "skills").rglob("*.md"):
+    for path in (REPO_ROOT / ".claude" / "skills").rglob("*.md"):
         content = path.read_text(encoding="utf-8")
         if "AGENTS.md Zone" in content or "@orchestra:repo-boundary" in content:
             violations.append(str(path.relative_to(REPO_ROOT)))
@@ -186,25 +234,32 @@ def test_skills_do_not_treat_root_agents_as_mutable_state() -> None:
     assert violations == []
 
 
-def test_state_tools_write_canonical_agents_state_file() -> None:
+def test_state_tools_write_canonical_claude_state_file() -> None:
     tool_paths = (
-        ".agents/skills/_shared/append_state_block.py",
-        ".agents/skills/checkpointing/checkpoint.py",
-        ".agents/skills/checkpointing/refresh_guard.py",
-        ".agents/skills/init/detect_stack.py",
+        ".claude/skills/_shared/append_state_block.py",
+        ".claude/skills/checkpointing/checkpoint.py",
+        ".claude/skills/checkpointing/refresh_guard.py",
+        ".claude/skills/init/detect_stack.py",
     )
     for tool_path in tool_paths:
         content = read_repo_file(tool_path)
-        assert ' / ".agents" / "STATE.md"' in content
+        assert ' / ".claude" / "STATE.md"' in content
         if not tool_path.endswith("detect_stack.py"):
             assert ' / "CLAUDE.md"' not in content
 
 
-def test_cli_contract_extends_root_orchestration_contract() -> None:
-    content = read_repo_file(".agents/rules/cli-execution.md")
-
-    assert "AGENTS.md" in content
-    assert ".agents/rules/orchestration.md" not in content
+def test_runtime_adapters_defer_to_the_root_contract() -> None:
+    """Each adapter adds only what is specific to its runtime and points back at
+    the root contract; neither restates it, which is how they used to drift."""
+    for adapter_path in (".agents/AGENTS.md", ".codex/AGENTS.md"):
+        adapter = read_repo_file(adapter_path)
+        assert "AGENTS.md" in adapter
+        assert ".claude/rules/tiers.md" in adapter
+        assert ".claude/rules/orchestration.md" not in adapter
+        # The contract lives in one place: an adapter that grew its own copy of
+        # a root section is the drift this check exists to catch.
+        for section in ("## Required Response Structure", "## Handoff Rules"):
+            assert section not in adapter
 
 
 def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
@@ -213,14 +268,14 @@ def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
     by tests/test_shared_script_contract.py) that Codex is reached only through
     the wrapper — and leaving `claude -p` / `agy -p` with no hardened path
     at all."""
-    content = read_repo_file(".agents/rules/cli-execution.md")
+    content = read_repo_file("AGENTS.md")
     section = content.split("## Cross-CLI Subagent Invocation", 1)[1].split("\n## ", 1)[
         0
     ]
 
     for wrapper in (
-        ".agents/skills/_shared/cli_consult.py",
-        ".agents/skills/_shared/codex_consult.py",
+        ".claude/skills/_shared/cli_consult.py",
+        ".claude/skills/_shared/codex_consult.py",
     ):
         assert wrapper in section, f"cross-CLI section does not route through {wrapper}"
     for raw_idiom in ('codex exec "', 'claude -p "', 'agy -p "'):
@@ -231,12 +286,11 @@ def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
     assert "read-only" in section.lower()
     assert "--read-only" in section
 
-    root = read_repo_file("AGENTS.md")
-    assert "cli_consult.py" in root
+    assert "cli_consult.py" in read_repo_file("CLAUDE.md")
 
 
-def test_registry_marks_root_agents_contract_as_normative() -> None:
-    content = read_repo_file(".agents/INDEX.md")
+def test_registry_marks_main_agent_contract_as_normative() -> None:
+    content = read_repo_file(".claude/docs/INDEX.md")
     matching_lines = [
         line for line in content.splitlines() if "Root agent contract" in line
     ]
@@ -246,7 +300,7 @@ def test_registry_marks_root_agents_contract_as_normative() -> None:
 
 
 def test_consistency_checker_validates_contract_and_bootstraps() -> None:
-    content = read_repo_file(".agents/check.sh")
+    content = read_repo_file("scripts/check.sh")
 
     assert "check_root_contract" in content
     assert "check_bootstrap_references" in content

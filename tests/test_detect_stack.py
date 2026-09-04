@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "init" / "detect_stack.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "init" / "detect_stack.py"
 
 
 def run(root: Path, *extra: str) -> tuple[int, dict, str]:
@@ -41,18 +41,19 @@ def run(root: Path, *extra: str) -> tuple[int, dict, str]:
 def project(tmp_path: Path) -> Path:
     """A fixture repository with a complete, valid agent bootstrap.
 
-    Mirrors what ``.agents/check.sh`` verifies: the root bootstrap, the
-    ``CLAUDE.md`` symlink, shared state, and both native discovery symlinks.
+    Mirrors what ``scripts/check.sh`` verifies: the root router, the
+    ``CLAUDE.md`` contract, shared state, the CLI-subagent contract, and both
+    native runtime directories.
     """
     (tmp_path / "AGENTS.md").write_text("# AGENTS\n", encoding="utf-8")
-    (tmp_path / "CLAUDE.md").symlink_to("AGENTS.md")
-    state = tmp_path / ".agents" / "STATE.md"
+    (tmp_path / "CLAUDE.md").write_text("# CLAUDE\n", encoding="utf-8")
+    (tmp_path / ".agents").mkdir()
+    (tmp_path / ".agents" / "AGENTS.md").write_text("# CLI\n", encoding="utf-8")
+    state = tmp_path / ".claude" / "STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text("# Agent State\n\n## Repository Identity\n", encoding="utf-8")
     for name in ("agents", "skills"):
-        (tmp_path / ".agents" / name).mkdir()
-        (tmp_path / ".claude").mkdir(exist_ok=True)
-        (tmp_path / ".claude" / name).symlink_to(f"../.agents/{name}")
+        (tmp_path / ".claude" / name).mkdir()
     return tmp_path
 
 
@@ -287,39 +288,47 @@ def test_complete_bootstrap_is_ok(project: Path) -> None:
     assert "error" not in payload
 
 
-def test_dangling_discovery_symlink_fails_the_bootstrap(project: Path) -> None:
-    """A dangling ``.claude/skills`` disables all native skill auto-discovery,
-    yet detect_stack.py reported ``agent_bootstrap`` all-true and /init reported
-    success. SKILL.md claimed exit 2 covered the discovery symlink; only
-    ``check.sh`` actually looked."""
-    (project / ".claude" / "skills").unlink()
+def test_missing_skills_directory_fails_the_bootstrap(project: Path) -> None:
+    """A missing ``.claude/skills`` disables all native skill auto-discovery,
+    yet detect_stack.py used to report ``agent_bootstrap`` all-true and /init
+    reported success."""
+    (project / ".claude" / "skills").rmdir()
     code, payload, stderr = run(project)
     assert code == 2, stderr
     assert payload["ok"] is False
-    assert payload["agent_bootstrap"]["claude_skills_link"] is False
-    assert payload["agent_bootstrap"]["claude_agents_link"] is True
-    assert "claude_skills_link" in payload["error"]
+    assert payload["agent_bootstrap"]["claude_skills_dir"] is False
+    assert payload["agent_bootstrap"]["claude_agents_dir"] is True
+    assert "claude_skills_dir" in payload["error"]
 
 
-def test_discovery_symlink_to_the_wrong_target_fails(project: Path) -> None:
-    link = project / ".claude" / "agents"
-    link.unlink()
-    link.symlink_to("../elsewhere")
+def test_runtime_directory_replaced_by_a_symlink_fails(project: Path) -> None:
+    """The runtime directories are physical: a link here means a second source
+    of truth somewhere else, which is exactly what this layout removed."""
+    runtime_dir = project / ".claude" / "agents"
+    runtime_dir.rmdir()
+    runtime_dir.symlink_to("../elsewhere")
     code, payload, _ = run(project)
     assert code == 2
-    assert payload["agent_bootstrap"]["claude_agents_link"] is False
+    assert payload["agent_bootstrap"]["claude_agents_dir"] is False
 
 
 def test_missing_state_marker_fails_the_bootstrap(project: Path) -> None:
-    (project / ".agents" / "STATE.md").write_text("nothing\n", encoding="utf-8")
+    (project / ".claude" / "STATE.md").write_text("nothing\n", encoding="utf-8")
     code, payload, _ = run(project)
     assert code == 2
     assert payload["agent_bootstrap"]["state_md"] is False
     assert "state_md" in payload["error"]
 
 
-def test_broken_claude_symlink_fails_the_bootstrap(project: Path) -> None:
+def test_missing_claude_md_fails_the_bootstrap(project: Path) -> None:
     (project / "CLAUDE.md").unlink()
     code, payload, _ = run(project)
     assert code == 2
-    assert payload["agent_bootstrap"]["claude_symlink"] is False
+    assert payload["agent_bootstrap"]["claude_md"] is False
+
+
+def test_missing_cli_subagent_contract_fails_the_bootstrap(project: Path) -> None:
+    (project / ".agents" / "AGENTS.md").unlink()
+    code, payload, _ = run(project)
+    assert code == 2
+    assert payload["agent_bootstrap"]["cli_subagent_contract"] is False

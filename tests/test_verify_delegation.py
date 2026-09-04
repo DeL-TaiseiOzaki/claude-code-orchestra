@@ -2,7 +2,7 @@
 
 The load-bearing property is a *negative* one: there is no verdict that means
 "accepted". Three sibling skills cite this script as the step that makes
-`.agents/rules/cli-execution.md`'s Guardrails executable, and the whole point is
+root `AGENTS.md`'s Guardrails executable, and the whole point is
 that it collects evidence and hands the decision back. A future change that adds
 a `clean` verdict would let every caller skip the review, so
 ``test_verdict_is_always_needs_review`` guards the interface, not just the code.
@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "_shared" / "verify_delegation.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "_shared" / "verify_delegation.py"
 
 
 def git(root: Path, *args: str) -> None:

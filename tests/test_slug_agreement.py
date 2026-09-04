@@ -1,7 +1,7 @@
 """Keep workspace.py and lib_inventory.py agreeing on one package slug.
 
 ``workspace.py --skill research-lib`` derives
-``.agents/docs/libraries/{slug}.md`` while ``lib_inventory.py`` decides whether
+``.claude/docs/libraries/{slug}.md`` while ``lib_inventory.py`` decides whether
 a declared dependency is documented by normalizing that same file's stem. The
 two normalizations live in separate scripts on purpose (the Shared Script
 Contract forbids cross-script imports so each stays runnable standalone), which
@@ -25,9 +25,9 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE = REPO_ROOT / ".agents" / "skills" / "_shared" / "workspace.py"
+WORKSPACE = REPO_ROOT / ".claude" / "skills" / "_shared" / "workspace.py"
 LIB_INVENTORY = (
-    REPO_ROOT / ".agents" / "skills" / "update-lib-docs" / "lib_inventory.py"
+    REPO_ROOT / ".claude" / "skills" / "update-lib-docs" / "lib_inventory.py"
 )
 
 
@@ -87,7 +87,7 @@ def test_the_agreed_slug_survives_the_cli(raw: str, tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     data = json.loads(result.stdout)
     assert data["slug"] == lib_inventory.normalize_dep_name(raw)
-    assert data["paths"]["lib_doc"] == f".agents/docs/libraries/{data['slug']}.md"
+    assert data["paths"]["lib_doc"] == f".claude/docs/libraries/{data['slug']}.md"
 
 
 @pytest.mark.parametrize("raw", PACKAGE_NAMES)

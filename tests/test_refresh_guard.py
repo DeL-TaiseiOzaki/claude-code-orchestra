@@ -6,7 +6,7 @@ Three reproduced data-loss defects are pinned here as regressions:
    by ``compose``, so ``verify`` failed and the next checkpoint re-appended it —
    an every-session loop;
 2. a user's ``## My Manual Notes`` block was deleted and reported as
-   ``blocks_pruned: []``, while ``.agents/rules/agent-state.md`` explicitly
+   ``blocks_pruned: []``, while ``.claude/rules/agent-state.md`` explicitly
    sanctions manual notes;
 3. ``--project-root`` was ignored for research notes because the directories were
    module-level constants, so a fixture run proposed moving real repository files.
@@ -29,7 +29,7 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "checkpointing" / "refresh_guard.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "checkpointing" / "refresh_guard.py"
 
 CANONICAL_STATE = (
     "# Agent State\n\n"
@@ -65,8 +65,8 @@ rg = _load_module(SCRIPT, "refresh_guard_under_test")
 
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
-    (tmp_path / ".agents").mkdir()
-    (tmp_path / ".agents" / "STATE.md").write_text(CANONICAL_STATE, encoding="utf-8")
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "STATE.md").write_text(CANONICAL_STATE, encoding="utf-8")
     return tmp_path
 
 
@@ -94,7 +94,7 @@ def test_manual_notes_survive_compaction(project: Path) -> None:
     assert payload["blocks_pruned"] == ["## Current Feature: alpha"]
     assert "## My Manual Notes" in payload["sections_preserved"]
     assert payload["sections_dropped"] == []
-    composed = (project / ".agents" / "logs" / "composed-state.md").read_text(
+    composed = (project / ".claude" / "logs" / "composed-state.md").read_text(
         encoding="utf-8"
     )
     assert "The deploy key rotates on the 1st." in composed
@@ -106,19 +106,19 @@ def test_a_trailing_progress_tracker_is_not_dropped(project: Path) -> None:
     """The every-session loop: compose used to keep only the prefix before the
     first working block, so a tracker appended after one vanished, verify exited
     2, and the next checkpoint re-appended it."""
-    (project / ".agents" / "STATE.md").write_text(
+    (project / ".claude" / "STATE.md").write_text(
         STATE_WITH_TRAILING_TRACKER, encoding="utf-8"
     )
 
     composed_result = run(project, "--mode", "compose")
 
     assert composed_result.returncode == 0, composed_result.stdout
-    composed_path = project / ".agents" / "logs" / "composed-state.md"
+    composed_path = project / ".claude" / "logs" / "composed-state.md"
     composed = composed_path.read_text(encoding="utf-8")
     assert composed.count("## Progress Tracker") == 1
 
     # Applying the candidate and verifying is the step that used to exit 2.
-    (project / ".agents" / "STATE.md").write_text(composed, encoding="utf-8")
+    (project / ".claude" / "STATE.md").write_text(composed, encoding="utf-8")
     assert run(project, "--mode", "verify").returncode == 0
 
 
@@ -157,7 +157,7 @@ def test_a_composition_that_would_drop_a_section_aborts(
 
 
 def test_research_notes_come_from_the_given_root(project: Path) -> None:
-    research = project / ".agents" / "docs" / "research"
+    research = project / ".claude" / "docs" / "research"
     research.mkdir(parents=True)
     (research / "fixture-only-note.md").write_text("# note\n", encoding="utf-8")
 
@@ -168,8 +168,8 @@ def test_research_notes_come_from_the_given_root(project: Path) -> None:
     ]
     assert payload["move_plan"] == [
         {
-            "src": ".agents/docs/research/fixture-only-note.md",
-            "dst": ".agents/docs/research/archive/fixture-only-note.md",
+            "src": ".claude/docs/research/fixture-only-note.md",
+            "dst": ".claude/docs/research/archive/fixture-only-note.md",
             "mode": "create",
             "suggested": True,
         }
@@ -184,7 +184,7 @@ def test_no_module_level_path_constant_bakes_in_a_directory() -> None:
 
 
 def test_an_active_note_is_not_proposed_for_archiving(project: Path) -> None:
-    research = project / ".agents" / "docs" / "research"
+    research = project / ".claude" / "docs" / "research"
     research.mkdir(parents=True)
     (research / "beta.md").write_text("# beta\n", encoding="utf-8")
 
@@ -219,15 +219,15 @@ def test_plan_adds_the_preview_without_writing(project: Path) -> None:
     assert payload["blocks_pruned"] == ["## Current Feature: alpha"]
     assert "research_notes" in payload
     assert "composed_state" not in payload
-    assert not (project / ".agents" / "logs").exists()
+    assert not (project / ".claude" / "logs").exists()
 
 
 def test_compose_writes_only_the_draft(project: Path) -> None:
     payload = parsed(run(project, "--mode", "compose"))
 
-    assert payload["composed_state"] == ".agents/logs/composed-state.md"
-    assert payload["artifacts"] == [".agents/logs/composed-state.md"]
-    assert (project / ".agents" / "STATE.md").read_text(
+    assert payload["composed_state"] == ".claude/logs/composed-state.md"
+    assert payload["artifacts"] == [".claude/logs/composed-state.md"]
+    assert (project / ".claude" / "STATE.md").read_text(
         encoding="utf-8"
     ) == CANONICAL_STATE
 
@@ -245,7 +245,7 @@ def test_verify_reports_whether_compaction_landed(project: Path) -> None:
 
 
 def test_an_invalid_structure_is_exit_2(project: Path) -> None:
-    (project / ".agents" / "STATE.md").write_text("# Agent State\n", encoding="utf-8")
+    (project / ".claude" / "STATE.md").write_text("# Agent State\n", encoding="utf-8")
 
     result = run(project, "--mode", "check")
 
@@ -270,9 +270,9 @@ def test_apply_previews_by_default(project: Path) -> None:
 
     assert payload["applied"] is False
     assert payload["preview_file"] == (
-        ".agents/logs/state-compaction-preview-20260725-100000.md"
+        ".claude/logs/state-compaction-preview-20260725-100000.md"
     )
-    assert (project / ".agents" / "STATE.md").read_text(
+    assert (project / ".claude" / "STATE.md").read_text(
         encoding="utf-8"
     ) == CANONICAL_STATE
 
@@ -284,7 +284,7 @@ def test_apply_writes_atomically_and_reports_both_hashes(project: Path) -> None:
 
     assert payload["applied"] is True
     assert payload["state_hash_before"] == before
-    after = (project / ".agents" / "STATE.md").read_text(encoding="utf-8")
+    after = (project / ".claude" / "STATE.md").read_text(encoding="utf-8")
     assert (
         payload["state_hash_after"] == hashlib.sha256(after.encode("utf-8")).hexdigest()
     )
@@ -297,7 +297,7 @@ def test_expect_hash_mismatch_refuses_to_write(project: Path) -> None:
 
     assert result.returncode == 3
     assert "does not match on-disk" in parsed(result)["error"]
-    assert (project / ".agents" / "STATE.md").read_text(
+    assert (project / ".claude" / "STATE.md").read_text(
         encoding="utf-8"
     ) == CANONICAL_STATE
 
@@ -305,7 +305,7 @@ def test_expect_hash_mismatch_refuses_to_write(project: Path) -> None:
 def test_the_hash_guard_refuses_a_state_changed_since_load(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    state = project / ".agents" / "STATE.md"
+    state = project / ".claude" / "STATE.md"
     real_read_text = Path.read_text
     real_write_text = Path.write_text
     reads = {"n": 0}
@@ -342,7 +342,7 @@ def test_the_hash_guard_refuses_a_state_changed_since_load(
 def test_validation_runs_before_the_replace_and_leaves_no_temp_file(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    state = project / ".agents" / "STATE.md"
+    state = project / ".claude" / "STATE.md"
     calls = {"n": 0}
 
     def failing_second_validation(

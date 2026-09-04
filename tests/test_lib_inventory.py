@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "update-lib-docs" / "lib_inventory.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "update-lib-docs" / "lib_inventory.py"
 
 
 def run_inventory(
@@ -22,7 +22,7 @@ def run_inventory(
 
 
 def write_library(root: Path, filename: str, content: str) -> None:
-    libraries_dir = root / ".agents" / "docs" / "libraries"
+    libraries_dir = root / ".claude" / "docs" / "libraries"
     libraries_dir.mkdir(parents=True, exist_ok=True)
     (libraries_dir / filename).write_text(content, encoding="utf-8")
 
@@ -46,7 +46,7 @@ def test_happy_path_computes_age_and_staleness(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
     assert payload["ok"] is True
-    assert payload["libraries_dir"] == ".agents/docs/libraries"
+    assert payload["libraries_dir"] == ".claude/docs/libraries"
     assert payload["stale_days"] == 90
     assert len(payload["libraries"]) == 1
 
@@ -89,7 +89,7 @@ def test_missing_libraries_dir_is_a_valid_empty_state(tmp_path: Path) -> None:
 
 
 def test_empty_libraries_dir_is_a_valid_state(tmp_path: Path) -> None:
-    (tmp_path / ".agents" / "docs" / "libraries").mkdir(parents=True)
+    (tmp_path / ".claude" / "docs" / "libraries").mkdir(parents=True)
 
     result = run_inventory(tmp_path)
 
@@ -312,7 +312,7 @@ def test_unreadable_doc_is_reported_not_blanked(tmp_path: Path) -> None:
     no metadata looks like, and was reported documented-and-current at exit 0.
     This is a broken state, not an absent optional path, so it carries
     `read_error` and exits 3 (external/read failure)."""
-    libraries_dir = tmp_path / ".agents" / "docs" / "libraries"
+    libraries_dir = tmp_path / ".claude" / "docs" / "libraries"
     libraries_dir.mkdir(parents=True)
     (libraries_dir / "broken.md").write_bytes(b"\xff\xfe not utf-8 at all")
 

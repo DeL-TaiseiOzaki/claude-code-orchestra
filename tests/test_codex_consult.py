@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "_shared" / "codex_consult.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "_shared" / "codex_consult.py"
 
 
 def write_fake_codex(
@@ -201,13 +201,13 @@ def test_both_prompt_sources_is_bad_args(tmp_path: Path) -> None:
 
 
 def test_neither_prompt_source_falls_back_to_the_label_path(tmp_path: Path) -> None:
-    """Five skills hand-typed `.agents/logs/codex/prompt-{label}.md` 23 times.
+    """Five skills hand-typed `.claude/logs/codex/prompt-{label}.md` 23 times.
     With neither flag, the wrapper reads exactly that path itself."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     argv_log = tmp_path / "argv.json"
     write_fake_codex(bin_dir, stdout="ok\n", argv_log=argv_log)
-    default_prompt = tmp_path / ".agents" / "logs" / "codex" / "prompt-design.md"
+    default_prompt = tmp_path / ".claude" / "logs" / "codex" / "prompt-design.md"
     default_prompt.parent.mkdir(parents=True)
     default_prompt.write_text("Objective: from the label path", encoding="utf-8")
 
@@ -452,9 +452,9 @@ def test_now_pins_the_log_filenames(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert payload["response_file"] == ".agents/logs/codex/20260725T100000Z-pinned.md"
+    assert payload["response_file"] == ".claude/logs/codex/20260725T100000Z-pinned.md"
     assert payload["prompt_file"] == (
-        ".agents/logs/codex/20260725T100000Z-pinned.prompt.md"
+        ".claude/logs/codex/20260725T100000Z-pinned.prompt.md"
     )
 
 
@@ -500,15 +500,15 @@ def test_same_second_and_label_cannot_overwrite_an_earlier_response(
 
 
 def test_unwritable_log_directory_is_json_and_exit_3(tmp_path: Path) -> None:
-    """`.agents/logs` as a regular file used to produce a bare
+    """`.claude/logs` as a regular file used to produce a bare
     NotADirectoryError traceback and exit 1, which the shared exit vocabulary
     reads as 'bad arguments'."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     write_fake_codex(bin_dir, stdout="ok\n")
     prompt_file = write_prompt(tmp_path, "Objective: unwritable logs")
-    (tmp_path / ".agents").mkdir()
-    (tmp_path / ".agents" / "logs").write_text("not a directory", encoding="utf-8")
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "logs").write_text("not a directory", encoding="utf-8")
 
     result = run_codex_consult(
         tmp_path, ["--prompt-file", str(prompt_file)], path_prefix=bin_dir
@@ -529,7 +529,7 @@ def test_unwritable_prompt_file_is_json_and_exit_3(tmp_path: Path) -> None:
     prompt_file = write_prompt(tmp_path, "Objective: unwritable prompt copy")
     # A directory sitting exactly where the prompt copy must go: the write
     # raises OSError, which must surface as JSON rather than a traceback.
-    blocked = tmp_path / ".agents" / "logs" / "codex"
+    blocked = tmp_path / ".claude" / "logs" / "codex"
     blocked.mkdir(parents=True)
     (blocked / "20260725T100000Z-blocked.prompt.md").mkdir()
 

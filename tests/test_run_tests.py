@@ -1,4 +1,4 @@
-"""Contract tests for .agents/skills/_shared/run_tests.py.
+"""Contract tests for .claude/skills/_shared/run_tests.py.
 
 The point of the script is that "the test did not pass" is four different
 observations, and only one of them is a valid TDD Red. Every test below pins
@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-RUN_TESTS = REPO_ROOT / ".agents" / "skills" / "_shared" / "run_tests.py"
+RUN_TESTS = REPO_ROOT / ".claude" / "skills" / "_shared" / "run_tests.py"
 
 # The frozen `observed` vocabulary (skill-audit interface spec, section 5).
 OBSERVED_STATES = {"passed", "failed", "collection_error", "no_tests_collected"}
@@ -308,14 +308,14 @@ def test_output_is_logged_under_the_label(project: Path) -> None:
         "red-1",
     )
     assert result.returncode == 0
-    assert payload["log_file"] == ".agents/logs/red-1.log"
-    assert payload["artifacts"] == [".agents/logs/red-1.log"]
-    log = project / ".agents" / "logs" / "red-1.log"
+    assert payload["log_file"] == ".claude/logs/red-1.log"
+    assert payload["artifacts"] == [".claude/logs/red-1.log"]
+    log = project / ".claude" / "logs" / "red-1.log"
     assert "test_red" in log.read_text(encoding="utf-8")
 
 
 def test_nothing_is_written_outside_the_project_root(project: Path) -> None:
-    before = sorted(p.name for p in REPO_ROOT.joinpath(".agents", "logs").iterdir())
+    before = sorted(p.name for p in REPO_ROOT.joinpath(".claude", "logs").iterdir())
     check(project, "--target", "tests/test_red.py", "--expect", "fail")
-    after = sorted(p.name for p in REPO_ROOT.joinpath(".agents", "logs").iterdir())
+    after = sorted(p.name for p in REPO_ROOT.joinpath(".claude", "logs").iterdir())
     assert before == after

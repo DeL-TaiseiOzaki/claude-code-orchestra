@@ -4,7 +4,7 @@
 #
 # Fetches the latest version of the claude-code-orchestra template and safely
 # updates local files. Template-owned content is centralized under .agents/;
-# mutable project context is preserved in .agents/STATE.md and .agents/docs/.
+# mutable project context is preserved in .claude/STATE.md and .claude/docs/.
 #
 # Usage:
 #   ./scripts/update.sh            # Update to latest main
@@ -27,22 +27,25 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Directories/files to overwrite entirely from template
 SAFE_DIRS=(
-    ".codex"
-    ".agents/rules"
-    ".agents/skills"
-    ".agents/agents"
-    ".agents/hooks"
-    ".agents/workflows"
+    ".claude/rules"
+    ".claude/skills"
+    ".claude/agents"
+    ".claude/hooks"
 )
+# Files that no SAFE_DIR already covers. `.claude/rules/`, `.claude/skills/`,
+# above are replaced wholesale, so their contents must not be repeated here.
 SAFE_FILES=(
     "AGENTS.md"
-    ".agents/INDEX.md"
-    ".agents/check.sh"
-    ".agents/change_main.md"
-    ".agents/docs/CODEX_HANDOFF_PLAYBOOK.md"
-    ".agents/docs/libraries/.gitkeep"
-    ".agents/docs/plans/.gitkeep"
-    ".agents/docs/reviews/.gitkeep"
+    "CLAUDE.md"
+    ".agents/AGENTS.md"
+    ".codex/AGENTS.md"
+    ".claude/docs/INDEX.md"
+    ".claude/docs/change_main.md"
+    ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"
+    ".claude/docs/libraries/.gitkeep"
+    ".claude/docs/plans/.gitkeep"
+    ".claude/docs/reviews/.gitkeep"
+    "scripts/check.sh"
     "scripts/install.sh"
     "scripts/update.sh"
 )
@@ -57,34 +60,28 @@ SAFE_FILES=(
 # radius scoped to template-owned locations.
 DEPRECATED_PATHS=(
     ".gemini"
-    ".claude/checkpoints"
-    ".claude/docs"
-    ".claude/hooks"
-    ".claude/logs"
-    ".claude/rules"
+    ".agents/workflows"
+    ".agents/rules"
+    ".agents/skills"
+    ".agents/agents"
+    ".agents/hooks"
     ".codex/skills"
 )
 
-# Native discovery symlinks kept in sync on every update. Product-native
-# runtimes (Claude Code) auto-discover subagents and skills only from their own
-# directories, which cannot be configured to point elsewhere. Linking those
-# native paths to the canonical .agents/ directories gives native
-# auto-discovery while .agents/ stays the single physical source.
-# Format: "<native-path>:<relative-target>" (target resolved from .claude/).
-NATIVE_DISCOVERY_LINKS=(
-    ".claude/agents:../.agents/agents"
-    ".claude/skills:../.agents/skills"
-)
-
+# Project-owned data that pre-2.0 installations kept under .agents/. It is
+# moved to .claude/ rather than removed: these directories hold the project's
+# own design docs, logs, and checkpoints, not template content.
 LEGACY_PROJECT_DIRS=(
     "docs"
     "logs"
     "checkpoints"
 )
 
-# Settings files shown as diff only
+# Machine-readable native settings: never overwritten, shown as a diff only.
+# A downstream project edits its model, approval policy, and hooks here.
 SETTINGS_FILES=(
     ".claude/settings.json"
+    ".codex/config.toml"
 )
 
 # =============================================================================
@@ -344,12 +341,12 @@ cleanup_deprecated_paths() {
 }
 
 migrate_legacy_native_data() {
-    header "Migrating Legacy Native Data"
+    header "Migrating Legacy Project Data"
 
     local name legacy canonical backup_root=""
     for name in "${LEGACY_PROJECT_DIRS[@]}"; do
-        legacy="${PROJECT_ROOT}/.claude/${name}"
-        canonical="${PROJECT_ROOT}/.agents/${name}"
+        legacy="${PROJECT_ROOT}/.agents/${name}"
+        canonical="${PROJECT_ROOT}/.claude/${name}"
         if [[ ! -d "${legacy}" || -L "${legacy}" ]]; then
             continue
         fi
@@ -359,21 +356,42 @@ migrate_legacy_native_data() {
             rm -rf -- "${canonical}"
             mkdir -p "$(dirname "${canonical}")"
             mv -- "${legacy}" "${canonical}"
-            UPDATED_FILES+=(".agents/${name} (migrated from .claude/${name})")
+            UPDATED_FILES+=(".claude/${name} (migrated from .agents/${name})")
             continue
         fi
 
         if [[ -z "${backup_root}" ]]; then
             backup_root="${PROJECT_ROOT}/.orchestra-backup-native-migration-$(date +%Y%m%d%H%M%S)-$$"
         fi
-        mkdir -p "${backup_root}/.claude" "${canonical}"
-        cp -a -- "${legacy}" "${backup_root}/.claude/${name}"
+        mkdir -p "${backup_root}/.agents" "${canonical}"
+        cp -a -- "${legacy}" "${backup_root}/.agents/${name}"
         cp -an -- "${legacy}/." "${canonical}/"
-        UPDATED_FILES+=(".agents/${name} (merged from .claude/${name})")
+        rm -rf -- "${legacy}"
+        UPDATED_FILES+=(".claude/${name} (merged from .agents/${name})")
     done
 
+    # Shared state is a single file, not a directory, but has the same
+    # project-owned character: never drop it, move it if .claude/ has none.
+    local legacy_state="${PROJECT_ROOT}/.agents/STATE.md"
+    local canonical_state="${PROJECT_ROOT}/.claude/STATE.md"
+    if [[ -f "${legacy_state}" && ! -L "${legacy_state}" ]]; then
+        mkdir -p "${PROJECT_ROOT}/.claude"
+        if [[ ! -e "${canonical_state}" ]]; then
+            mv -- "${legacy_state}" "${canonical_state}"
+            UPDATED_FILES+=(".claude/STATE.md (migrated from .agents/STATE.md)")
+        else
+            if [[ -z "${backup_root}" ]]; then
+                backup_root="${PROJECT_ROOT}/.orchestra-backup-native-migration-$(date +%Y%m%d%H%M%S)-$$"
+            fi
+            mkdir -p "${backup_root}/.agents"
+            cp -a -- "${legacy_state}" "${backup_root}/.agents/STATE.md"
+            rm -f -- "${legacy_state}"
+            warn "Both .agents/STATE.md and .claude/STATE.md existed; kept .claude/STATE.md."
+        fi
+    fi
+
     if [[ -n "${backup_root}" ]]; then
-        warn "Legacy native data was backed up before merging: ${backup_root}"
+        warn "Legacy project data was backed up before merging: ${backup_root}"
     fi
 }
 
@@ -478,7 +496,7 @@ sync_safe_files() {
 # =============================================================================
 #
 # Current releases keep AGENTS.md immutable and store mutable context in
-# .agents/STATE.md. Boundary helpers remain only to migrate older 2/3-zone
+# .claude/STATE.md. Boundary helpers remain only to migrate older 2/3-zone
 # AGENTS.md or CLAUDE.md files before the minimal bootstrap overwrites them.
 
 # Strip leading blank or ━ separator lines from stdin
@@ -556,17 +574,17 @@ _emit_boundary_block() {
 migrate_legacy_agent_state() {
     header "Preserving Agent State"
 
-    local state="${PROJECT_ROOT}/.agents/STATE.md"
-    mkdir -p "${PROJECT_ROOT}/.agents/docs/research" \
-        "${PROJECT_ROOT}/.agents/logs" "${PROJECT_ROOT}/.agents/checkpoints"
+    local state="${PROJECT_ROOT}/.claude/STATE.md"
+    mkdir -p "${PROJECT_ROOT}/.claude/docs/research" \
+        "${PROJECT_ROOT}/.claude/logs" "${PROJECT_ROOT}/.claude/checkpoints"
     if [[ ! -f "${state}" ]]; then
-        cp -f "${TEMPLATE_DIR}/.agents/STATE.md" "${state}"
-        UPDATED_FILES+=(".agents/STATE.md")
+        cp -f "${TEMPLATE_DIR}/.claude/STATE.md" "${state}"
+        UPDATED_FILES+=(".claude/STATE.md")
     fi
-    if [[ ! -f "${PROJECT_ROOT}/.agents/docs/DESIGN.md" ]]; then
-        cp -f "${TEMPLATE_DIR}/.agents/docs/DESIGN.md" \
-            "${PROJECT_ROOT}/.agents/docs/DESIGN.md"
-        UPDATED_FILES+=(".agents/docs/DESIGN.md")
+    if [[ ! -f "${PROJECT_ROOT}/.claude/docs/DESIGN.md" ]]; then
+        cp -f "${TEMPLATE_DIR}/.claude/docs/DESIGN.md" \
+            "${PROJECT_ROOT}/.claude/docs/DESIGN.md"
+        UPDATED_FILES+=(".claude/docs/DESIGN.md")
     fi
 
     local source="" fmt="none" label=""
@@ -600,59 +618,23 @@ migrate_legacy_agent_state() {
         [[ -z "${identity}" ]] || printf '\n%s\n' "${identity}"
         [[ -z "${working}" ]] || printf '\n%s\n' "${working}"
     } >> "${state}"
-    warn "Migrated legacy agent state from ${label} to .agents/STATE.md."
+    warn "Migrated legacy agent state from ${label} to .claude/STATE.md."
 }
 
-repair_claude_entrypoint() {
-    header "Repairing Claude Entry Point"
+# Pre-2.0 installations shipped CLAUDE.md as a symlink to AGENTS.md. Both are
+# real files now, so the link is removed before sync_safe_files writes the
+# template's CLAUDE.md; otherwise the copy would write through the link and
+# clobber AGENTS.md.
+retire_claude_symlink() {
+    header "Retiring Legacy CLAUDE.md Symlink"
 
     local link="${PROJECT_ROOT}/CLAUDE.md"
-    local canonical="${PROJECT_ROOT}/AGENTS.md"
-    if [[ -L "${link}" ]] \
-        && [[ "$(realpath -m -- "${link}")" == "$(realpath -m -- "${canonical}")" ]]; then
-        info "Verified CLAUDE.md -> AGENTS.md"
+    if [[ ! -L "${link}" ]]; then
+        info "CLAUDE.md is already a real file"
         return 0
     fi
-    rm -rf -- "${link}"
-    ln -s "AGENTS.md" "${link}"
-    UPDATED_FILES+=("CLAUDE.md -> AGENTS.md")
-}
-
-# Recreate/heal the native discovery symlinks so Claude Code auto-discovers the
-# canonical .agents/ subagents and skills. migrate_legacy_native_data already
-# skips symlinks, so an already-healed link is left untouched; a stale real
-# directory or a corrupted link is replaced with the correct symlink.
-link_native_discovery_dirs() {
-    header "Linking Native Discovery Directories"
-
-    local entry native_path target link backup_root=""
-    for entry in "${NATIVE_DISCOVERY_LINKS[@]}"; do
-        native_path="${entry%%:*}"
-        target="${entry##*:}"
-        link="${PROJECT_ROOT}/${native_path}"
-        if [[ -L "${link}" && "$(readlink -- "${link}")" == "${target}" ]]; then
-            info "Verified ${native_path} -> ${target}"
-            continue
-        fi
-        # Real content here is project-owned (a repo that kept its own
-        # subagents/skills natively, or a link corrupted into a file). Preserve
-        # it before replacing, so the link step can never destroy user data.
-        if [[ -e "${link}" || -L "${link}" ]]; then
-            if [[ -z "${backup_root}" ]]; then
-                backup_root="${PROJECT_ROOT}/.orchestra-backup-native-discovery-$(date +%Y%m%d%H%M%S)-$$"
-            fi
-            mkdir -p "${backup_root}/$(dirname -- "${native_path}")"
-            cp -a -- "${link}" "${backup_root}/${native_path}"
-            rm -rf -- "${link}"
-        fi
-        mkdir -p "$(dirname -- "${link}")"
-        ln -s "${target}" "${link}"
-        UPDATED_FILES+=("${native_path} -> ${target}")
-    done
-
-    if [[ -n "${backup_root}" ]]; then
-        warn "Existing native discovery content was backed up: ${backup_root}"
-    fi
+    rm -f -- "${link}"
+    UPDATED_FILES+=("REMOVED: CLAUDE.md (legacy symlink to AGENTS.md)")
 }
 
 # =============================================================================
@@ -661,13 +643,14 @@ link_native_discovery_dirs() {
 migrate_native_settings_paths() {
     local settings="${PROJECT_ROOT}/.claude/settings.json"
     [[ -f "${settings}" ]] || return 0
-    if ! grep -Fq '.claude/hooks/' "${settings}"; then
+    if ! grep -Eq '\.agents/(hooks|logs)/' "${settings}"; then
         return 0
     fi
 
-    sed -i 's#\.claude/hooks/#.agents/hooks/#g' "${settings}"
-    UPDATED_FILES+=(".claude/settings.json (migrated hook paths)")
-    info "Migrated .claude hook paths to canonical .agents/hooks paths."
+    sed -i -e 's#\.agents/hooks/#.claude/hooks/#g' \
+        -e 's#\.agents/logs/#.claude/logs/#g' "${settings}"
+    UPDATED_FILES+=(".claude/settings.json (migrated hook and log paths)")
+    info "Migrated legacy .agents paths in settings to .claude paths."
 }
 
 check_settings_files() {
@@ -783,10 +766,9 @@ main() {
     migrate_legacy_native_data
     cleanup_deprecated_paths
     migrate_legacy_agent_state
+    retire_claude_symlink
     sync_safe_dirs
     sync_safe_files
-    repair_claude_entrypoint
-    link_native_discovery_dirs
     migrate_native_settings_paths
     check_settings_files
     update_version

@@ -10,7 +10,7 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SHARED_DIR = REPO_ROOT / ".agents" / "skills" / "_shared"
+SHARED_DIR = REPO_ROOT / ".claude" / "skills" / "_shared"
 SCRIPT = SHARED_DIR / "workspace.py"
 
 ALL_SKILLS = (
@@ -162,11 +162,11 @@ def test_paths_match_spec_table_for_feature(tmp_path: Path) -> None:
     data = parsed(run_workspace(tmp_path, "--skill", "feature", "--title", "X"))
     slug = data["slug"]
     assert data["paths"] == {
-        "brief": f".agents/docs/research/feature-{slug}-brief.md",
-        "codebase_scan": f".agents/docs/research/feature-{slug}-codebase.md",
-        "research": f".agents/docs/research/{slug}.md",
-        "state_input": f".agents/logs/state-input-{slug}.json",
-        "team_dir": f".agents/logs/agent-teams/feature-{slug}/",
+        "brief": f".claude/docs/research/feature-{slug}-brief.md",
+        "codebase_scan": f".claude/docs/research/feature-{slug}-codebase.md",
+        "research": f".claude/docs/research/{slug}.md",
+        "state_input": f".claude/logs/state-input-{slug}.json",
+        "team_dir": f".claude/logs/agent-teams/feature-{slug}/",
     }
 
 
@@ -174,18 +174,18 @@ def test_paths_match_spec_table_for_spike(tmp_path: Path) -> None:
     data = parsed(run_workspace(tmp_path, "--skill", "spike", "--title", "X"))
     slug = data["slug"]
     assert data["paths"] == {
-        "brief": f".agents/docs/research/spike-{slug}-brief.md",
-        "research": f".agents/docs/research/spike-{slug}-research.md",
-        "feasibility": f".agents/docs/research/spike-{slug}-feasibility.md",
-        "report": f".agents/docs/research/spike-{slug}.md",
-        "prototype_dir": f".agents/spikes/{slug}/",
-        "team_dir": f".agents/logs/agent-teams/spike-{slug}/",
+        "brief": f".claude/docs/research/spike-{slug}-brief.md",
+        "research": f".claude/docs/research/spike-{slug}-research.md",
+        "feasibility": f".claude/docs/research/spike-{slug}-feasibility.md",
+        "report": f".claude/docs/research/spike-{slug}.md",
+        "prototype_dir": f".claude/spikes/{slug}/",
+        "team_dir": f".claude/logs/agent-teams/spike-{slug}/",
     }
     assert data["dirs"] == sorted(
         {
-            ".agents/docs/research",
-            f".agents/logs/agent-teams/spike-{slug}",
-            f".agents/spikes/{slug}",
+            ".claude/docs/research",
+            f".claude/logs/agent-teams/spike-{slug}",
+            f".claude/spikes/{slug}",
         }
     )
 
@@ -194,13 +194,13 @@ def test_paths_match_spec_table_for_troubleshoot(tmp_path: Path) -> None:
     data = parsed(run_workspace(tmp_path, "--skill", "troubleshoot", "--title", "X"))
     slug = data["slug"]
     assert data["paths"] == {
-        "bug_report": f".agents/docs/research/troubleshoot-{slug}-bug-report.md",
-        "context": f".agents/docs/research/troubleshoot-{slug}-context.md",
-        "root_cause": f".agents/docs/research/troubleshoot-{slug}-root-cause.md",
-        "impact": f".agents/docs/research/troubleshoot-{slug}-impact.md",
-        "diagnosis": f".agents/logs/troubleshoot-{slug}-diagnosis.md",
-        "state_input": f".agents/logs/state-input-{slug}.json",
-        "team_dir": f".agents/logs/agent-teams/troubleshoot-{slug}/",
+        "bug_report": f".claude/docs/research/troubleshoot-{slug}-bug-report.md",
+        "context": f".claude/docs/research/troubleshoot-{slug}-context.md",
+        "root_cause": f".claude/docs/research/troubleshoot-{slug}-root-cause.md",
+        "impact": f".claude/docs/research/troubleshoot-{slug}-impact.md",
+        "diagnosis": f".claude/logs/troubleshoot-{slug}-diagnosis.md",
+        "state_input": f".claude/logs/state-input-{slug}.json",
+        "team_dir": f".claude/logs/agent-teams/troubleshoot-{slug}/",
     }
 
 
@@ -208,18 +208,18 @@ def test_paths_match_spec_table_for_team_execute(tmp_path: Path) -> None:
     data = parsed(run_workspace(tmp_path, "--skill", "team-execute", "--title", "X"))
     slug = data["slug"]
     assert data["paths"] == {
-        "review_security": f".agents/docs/research/review-security-{slug}.md",
-        "review_quality": f".agents/docs/research/review-quality-{slug}.md",
-        "review_tests": f".agents/docs/research/review-tests-{slug}.md",
-        "diff_file": f".agents/logs/review-diff-{slug}.patch",
-        "team_dir": f".agents/logs/agent-teams/team-execute-{slug}/",
+        "review_security": f".claude/docs/research/review-security-{slug}.md",
+        "review_quality": f".claude/docs/research/review-quality-{slug}.md",
+        "review_tests": f".claude/docs/research/review-tests-{slug}.md",
+        "diff_file": f".claude/logs/review-diff-{slug}.patch",
+        "team_dir": f".claude/logs/agent-teams/team-execute-{slug}/",
     }
 
 
 def test_paths_match_spec_table_for_plan(tmp_path: Path) -> None:
     data = parsed(run_workspace(tmp_path, "--skill", "plan", "--title", "Auth Rework"))
-    assert data["paths"] == {"plan_doc": ".agents/docs/plans/auth-rework.md"}
-    assert data["dirs"] == [".agents/docs/plans"]
+    assert data["paths"] == {"plan_doc": ".claude/docs/plans/auth-rework.md"}
+    assert data["dirs"] == [".claude/docs/plans"]
 
 
 def test_paths_match_spec_table_for_research_lib(tmp_path: Path) -> None:
@@ -227,7 +227,7 @@ def test_paths_match_spec_table_for_research_lib(tmp_path: Path) -> None:
         run_workspace(tmp_path, "--skill", "research-lib", "--title", "ruamel.yaml")
     )
     assert data["slug"] == "ruamel.yaml"
-    assert data["paths"] == {"lib_doc": ".agents/docs/libraries/ruamel.yaml.md"}
+    assert data["paths"] == {"lib_doc": ".claude/docs/libraries/ruamel.yaml.md"}
 
 
 def test_paths_match_spec_table_for_design_tracker(tmp_path: Path) -> None:
@@ -235,9 +235,9 @@ def test_paths_match_spec_table_for_design_tracker(tmp_path: Path) -> None:
         run_workspace(tmp_path, "--skill", "design-tracker", "--title", "Adopt DuckDB")
     )
     assert data["paths"] == {
-        "design_input": ".agents/logs/design-input-adopt-duckdb.json"
+        "design_input": ".claude/logs/design-input-adopt-duckdb.json"
     }
-    assert data["dirs"] == [".agents/logs"]
+    assert data["dirs"] == [".claude/logs"]
 
 
 def test_design_tracker_input_path_is_per_invocation(tmp_path: Path) -> None:
@@ -332,7 +332,7 @@ def test_teammate_adds_a_work_log_inside_the_team_dir(
     )
     assert (
         data["paths"]["work_log"]
-        == f".agents/logs/agent-teams/{skill}-shared/backend-dev.md"
+        == f".claude/logs/agent-teams/{skill}-shared/backend-dev.md"
     )
     assert data["paths"]["work_log"].startswith(data["paths"]["team_dir"])
 
@@ -475,8 +475,8 @@ def test_require_without_verify_is_an_error(tmp_path: Path) -> None:
 
 def test_create_against_a_file_shaped_agents_dir_reports_json(tmp_path: Path) -> None:
     """Regression: --create used to raise NotADirectoryError and print a
-    traceback with no JSON at all when `.agents` existed as a file."""
-    (tmp_path / ".agents").write_text("not a directory\n", encoding="utf-8")
+    traceback with no JSON at all when `.claude` existed as a file."""
+    (tmp_path / ".claude").write_text("not a directory\n", encoding="utf-8")
 
     result = run_workspace(
         tmp_path, "--skill", "spike", "--title", "Guarded Write", "--create"

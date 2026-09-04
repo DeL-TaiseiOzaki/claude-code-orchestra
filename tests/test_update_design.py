@@ -24,8 +24,8 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "_shared" / "update_design.py"
-TEMPLATE_DESIGN = REPO_ROOT / ".agents" / "docs" / "DESIGN.md"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "_shared" / "update_design.py"
+TEMPLATE_DESIGN = REPO_ROOT / ".claude" / "docs" / "DESIGN.md"
 
 
 def _load_module(path: Path, name: str) -> ModuleType:
@@ -42,14 +42,14 @@ update_design = _load_module(SCRIPT, "update_design_under_test")
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
     """A fixture repository whose DESIGN.md is a copy of the real one."""
-    design = tmp_path / ".agents" / "docs" / "DESIGN.md"
+    design = tmp_path / ".claude" / "docs" / "DESIGN.md"
     design.parent.mkdir(parents=True)
     shutil.copy(TEMPLATE_DESIGN, design)
     return tmp_path
 
 
 def design_text(project: Path) -> str:
-    return (project / ".agents" / "docs" / "DESIGN.md").read_text(encoding="utf-8")
+    return (project / ".claude" / "docs" / "DESIGN.md").read_text(encoding="utf-8")
 
 
 def write_input(project: Path, data: dict) -> Path:
@@ -132,7 +132,7 @@ def test_dry_run_preview_file_holds_the_composed_document(project: Path) -> None
 def test_apply_reports_the_document_as_an_artifact(project: Path) -> None:
     data = parsed(run(project, DECISION, "--apply"))
     assert data["result"] == "applied"
-    assert data["artifacts"] == [".agents/docs/DESIGN.md"]
+    assert data["artifacts"] == [".claude/docs/DESIGN.md"]
 
 
 # --- typed table writers -----------------------------------------------------
@@ -398,7 +398,7 @@ def test_an_unparseable_now_is_bad_args(project: Path) -> None:
 def test_the_hash_guard_refuses_a_document_changed_since_load(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    design = project / ".agents" / "docs" / "DESIGN.md"
+    design = project / ".claude" / "docs" / "DESIGN.md"
     real_read_text = Path.read_text
     reads = {"design": 0}
 
@@ -438,7 +438,7 @@ def test_validation_runs_before_the_replace_and_leaves_no_temp_file(
 ) -> None:
     """_shared/README.md requires validating the composed result *before*
     os.replace; the previous implementation replaced unconditionally."""
-    design = project / ".agents" / "docs" / "DESIGN.md"
+    design = project / ".claude" / "docs" / "DESIGN.md"
     before = design.read_text(encoding="utf-8")
     calls = {"n": 0}
 
@@ -471,7 +471,7 @@ def test_validation_runs_before_the_replace_and_leaves_no_temp_file(
 
 
 def test_a_malformed_table_blocks_the_write(project: Path) -> None:
-    design = project / ".agents" / "docs" / "DESIGN.md"
+    design = project / ".claude" / "docs" / "DESIGN.md"
     damaged = design.read_text(encoding="utf-8").replace(
         "| FR-1 | | | |", "| FR-1 | only two |"
     )
@@ -506,7 +506,7 @@ def test_a_missing_design_document_is_exit_2(tmp_path: Path) -> None:
 
 
 def test_a_duplicated_decisions_table_is_refused(project: Path) -> None:
-    design = project / ".agents" / "docs" / "DESIGN.md"
+    design = project / ".claude" / "docs" / "DESIGN.md"
     text = design.read_text(encoding="utf-8")
     design.write_text(text + "\n" + update_design.DECISIONS_HEADER + "\n", "utf-8")
 

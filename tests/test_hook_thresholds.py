@@ -14,7 +14,7 @@ from pathlib import Path
 from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-HOOKS_DIR = REPO_ROOT / ".agents" / "hooks"
+HOOKS_DIR = REPO_ROOT / ".claude" / "hooks"
 
 
 def load_hook(filename: str) -> ModuleType:

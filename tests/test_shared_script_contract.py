@@ -1,5 +1,5 @@
-"""Enforce the Shared Script Contract (.agents/skills/_shared/README.md)
-across every bundled helper under .agents/skills/, so a new script cannot
+"""Enforce the Shared Script Contract (.claude/skills/_shared/README.md)
+across every bundled helper under .claude/skills/, so a new script cannot
 silently drift from it.
 
 Scripts are discovered with ``rglob`` rather than a hardcoded list: the
@@ -40,7 +40,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SKILLS_DIR = REPO_ROOT / ".agents" / "skills"
+SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
 
 PYTHON_SCRIPTS = sorted(SKILLS_DIR.rglob("*.py"))
 SHELL_SCRIPTS = sorted(SKILLS_DIR.rglob("*.sh"))
@@ -283,13 +283,13 @@ def _prep_nothing(root: Path) -> None:
 
 
 def _prep_agent_docs(root: Path) -> None:
-    (root / ".agents" / "rules").mkdir(parents=True)
-    (root / ".agents" / "rules" / "coding.md").write_text(
+    (root / ".claude" / "rules").mkdir(parents=True)
+    (root / ".claude" / "rules" / "coding.md").write_text(
         "# Coding\n", encoding="utf-8"
     )
-    (root / ".agents" / "docs").mkdir(parents=True, exist_ok=True)
-    (root / ".agents" / "docs" / "DESIGN.md").write_text("# Design\n", encoding="utf-8")
-    (root / ".agents" / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (root / ".claude" / "docs").mkdir(parents=True, exist_ok=True)
+    (root / ".claude" / "docs" / "DESIGN.md").write_text("# Design\n", encoding="utf-8")
+    (root / ".claude" / "STATE.md").write_text("# State\n", encoding="utf-8")
     (root / "PROGRESS.md").write_text("# Progress\n", encoding="utf-8")
 
 
@@ -530,23 +530,23 @@ def test_no_third_party_imports(script: Path) -> None:
             )
 
 
-# --- 13. an unwritable .agents/ is reported, never a traceback ---------------
+# --- 13. an unwritable .claude/ is reported, never a traceback ---------------
 
 
 @pytest.mark.parametrize("script", sorted(SUCCESS_CASES), ids=_script_id)
 def test_success_case_against_an_unwritable_agents_dir_reports_json(
     script: Path, tmp_path: Path
 ) -> None:
-    """Same invocation as the success case, but with `.agents` as a regular
+    """Same invocation as the success case, but with `.claude` as a regular
     file so anything the script tries to create under it fails.
 
     An unguarded write used to surface here as a bare ``NotADirectoryError``
     traceback with no JSON at all and exit 1 — which the shared exit-code
     vocabulary reads as "bad arguments". A script that needs nothing under
-    `.agents` may still succeed; what it may not do is crash.
+    `.claude` may still succeed; what it may not do is crash.
     """
     _, args = SUCCESS_CASES[script]
-    (tmp_path / ".agents").write_text("not a directory", encoding="utf-8")
+    (tmp_path / ".claude").write_text("not a directory", encoding="utf-8")
 
     result = _invoke(script, tmp_path, *args)
 
