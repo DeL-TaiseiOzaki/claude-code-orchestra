@@ -7,7 +7,9 @@ for design decisions, complex implementations, or architectural changes.
 """
 
 import json
+import re
 import sys
+from pathlib import Path
 
 # Input validation constants
 MAX_PATH_LENGTH = 4096
@@ -26,24 +28,22 @@ def validate_input(file_path: str, content: str) -> bool:
     return True
 
 
-# Patterns that suggest design/architecture decisions
-DESIGN_INDICATORS = [
-    # File patterns
-    "DESIGN.md",
-    "ARCHITECTURE.md",
+# Structural roles that make a *file* a seam other code depends on. Matched
+# against the name tokens of the file and of its immediate directory, never as
+# substrings of the whole path: "cache" as a substring made every
+# __pycache__/ artefact "a design decision".
+PATH_ROLE_INDICATORS = {
     "architecture",
     "design",
     "schema",
     "model",
+    "models",
     "interface",
     "abstract",
-    "base_",
-    "core/",
-    "/core/",
+    "base",
+    "core",
     "config",
     "settings",
-    # Structural / architectural roles: a file named for one of these is
-    # almost always a seam other code depends on.
     "middleware",
     "router",
     "handler",
@@ -59,7 +59,12 @@ DESIGN_INDICATORS = [
     "provider",
     "registry",
     "pipeline",
-    # Code patterns in content
+}
+
+# Patterns in the written *content* that suggest design/architecture decisions.
+# Concept words ("cache", "signal", "retry") belong here and not in the path
+# list: they describe what the code does, not what the file is named.
+DESIGN_INDICATORS = [
     "class ",
     "interface ",
     "abstract class",
@@ -81,12 +86,23 @@ DESIGN_INDICATORS = [
     "singleton",
 ]
 
+# A real function/class definition, as opposed to the substring "def " inside
+# "typedef", "#ifdef", or English prose — all three of which the previous
+# content.count("def ") counted as definitions.
+DEFINITION_RE = re.compile(r"(?m)^\s*(?:async\s+)?def\s+\w|^\s*class\s+\w")
+
+# Word-ish tokens of a path component.
+TOKEN_SPLIT_RE = re.compile(r"[^a-z0-9]+")
+
 # Number of function/class definitions in one payload that makes it
 # structural rather than a local edit.
 MIN_DEFINITIONS_FOR_REVIEW = 2
 
 # Content-size thresholds (characters) above which a write is worth a look.
-NEW_FILE_CONTENT_THRESHOLD = 200
+# The new-file threshold applies only to Write (an actual creation); 200
+# characters of an Edit is roughly three lines of prose, and announcing that
+# as "creating a new file" was both wrong and the hook's dominant firing path.
+NEW_FILE_CONTENT_THRESHOLD = 500
 SRC_FILE_CONTENT_THRESHOLD = 50
 
 # Files that are typically simple edits (skip suggestion)
@@ -101,10 +117,23 @@ SIMPLE_EDIT_PATTERNS = [
 ]
 
 
+def path_role_tokens(file_path: str) -> set[str]:
+    """Name tokens of the file and of the directory that contains it."""
+    path = Path(file_path)
+    tokens: set[str] = set()
+    for part in (path.name, path.parent.name):
+        tokens.update(t for t in TOKEN_SPLIT_RE.split(part.lower()) if t)
+    return tokens
+
+
 def should_suggest_codex(
-    file_path: str, content: str | None = None
+    file_path: str, content: str | None = None, is_new_file: bool = False
 ) -> tuple[bool, str]:
-    """Determine if Codex consultation should be suggested."""
+    """Determine if Codex consultation should be suggested.
+
+    ``is_new_file`` must be True only for a Write (a whole-file creation or
+    replacement); an Edit patches an existing file, however long the patch.
+    """
     filepath_lower = file_path.lower()
 
     # Skip simple edits
@@ -113,15 +142,18 @@ def should_suggest_codex(
             return False, ""
 
     # Check file path for design indicators
-    for indicator in DESIGN_INDICATORS:
-        if indicator.lower() in filepath_lower:
-            return True, f"File path contains '{indicator}' - likely a design decision"
+    role_matches = sorted(path_role_tokens(file_path) & PATH_ROLE_INDICATORS)
+    if role_matches:
+        return (
+            True,
+            f"File is named for the role '{role_matches[0]}' - likely a design decision",
+        )
 
     # Check content if available
     if content:
-        # New file with meaningful content
-        if len(content) > NEW_FILE_CONTENT_THRESHOLD:
-            return True, "Creating new file with meaningful content"
+        # A whole new file of substantial size.
+        if is_new_file and len(content) > NEW_FILE_CONTENT_THRESHOLD:
+            return True, "Creating new file with substantial content"
 
         # Check for design patterns in content
         for indicator in DESIGN_INDICATORS:
@@ -133,7 +165,7 @@ def should_suggest_codex(
 
         # Several definitions in one payload means structure is being decided,
         # not a single line being fixed.
-        definition_count = content.count("class ") + content.count("def ")
+        definition_count = len(DEFINITION_RE.findall(content))
         if definition_count >= MIN_DEFINITIONS_FOR_REVIEW:
             return (
                 True,
@@ -159,7 +191,9 @@ def main():
         if not validate_input(file_path, content):
             sys.exit(0)
 
-        should_suggest, reason = should_suggest_codex(file_path, content)
+        # Only a Write creates or replaces a whole file; an Edit is a patch.
+        is_new_file = data.get("tool_name") == "Write"
+        should_suggest, reason = should_suggest_codex(file_path, content, is_new_file)
 
         if should_suggest:
             # Return additional context to Claude

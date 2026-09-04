@@ -27,25 +27,35 @@ TEST_BUILD_COMMANDS = [
     "make build",
 ]
 
-# Patterns indicating failures that need debugging
+# Patterns indicating failures that need debugging.
+#
+# Every pattern is anchored or quantified so that it can only match a runner's
+# *verdict*, never a test name, a file name, or prose. Bare tokens ("ERROR",
+# "failed", "Error:") matched a green `pytest -v` run whose test names merely
+# contained the word "error", so the hint fired on 8 passed, 0 failed.
+# Matched case-sensitively for the same reason: "error" in an identifier is not
+# an error, "ERROR" at the start of a line is.
 FAILURE_PATTERNS = [
-    r"FAILED",
-    r"ERROR",
-    r"error\[",
-    r"Error:",
-    r"failed",
-    r"error:",
-    r"AssertionError",
-    r"TypeError",
-    r"ValueError",
-    r"AttributeError",
-    r"ImportError",
-    r"ModuleNotFoundError",
-    r"SyntaxError",
-    r"Exception",
-    r"Traceback",
-    r"panic:",
-    r"FAIL:",
+    # Runner verdict lines: pytest "FAILED test_x", "ERROR test_x".
+    r"(?m)^(?:FAILED|ERROR)\b",
+    # pytest's failure-detail prefix ("E   assert 1 == 2").
+    r"(?m)^E\s",
+    # Summary counts: "1 failed, 2 passed".
+    r"\b\d+\s+failed\b",
+    # An exception header at the start of a line, qualified or not:
+    # "AssertionError: ...", "django.db.Error: ...", "Exception: ...".
+    r"(?m)^\s*(?:\w+\.)*\w*(?:Error|Exception):\s",
+    # rustc / cargo diagnostics.
+    r"(?m)^error\[\w+\]",
+    # Go panics and gotest/ctest verdict lines.
+    r"(?m)^panic:",
+    r"(?m)^FAIL\b",
+    # Python traceback header (parenthesised, so it cannot match a test name).
+    r"Traceback \(most recent call last\):",
+    # Named exception types as whole words; case-sensitive, so the lowercase
+    # forms that appear inside identifiers do not match.
+    r"\b(?:AssertionError|TypeError|ValueError|AttributeError|ImportError|"
+    r"ModuleNotFoundError|SyntaxError)\b",
 ]
 
 # Failure count at which the output is reported as a multi-failure run.
@@ -76,7 +86,7 @@ def has_complex_failure(output: str) -> tuple[bool, str]:
     failure_count = 0
     matched_patterns = []
     for pattern in FAILURE_PATTERNS:
-        matches = re.findall(pattern, output, re.IGNORECASE)
+        matches = re.findall(pattern, output)
         if matches:
             failure_count += len(matches)
             matched_patterns.append(pattern)

@@ -67,14 +67,17 @@ Do NOT delegate to Codex when:
 ## Hook-Detected Triggers
 
 Repository hooks surface these automatically; treat each hint as a prompt to
-route, not as noise to dismiss.
+route, not as noise to dismiss. Confirm the command actually failed before
+routing to `codex-debugger`: the Bash hook only ever sees successful commands
+(the runtime does not invoke it for a failing one) and matches on output text,
+so it fires on read-only commands that merely display error-shaped output.
 
 | Situation | Hook | Suggested route |
 |-----------|------|-----------------|
 | Prompt contains design / debug / uncertainty keywords | `agent-router.py` | Codex, or `general-purpose-opus` |
 | Write/Edit touching design-related or structural code | `check-codex-before-write.py` | Codex design review |
 | Test or build failure | `post-test-analysis.py` | `codex-debugger` |
-| Any Bash error or non-zero exit | `error-to-codex.py` | `codex-debugger` |
+| Bash output matches error patterns | `error-to-codex.py` | `codex-debugger` |
 | Plan created | `check-codex-after-plan.py` | Codex plan validation |
 | 2+ files or 50+ lines changed this session | `post-implementation-review.py` | Codex code review |
 

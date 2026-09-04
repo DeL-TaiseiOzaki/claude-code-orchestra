@@ -89,6 +89,8 @@ SLUG_MAX_LENGTH = 40
 SLUG_MAX_KEYWORDS = 3
 DEFAULT_SLUG = "session"
 HEADLINE_COMMITS = 3
+# Everything outside this set is replaced in a tag; see _sanitize_tag.
+TAG_UNSAFE_RE = re.compile(r"[^A-Za-z0-9._/-]+")
 
 # Conventional-commit prefix -> the tag/slug word used for it.
 COMMIT_TYPE_CATEGORIES = {
@@ -593,8 +595,16 @@ def derive_slug(collected: Collected, label: str | None = None) -> str:
 
 
 def _sanitize_tag(tag: str) -> str:
-    """Strip characters that would break the frontmatter list or index table."""
-    return re.sub(r"[\[\]|,\s]+", "-", tag.strip()).strip("-")
+    """Reduce a tag to characters that are inert in YAML and in a table cell.
+
+    An allow-list rather than a deny-list: tags are built from directory names
+    and Agent Teams session names, so the set of characters that can arrive is
+    open-ended, while the set that is safe inside a ``tags: [a, b]`` flow
+    sequence is small and known. ``#`` would open a comment and leave the
+    sequence unclosed, ``&``/``*`` become an anchor and an undefined alias,
+    and ``:``/``{``/``}`` silently turn the entry into a mapping.
+    """
+    return re.sub(TAG_UNSAFE_RE, "-", tag.strip()).strip("-")
 
 
 def derive_tags(collected: Collected) -> list[str]:
@@ -694,15 +704,26 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     Deliberately not a YAML parser: the block is written by build_frontmatter
     above, so a line-oriented reader is enough and keeps the script
     dependency-free. A checkpoint without frontmatter (any file written before
-    this feature existed) yields an empty mapping rather than an error.
+    this feature existed) yields an empty mapping rather than an error, and so
+    does one whose block is never closed: without a closing fence there is no
+    way to tell a field from a body line that happens to contain a colon, and
+    promoting the body into the index is worse than showing no metadata.
     """
     lines = text.splitlines()
     if not lines or lines[0].strip() != FRONTMATTER_FENCE:
         return {}
+    closing = next(
+        (
+            index
+            for index in range(1, len(lines))
+            if lines[index].strip() == FRONTMATTER_FENCE
+        ),
+        None,
+    )
+    if closing is None:
+        return {}
     fields: dict[str, str] = {}
-    for line in lines[1:]:
-        if line.strip() == FRONTMATTER_FENCE:
-            break
+    for line in lines[1:closing]:
         key, separator, value = line.partition(":")
         if not separator:
             continue
@@ -720,7 +741,7 @@ def _escape_table_cell(value: str) -> str:
 
 def _index_row(stem: str, fields: dict[str, str]) -> str:
     """Render one INDEX.md row from a checkpoint's frontmatter."""
-    slug = fields.get("slug") or stem
+    slug = _sanitize_tag(fields.get("slug", "")) or stem
     branch = fields.get("branch", "-") or "-"
     tags = [tag.strip() for tag in fields.get("tags", "").strip("[]").split(",")]
     tags = [tag for tag in tags if tag][:MAX_INDEX_TAGS]
@@ -1645,11 +1666,6 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             _emit({"ok": False, "error": error, "artifacts": []})
             return code
 
-        error, code = atomic_replace(index_path, index_content, index_before)
-        if error:
-            _emit({"ok": False, "error": error, "artifacts": []})
-            return code
-
         if trackers_before == 0:
             error, code = atomic_replace(
                 state_path,
@@ -1660,6 +1676,15 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             if error:
                 _emit({"ok": False, "error": error, "artifacts": []})
                 return code
+
+        # Written last, and deliberately after STATE.md: INDEX.md is fully
+        # derivable from the checkpoints and is rebuilt on the next run, so a
+        # concurrent-modification abort here must not leave the repository with
+        # a checkpoint and a PROGRESS.md entry but no tracker link.
+        error, code = atomic_replace(index_path, index_content, index_before)
+        if error:
+            _emit({"ok": False, "error": error, "artifacts": []})
+            return code
 
         payload["artifacts"] = [
             _rel(checkpoint_path, root),

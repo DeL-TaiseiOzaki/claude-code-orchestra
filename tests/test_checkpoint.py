@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -703,6 +704,137 @@ def test_the_index_is_never_mistaken_for_a_checkpoint(project: Path) -> None:
 
     assert stems == [STAMP]
     assert "INDEX" not in (project / "PROGRESS.md").read_text(encoding="utf-8")
+
+
+# --- fast retrieval: tags, escaping, regeneration ----------------------------
+
+
+def test_tags_name_the_commit_types_and_directories_touched() -> None:
+    """The index is searched by tag, so tags must describe the session."""
+    collected = cp.Collected(
+        commits=[{"message": "feat: add index"}, {"message": "fix: escape pipes"}],
+        file_changes={
+            "created": [".agents/skills/catchup/collect_repo_state.py"],
+            "modified": ["tests/test_checkpoint.py"],
+            "deleted": [],
+        },
+        cli_entries=[{"tool": "codex"}],
+    )
+
+    tags = cp.derive_tags(collected)
+
+    assert {"feature", "bugfix", "tests", "testing", "skills", "codex"} <= set(tags)
+    assert tags == sorted(tags)
+
+
+def test_a_tag_cannot_break_the_frontmatter_flow_sequence() -> None:
+    """`tags: [a, #b]` is a fatal YAML parse error: `, #` opens a comment.
+
+    Tags come from directory and Agent Teams session names, so the characters
+    that can arrive are not under this script's control.
+    """
+    collected = cp.Collected(
+        file_changes={
+            "created": ["#weird/x.py", "&anchor/y.py", "{brace}/z.py"],
+            "modified": [],
+            "deleted": [],
+        },
+        teams_data=[{"name": 'a: b *alias'}],
+    )
+
+    tags = cp.derive_tags(collected)
+
+    assert tags, tags
+    for tag in tags:
+        assert re.fullmatch(r"[A-Za-z0-9._/-]+", tag), tag
+    assert "team-a-b-alias" in tags
+
+
+def test_a_pipe_in_the_summary_stays_inside_its_index_column() -> None:
+    row = cp._index_row(
+        "2026-01-01-000000",
+        {"slug": "s", "branch": "a|b", "summary": "add x | drop y", "commits": "1"},
+    )
+
+    cells = re.split(r"(?<!\\)\|", row)
+
+    assert len(cells) == 8, row  # 6 cells plus the outer empties
+    assert "add x \\| drop y" in row
+    assert "a\\|b" in row
+
+
+def test_a_bracket_in_the_slug_cannot_break_the_index_link() -> None:
+    """A hand-edited frontmatter must not destroy the catalog's only link."""
+    row = cp._index_row("2026-01-01-000000", {"slug": "broken] (x"})
+
+    assert row.count("](") == 1, row
+    assert "](2026-01-01-000000.md)" in row
+
+
+def test_an_unterminated_frontmatter_block_yields_no_fields() -> None:
+    """Without a closing fence a body line is indistinguishable from a field."""
+    text = "---\nslug: real\n\n# Checkpoint\n\ncommits: 999\nsummary: injected\n"
+
+    assert cp.parse_frontmatter(text) == {}
+    assert cp.parse_frontmatter("---\nslug: real\n---\n\n# C\ncommits: 999\n") == {
+        "slug": "real"
+    }
+
+
+def test_regenerating_the_index_is_byte_identical(project: Path) -> None:
+    """The catalog is rebuilt on every run; drift would be invisible."""
+    run(project, *summary_flag(project), "--apply")
+    on_disk = (project / ".agents" / "checkpoints" / "INDEX.md").read_text(
+        encoding="utf-8"
+    )
+
+    first = cp.compose_index_md(project)
+    second = cp.compose_index_md(project)
+
+    assert first == second
+    assert first == on_disk
+
+
+def test_a_failed_index_write_does_not_orphan_the_state_tracker(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """INDEX.md is derivable and rebuilt next run; the tracker link is not.
+
+    Aborting the whole run on a stale index used to leave a checkpoint and a
+    PROGRESS.md entry with nothing in STATE.md pointing at them.
+    """
+    real_atomic_replace = cp.atomic_replace
+
+    def failing(path: Path, new_text: str, original_text, validate=None):
+        if path.name == cp.INDEX_FILENAME:
+            return f"{path.name} was modified concurrently; aborting", 3
+        return real_atomic_replace(path, new_text, original_text, validate)
+
+    monkeypatch.setattr(cp, "atomic_replace", failing)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "checkpoint.py",
+            "--project-root",
+            str(project),
+            "--claude-home",
+            str(project / "claude-home"),
+            "--now",
+            NOW,
+            "--json",
+            *summary_flag(project),
+            "--apply",
+        ],
+    )
+
+    assert cp.main() == 3
+    state = (project / ".agents" / "STATE.md").read_text(encoding="utf-8")
+    progress = (project / "PROGRESS.md").read_text(encoding="utf-8")
+    assert (project / ".agents" / "checkpoints" / f"{STAMP}.md").exists()
+    assert STAMP in progress, progress
+    assert "## Progress Tracker" in state, state
+    assert "PROGRESS.md" in state, state
 
 
 # --- CLI contract ------------------------------------------------------------

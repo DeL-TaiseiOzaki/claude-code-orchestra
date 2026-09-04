@@ -12,6 +12,7 @@ Multimodal files (PDF/video/audio/image) are handled directly by Claude (Opus 4.
 """
 
 import json
+import re
 import sys
 
 # Triggers for Fable advisor (rare escalation: arbitration, stuck, final review)
@@ -73,24 +74,21 @@ CODEX_TRIGGERS = {
         "最適化",
         # Proactive triggers: uncertainty and quality questions are exactly
         # where a Codex consult is cheaper than the rework it prevents.
+        # Single words that name a topic rather than a request for judgement
+        # ("パターン", "改善", "セキュリティ", "依存関係", "相談", "意見",
+        # "複雑") are deliberately absent: they fired on ordinary asks such as
+        # "セキュリティヘッダーを追加して" and even "相談なんだけど昼食は?".
         "どうすべき",
         "良い方法",
         "ベストプラクティス",
-        "パターン",
-        "改善",
         "パフォーマンス",
-        "セキュリティ",
         "テスト戦略",
         "テスト設計",
-        "依存関係",
         "循環",
-        "複雑",
         "わからない",
         "迷って",
         "不安",
         "自信がない",
-        "相談",
-        "意見",
         "アドバイス",
     ],
     "en": [
@@ -120,28 +118,24 @@ CODEX_TRIGGERS = {
         "deeply",
         "optimize",
         "performance",
-        # Proactive triggers (mirror of the Japanese list above).
+        # Proactive triggers (mirror of the Japanese list above). Only
+        # multi-word phrases and unambiguous words survive: bare "option",
+        # "pattern", "approach", "improve", "alternative", "dependency",
+        # "security" and "advice" routed 44% of non-design prompts, including
+        # "add a --dry-run option" and "improve the wording of this sentence".
         "best practice",
-        "pattern",
-        "approach",
-        "improve",
-        "security",
         "test strategy",
         "test design",
-        "dependency",
         "circular",
         "not sure",
         "unsure",
         "uncertain",
-        "advice",
         "should i",
         "should we",
         "what if",
         "why does",
         "why is",
         "how come",
-        "alternative",
-        "option",
         "better way",
     ],
 }
@@ -212,6 +206,20 @@ CODEX_PLUGIN_TRIGGERS = {
 }
 
 
+def matches_trigger(trigger: str, prompt_lower: str, lang: str) -> bool:
+    """Check one trigger against the lowercased prompt.
+
+    English triggers are matched on word boundaries (with an optional plural
+    "s"), so "option" can no longer match "optional" and "docs" can no longer
+    match "docstring". Japanese has no word boundaries, so those triggers stay
+    substring matches — which is why the ambiguous single words were removed
+    from the Japanese lists instead.
+    """
+    if lang != "en":
+        return trigger in prompt_lower
+    return re.search(rf"\b{re.escape(trigger)}s?\b", prompt_lower) is not None
+
+
 def detect_agent(prompt: str) -> tuple[str | None, str]:
     """Detect which agent should handle this prompt.
 
@@ -222,9 +230,9 @@ def detect_agent(prompt: str) -> tuple[str | None, str]:
     # Fable triggers (rare escalation: arbitration, stuck, final review)
     # Checked FIRST — narrow, high-specificity triggers that must not be
     # swallowed by the broader Codex keywords.
-    for triggers in FABLE_TRIGGERS.values():
+    for lang, triggers in FABLE_TRIGGERS.items():
         for trigger in triggers:
-            if trigger in prompt_lower:
+            if matches_trigger(trigger, prompt_lower, lang):
                 return "fable", trigger
 
     # Codex Plugin triggers (review, rescue, delegation)
@@ -232,21 +240,21 @@ def detect_agent(prompt: str) -> tuple[str | None, str]:
     # phrases (e.g. "コードレビュー", "review this") that the bare
     # CODEX_TRIGGERS substrings (e.g. "レビュー", "review") would
     # otherwise shadow.
-    for triggers in CODEX_PLUGIN_TRIGGERS.values():
+    for lang, triggers in CODEX_PLUGIN_TRIGGERS.items():
         for trigger in triggers:
-            if trigger in prompt_lower:
+            if matches_trigger(trigger, prompt_lower, lang):
                 return "codex-plugin", trigger
 
     # Codex triggers (planning, design, debug, complex code)
-    for triggers in CODEX_TRIGGERS.values():
+    for lang, triggers in CODEX_TRIGGERS.items():
         for trigger in triggers:
-            if trigger in prompt_lower:
+            if matches_trigger(trigger, prompt_lower, lang):
                 return "codex", trigger
 
     # Opus research triggers (codebase analysis + external research)
-    for triggers in OPUS_RESEARCH_TRIGGERS.values():
+    for lang, triggers in OPUS_RESEARCH_TRIGGERS.items():
         for trigger in triggers:
-            if trigger in prompt_lower:
+            if matches_trigger(trigger, prompt_lower, lang):
                 return "opus-research", trigger
 
     return None, ""
@@ -257,11 +265,10 @@ def main():
         data = json.load(sys.stdin)
         prompt = data.get("prompt", "")
 
-        # Skip only trivially short prompts. Terse but loaded asks
-        # ("debug this", "なぜ?") are exactly the ones worth routing.
-        if len(prompt) < 3:
-            sys.exit(0)
-
+        # No length gate: it was character-based, so it skipped "設計" (two
+        # characters) — the exact terse-but-loaded ask it claimed to rescue —
+        # while admitting every three-character noise prompt. detect_agent
+        # matches nothing on an empty or one-character prompt anyway.
         agent, trigger = detect_agent(prompt)
 
         if agent == "fable":
