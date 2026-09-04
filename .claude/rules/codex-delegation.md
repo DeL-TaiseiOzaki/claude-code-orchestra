@@ -2,9 +2,16 @@
 
 **Codex CLI handles planning, design, and complex code implementation.**
 
+**Guiding principle: when in doubt, ask Codex.** A consult costs one round trip;
+proceeding on an unverified assumption costs the rework, the review, and the
+re-review. Codex is an indispensable partner for judgment-heavy work, not a
+last resort after an attempt has already failed.
+
 > Scope: this rule decides *when Codex specifically*. Whether the main agent may
 > keep a task at all is decided first by `.claude/rules/delegation.md`, whose
-> default is to delegate.
+> default is to delegate. "When in doubt, ask Codex" resolves *uncertainty*; it
+> does not override that file's Self-Handle List or its over-delegation
+> anti-pattern — a known one-line edit stays a one-line edit.
 
 > Preflight: ensure codex CLI is current (see codex-system skill).
 
@@ -36,6 +43,15 @@ Consult Codex when **any** of these apply (recommended default):
 - User requests comparison/trade-off analysis.
 - You need a step-by-step implementation plan.
 - You are unsure and want a safe implementation direction.
+- You are about to introduce or reshape a seam other code depends on
+  (new module or class, shared/core code, public interface).
+- The change is security-sensitive: auth, input validation, crypto, permissions.
+- The code is concurrent or asynchronous, where the failure modes are non-local.
+- You are writing error handling, retry, or cache invalidation logic.
+- Two or more fix attempts have already failed.
+
+Uncertainty is itself a trigger. "I think this is right" is a reason to consult;
+"I know this is right, and here is the evidence" is a reason not to.
 
 Do NOT delegate to Codex when:
 
@@ -47,6 +63,26 @@ Do NOT delegate to Codex when:
   security/concurrency/data-integrity risk, or repeated failure) → `general-purpose-opus`
 - **Codebase analysis** → `general-purpose-opus` (Opus 1M context)
 - **External information retrieval / web research** → `general-purpose-opus` (WebSearch/WebFetch)
+
+## Hook-Detected Triggers
+
+Repository hooks surface these automatically; treat each hint as a prompt to
+route, not as noise to dismiss. Confirm the command actually failed before
+routing to `codex-debugger`: the Bash hook only ever sees successful commands
+(the runtime does not invoke it for a failing one) and matches on output text,
+so it fires on read-only commands that merely display error-shaped output.
+
+| Situation | Hook | Suggested route |
+|-----------|------|-----------------|
+| Prompt contains design / debug / uncertainty keywords | `agent-router.py` | Codex, or `general-purpose-opus` |
+| Write/Edit touching design-related or structural code | `check-codex-before-write.py` | Codex design review |
+| Test or build failure | `post-test-analysis.py` | `codex-debugger` |
+| Bash output matches error patterns | `error-to-codex.py` | `codex-debugger` |
+| Plan created | `check-codex-after-plan.py` | Codex plan validation |
+| 2+ files or 50+ lines changed this session | `post-implementation-review.py` | Codex code review |
+
+A hint is advisory: the routing decision stays with the agent, and
+`.claude/rules/delegation.md` decides which tier receives the work.
 
 ## Prompt Contract (Always Include)
 
@@ -89,10 +125,10 @@ delegating subagent **MUST verify before trusting it**:
 then re-delegate at most once with the original prompt plus failure context.
 If the second attempt also fails, halt and require explicit user approval.
 
-Canonical definition: root `AGENTS.md` section "Guardrails (Completion
+Canonical definition: `AGENTS.md` section "Guardrails (Completion
 Verification)".
 
 ## Language Protocol
 
-See `CLAUDE.md` section "Language Protocol": ask Codex in English and
+See root `AGENTS.md` section "Language Protocol": ask Codex in English and
 report to the user in Japanese.

@@ -27,26 +27,39 @@ TEST_BUILD_COMMANDS = [
     "make build",
 ]
 
-# Patterns indicating failures that need debugging
+# Patterns indicating failures that need debugging.
+#
+# Every pattern is anchored or quantified so that it can only match a runner's
+# *verdict*, never a test name, a file name, or prose. Bare tokens ("ERROR",
+# "failed", "Error:") matched a green `pytest -v` run whose test names merely
+# contained the word "error", so the hint fired on 8 passed, 0 failed.
+# Matched case-sensitively for the same reason: "error" in an identifier is not
+# an error, "ERROR" at the start of a line is.
 FAILURE_PATTERNS = [
-    r"FAILED",
-    r"ERROR",
-    r"error\[",
-    r"Error:",
-    r"failed",
-    r"error:",
-    r"AssertionError",
-    r"TypeError",
-    r"ValueError",
-    r"AttributeError",
-    r"ImportError",
-    r"ModuleNotFoundError",
-    r"SyntaxError",
-    r"Exception",
-    r"Traceback",
-    r"panic:",
-    r"FAIL:",
+    # Runner verdict lines: pytest "FAILED test_x", "ERROR test_x".
+    r"(?m)^(?:FAILED|ERROR)\b",
+    # pytest's failure-detail prefix ("E   assert 1 == 2").
+    r"(?m)^E\s",
+    # Summary counts: "1 failed, 2 passed".
+    r"\b\d+\s+failed\b",
+    # An exception header at the start of a line, qualified or not:
+    # "AssertionError: ...", "django.db.Error: ...", "Exception: ...".
+    r"(?m)^\s*(?:\w+\.)*\w*(?:Error|Exception):\s",
+    # rustc / cargo diagnostics.
+    r"(?m)^error\[\w+\]",
+    # Go panics and gotest/ctest verdict lines.
+    r"(?m)^panic:",
+    r"(?m)^FAIL\b",
+    # Python traceback header (parenthesised, so it cannot match a test name).
+    r"Traceback \(most recent call last\):",
+    # Named exception types as whole words; case-sensitive, so the lowercase
+    # forms that appear inside identifiers do not match.
+    r"\b(?:AssertionError|TypeError|ValueError|AttributeError|ImportError|"
+    r"ModuleNotFoundError|SyntaxError)\b",
 ]
+
+# Failure count at which the output is reported as a multi-failure run.
+MIN_FAILURES_FOR_MULTIPLE = 3
 
 # Simple errors that don't need Codex
 SIMPLE_ERRORS = [
@@ -73,20 +86,28 @@ def has_complex_failure(output: str) -> tuple[bool, str]:
     failure_count = 0
     matched_patterns = []
     for pattern in FAILURE_PATTERNS:
-        matches = re.findall(pattern, output, re.IGNORECASE)
+        matches = re.findall(pattern, output)
         if matches:
             failure_count += len(matches)
             matched_patterns.append(pattern)
 
-    # Multiple failures or complex errors suggest need for Codex
-    if failure_count >= 3:
+    # Any failure in a test or build command is worth a Codex look: a red
+    # suite is the cheapest possible moment to find the root cause, and a
+    # single failure is not evidence that the cause is simple.
+    if failure_count >= MIN_FAILURES_FOR_MULTIPLE:
         return True, f"Multiple failures detected ({failure_count} issues)"
 
-    # Single failure in test output
-    if failure_count >= 1 and any(
-        p in output.lower() for p in ["traceback", "assertion"]
-    ):
-        return True, "Test failure with traceback"
+    if failure_count >= 1:
+        plural = "" if failure_count == 1 else "s"
+        if any(
+            p in output.lower()
+            for p in ["traceback", "assertion", "error", "exception"]
+        ):
+            return (
+                True,
+                f"Test failure with error details ({failure_count} issue{plural})",
+            )
+        return True, f"Test/build failure detected ({failure_count} issue{plural})"
 
     return False, ""
 
@@ -119,9 +140,10 @@ def build_context(data: dict) -> str | None:
 
     return (
         f"[Codex Debug Suggestion] {reason}. "
-        "Consider consulting Codex for debugging analysis. "
-        "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
-        "to consult Codex with full error context and preserve main context."
+        "Use the `codex-debugger` subagent before attempting a manual fix — "
+        "deep reasoning finds root causes that surface-level fixes miss. "
+        "**Recommended**: Task(subagent_type='codex-debugger') with the full "
+        "command and test output, which also preserves main context."
     )
 
 

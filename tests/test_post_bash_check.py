@@ -33,6 +33,13 @@ def run_dispatcher(
 
 
 def bash_hook_input(command: str, stdout: str, exit_code: int = 1) -> dict:
+    """Build a PostToolUse Bash payload.
+
+    ``exit_code`` is consumed by log-cli-tools.py only. A captured real payload
+    carries just ``{stdout, stderr, interrupted, isImage, noOutputExpected}``
+    under ``tool_response`` — and a failing Bash command does not reach the
+    hook at all — so no error-detection logic may key off it.
+    """
     return {
         "tool_name": "Bash",
         "tool_input": {"command": command},
@@ -212,6 +219,90 @@ def test_benign_output_produces_no_hint(tmp_path: Path) -> None:
     payload = bash_hook_input(
         command="ls -la",
         stdout="total 42\ndrwxr-xr-x  5 user user 4096 Jan 1 12:00 .\n",
+        exit_code=0,
+    )
+
+    result = run_dispatcher(hooks_dir, payload)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == ""
+
+
+def test_green_pytest_output_produces_no_hint(tmp_path: Path) -> None:
+    """A passing suite must stay silent.
+
+    Regression guard: the bare `ERROR`/`failed`/`Error:` patterns matched the
+    word "error" inside test *names*, so this exact output — 8 passed, 0
+    failed — produced "Test failure with error details (2 issues)".
+    """
+    hooks_dir = build_isolated_hooks_dir(tmp_path)
+    payload = bash_hook_input(
+        command="uv run pytest tests/test_post_bash_check.py -v",
+        stdout=(
+            "tests/test_post_bash_check.py::test_traceback_output_triggers_"
+            "debugging_hint PASSED [ 12%]\n"
+            "tests/test_post_bash_check.py::test_pytest_failure_dedups_generic_"
+            "error_hint PASSED [ 25%]\n"
+            "tests/test_post_bash_check.py::test_benign_output_produces_no_hint "
+            "PASSED [ 87%]\n"
+            "============================== 8 passed in 0.30s "
+            "===============================\n"
+        ),
+        exit_code=0,
+    )
+
+    result = run_dispatcher(hooks_dir, payload)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == ""
+
+
+def test_clean_mypy_output_on_errors_module_produces_no_hint(tmp_path: Path) -> None:
+    """Boundary case: a success message whose only "error" is a file name."""
+    hooks_dir = build_isolated_hooks_dir(tmp_path)
+    payload = bash_hook_input(
+        command="uv run mypy src/errors.py",
+        stdout="Success: no issues found in 1 source file (src/errors.py)\n",
+        exit_code=0,
+    )
+
+    result = run_dispatcher(hooks_dir, payload)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == ""
+
+
+def test_benign_nonzero_exit_produces_no_hint(tmp_path: Path) -> None:
+    """`diff` reporting differences is an answer, not a failure.
+
+    Regression guard for the "command exited with code 1 - likely a silent
+    failure" branch, which fired on every loud non-zero exit. The branch is
+    gone (the real PostToolUse payload carries no exit status at all), and this
+    test keeps any replacement from re-introducing the behaviour.
+    """
+    hooks_dir = build_isolated_hooks_dir(tmp_path)
+    payload = bash_hook_input(
+        command="diff a.txt b.txt",
+        stdout="1c1\n< alpha\n---\n> beta\n",
+        exit_code=1,
+    )
+
+    result = run_dispatcher(hooks_dir, payload)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == ""
+
+
+def test_deprecation_warnings_alone_produce_no_hint(tmp_path: Path) -> None:
+    """A warning is not an error, even when two of them travel together."""
+    hooks_dir = build_isolated_hooks_dir(tmp_path)
+    payload = bash_hook_input(
+        command="uv pip install requests",
+        stdout=(
+            "DEPRECATION: the legacy resolver is deprecated\n"
+            "Could not find a cached wheel, building from source\n"
+            "Successfully installed requests-2.32.3\n"
+        ),
         exit_code=0,
     )
 

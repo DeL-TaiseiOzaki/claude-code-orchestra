@@ -475,7 +475,7 @@ def test_require_without_verify_is_an_error(tmp_path: Path) -> None:
 
 def test_create_against_a_file_shaped_agents_dir_reports_json(tmp_path: Path) -> None:
     """Regression: --create used to raise NotADirectoryError and print a
-    traceback with no JSON at all when `.agents` existed as a file."""
+    traceback with no JSON at all when `.claude` existed as a file."""
     (tmp_path / ".claude").write_text("not a directory\n", encoding="utf-8")
 
     result = run_workspace(

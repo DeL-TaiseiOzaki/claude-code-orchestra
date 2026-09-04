@@ -344,6 +344,45 @@ def test_only_timestamp_named_checkpoints_are_listed(project: Path) -> None:
     assert [item["file"] for item in payload["items"]] == ["2026-07-25-100000.md"]
 
 
+def test_a_checkpoint_is_named_by_its_frontmatter_not_by_the_fence(
+    project: Path,
+) -> None:
+    """Since checkpoints gained a `---` block their first non-empty line is the
+    fence, which names no session. `first_line` must carry the summary instead.
+    """
+    checkpoints = project / ".claude" / "checkpoints"
+    checkpoints.mkdir(parents=True)
+    (checkpoints / "2026-07-25-100000.md").write_text(
+        "---\n"
+        "id: index-2026-07-25-100000\n"
+        "slug: index\n"
+        'summary: "add \\"fast\\" retrieval"\n'
+        "tags: [feature]\n"
+        "---\n"
+        "\n"
+        "# Checkpoint 2026-07-25-100000\n",
+        encoding="utf-8",
+    )
+    (checkpoints / "2026-07-24-100000.md").write_text(
+        "---\nslug: only-a-slug\n---\n\n# Checkpoint\n", encoding="utf-8"
+    )
+    (checkpoints / "2026-07-23-100000.md").write_text(
+        "# Legacy checkpoint\n", encoding="utf-8"
+    )
+    (checkpoints / "2026-07-22-100000.md").write_text(
+        "---\nslug: unterminated\n\n# Body heading\n", encoding="utf-8"
+    )
+
+    items = json.loads(run(project).stdout)["checkpoints"]["items"]
+    named = {item["file"]: item["first_line"] for item in items}
+
+    assert named["2026-07-25-100000.md"] == 'add "fast" retrieval'
+    assert named["2026-07-24-100000.md"] == "only-a-slug"
+    assert named["2026-07-23-100000.md"] == "# Legacy checkpoint"
+    assert named["2026-07-22-100000.md"] == "---"
+    assert "---" not in {named[key] for key in named if key != "2026-07-22-100000.md"}
+
+
 def test_an_unreadable_rule_file_is_reported_not_blank(project: Path) -> None:
     rules = project / ".claude" / "rules"
     rules.mkdir(parents=True)

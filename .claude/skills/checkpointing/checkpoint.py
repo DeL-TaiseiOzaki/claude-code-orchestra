@@ -5,6 +5,12 @@ Collects git history, CLI logs, Agent Teams activity, and design changes,
 embeds the agent-written five-part Japanese summary, then rewrites root
 ``PROGRESS.md`` and the ``## Progress Tracker`` link in ``.claude/STATE.md``.
 
+Each checkpoint opens with a YAML frontmatter block (slug, tags, and counts)
+and every checkpoint is catalogued in ``.claude/checkpoints/INDEX.md``, so a
+past session can be found by reading one table and then one header, instead of
+opening every file in the directory. The filename stays the bare timestamp:
+``PROGRESS.md``'s links and ``collect_repo_state.py`` both key on it.
+
 The summary is never generated. It is the one irreducible judgment in the
 skill — what mattered this session, what the user decided, which problems were
 real — so a missing, empty, stale, or contract-violating ``--summary-file`` is a
@@ -20,6 +26,7 @@ Usage:
     python3 checkpoint.py --summary-file .claude/logs/pending-summary.md
     python3 checkpoint.py --summary-file PATH --apply
     python3 checkpoint.py --summary-file PATH --apply --consume-summary
+    python3 checkpoint.py --summary-file PATH --apply --label auth-redesign
     python3 checkpoint.py --summary-file PATH --since 2026-07-01 --json
     python3 checkpoint.py --summary-file PATH --now 2026-07-25T12:00:00+00:00
 
@@ -41,6 +48,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -67,6 +75,66 @@ MAX_PROGRESS_ENTRIES = 5
 # (rather than every *.md) keeps drafts and dotfiles out of the rolling list —
 # Path.glob("*.md") does match dotfiles.
 CHECKPOINT_STEM_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{6}$")
+
+# Fast retrieval: every checkpoint carries a YAML frontmatter block, and
+# .claude/checkpoints/INDEX.md catalogues every block in one table, so a
+# checkpoint can be located without opening (or even listing) the others.
+# The filename stays the bare timestamp: CHECKPOINT_STEM_RE, PROGRESS.md's
+# links, and collect_repo_state.py all key on it.
+INDEX_FILENAME = "INDEX.md"
+FRONTMATTER_FENCE = "---"
+MAX_INDEX_TAGS = 5
+MAX_INDEX_SUMMARY_CHARS = 72
+SLUG_MAX_LENGTH = 40
+SLUG_MAX_KEYWORDS = 3
+DEFAULT_SLUG = "session"
+HEADLINE_COMMITS = 3
+# Everything outside this set is replaced in a tag; see _sanitize_tag.
+TAG_UNSAFE_RE = re.compile(r"[^A-Za-z0-9._/-]+")
+
+# Conventional-commit prefix -> the tag/slug word used for it.
+COMMIT_TYPE_CATEGORIES = {
+    "feat": "feature",
+    "fix": "bugfix",
+    "refactor": "refactor",
+    "docs": "docs",
+    "test": "testing",
+    "chore": "chore",
+    "perf": "performance",
+    "ci": "ci",
+    "style": "style",
+    "build": "build",
+}
+CONVENTIONAL_COMMIT_RE = re.compile(r"^(\w+)(?:\(([^)]+)\))?:\s*(.+)")
+SLUG_STOP_WORDS = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "for",
+        "to",
+        "in",
+        "of",
+        "with",
+        "on",
+        "at",
+        "by",
+        "from",
+        "is",
+        "it",
+        "as",
+        "be",
+        "was",
+        "are",
+        "this",
+        "that",
+        "into",
+        "add",
+        "use",
+    }
+)
 
 SUMMARY_HEADING = "## サマリ"
 
@@ -492,6 +560,276 @@ def validate_summary_contract(summary_path: Path, project_root: Path) -> str | N
 
 
 # ---------------------------------------------------------------------------
+# Fast retrieval: slug, tags, frontmatter, INDEX.md
+# ---------------------------------------------------------------------------
+
+
+def _slugify(text: str, max_length: int = SLUG_MAX_LENGTH) -> str:
+    """Reduce *text* to lowercase ASCII words joined by hyphens.
+
+    Non-ASCII input (a Japanese-only commit subject, say) reduces to the empty
+    string; callers fall back to DEFAULT_SLUG rather than emitting one.
+    """
+    text = re.sub(r"[^a-z0-9\s-]", "", text.lower().strip())
+    text = re.sub(r"[\s_]+", "-", text)
+    return re.sub(r"-+", "-", text).strip("-")[:max_length].rstrip("-")
+
+
+def derive_slug(collected: Collected, label: str | None = None) -> str:
+    """Name this session in a few words.
+
+    Priority: an explicit --label, then the dominant conventional-commit type
+    plus the most frequent keywords, then DEFAULT_SLUG. The slug is metadata
+    only — it never reaches a filename, so an odd one costs nothing.
+    """
+    if label:
+        return _slugify(label) or DEFAULT_SLUG
+
+    if not collected.commits:
+        if collected.teams_data:
+            name = collected.teams_data[0].get("name", "")
+            return _slugify(f"team-{name}") or DEFAULT_SLUG
+        return DEFAULT_SLUG
+
+    type_counts: Counter[str] = Counter()
+    words: Counter[str] = Counter()
+    for commit in collected.commits:
+        message = commit.get("message", "")
+        match = CONVENTIONAL_COMMIT_RE.match(message)
+        if match:
+            commit_type, scope, description = match.groups()
+            if commit_type in COMMIT_TYPE_CATEGORIES:
+                type_counts[commit_type] += 1
+            if scope:
+                words[scope.lower()] += 2  # a scope is a stronger signal
+            message = description
+        for word in re.findall(r"[a-zA-Z]{3,}", message):
+            lowered = word.lower()
+            if lowered not in SLUG_STOP_WORDS:
+                words[lowered] += 1
+
+    parts: list[str] = []
+    if type_counts:
+        top_type = type_counts.most_common(1)[0][0]
+        parts.append(COMMIT_TYPE_CATEGORIES[top_type])
+    parts.extend(word for word, _ in words.most_common(SLUG_MAX_KEYWORDS))
+    return _slugify("-".join(parts)) or DEFAULT_SLUG
+
+
+def _sanitize_tag(tag: str) -> str:
+    """Reduce a tag to characters that are inert in YAML and in a table cell.
+
+    An allow-list rather than a deny-list: tags are built from directory names
+    and Agent Teams session names, so the set of characters that can arrive is
+    open-ended, while the set that is safe inside a ``tags: [a, b]`` flow
+    sequence is small and known. ``#`` would open a comment and leave the
+    sequence unclosed, ``&``/``*`` become an anchor and an undefined alias,
+    and ``:``/``{``/``}`` silently turn the entry into a mapping.
+    """
+    return re.sub(TAG_UNSAFE_RE, "-", tag.strip()).strip("-")
+
+
+def derive_tags(collected: Collected) -> list[str]:
+    """Semantic tags for searching the index: what changed, and with what."""
+    tags: set[str] = set()
+
+    for commit in collected.commits:
+        match = CONVENTIONAL_COMMIT_RE.match(commit.get("message", ""))
+        if match:
+            category = COMMIT_TYPE_CATEGORIES.get(match.group(1))
+            if category:
+                tags.add(category)
+
+    touched = collected.file_changes.get("created", []) + collected.file_changes.get(
+        "modified", []
+    )
+    for path in touched:
+        head = path.split("/")[0]
+        if head and head != path:
+            tags.add(head)
+        lowered = path.lower()
+        if "test" in lowered:
+            tags.add("testing")
+        if "/skills/" in f"/{path}":
+            tags.add("skills")
+        if "/hooks/" in f"/{path}":
+            tags.add("hooks")
+        if "/rules/" in f"/{path}":
+            tags.add("rules")
+
+    if any(entry.get("tool") == "codex" for entry in collected.cli_entries):
+        tags.add("codex")
+    if collected.teams_data:
+        tags.add("agent-teams")
+        for team in collected.teams_data:
+            name = team.get("name")
+            if name:
+                tags.add(f"team-{name}")
+
+    return sorted(filter(None, (_sanitize_tag(tag) for tag in tags)))
+
+
+def derive_headline(collected: Collected, limit: int = HEADLINE_COMMITS) -> str:
+    """One line naming what the session produced, taken from commit subjects."""
+    subjects: list[str] = []
+    for commit in collected.commits[:limit]:
+        message = commit.get("message", "").strip()
+        match = CONVENTIONAL_COMMIT_RE.match(message)
+        subjects.append(match.group(3) if match else message)
+    joined = "; ".join(subject for subject in subjects if subject)
+    return " ".join(joined.split()) if joined else "no commits"
+
+
+def _yaml_quote(value: str) -> str:
+    """Double-quote a scalar, escaping what would otherwise end the string."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def build_frontmatter(
+    collected: Collected,
+    timestamp: str,
+    slug: str,
+    tags: list[str],
+    since: str | None,
+) -> str:
+    """Build the YAML frontmatter block that opens every checkpoint.
+
+    Reading these first ~14 lines is enough to decide whether the rest of the
+    document is worth opening, which is the whole point of the block.
+    """
+    codex_count = sum(1 for e in collected.cli_entries if e.get("tool") == "codex")
+    total_files = sum(len(v) for v in collected.file_changes.values())
+    lines = [
+        FRONTMATTER_FENCE,
+        f"id: {slug}-{timestamp}",
+        f"timestamp: {timestamp}",
+        f"branch: {_yaml_quote(collected.branch)}",
+        f"slug: {slug}",
+        f"summary: {_yaml_quote(derive_headline(collected))}",
+        f"tags: [{', '.join(tags)}]",
+        f"commits: {len(collected.commits)}",
+        f"files_changed: {total_files}",
+        f"codex_consultations: {codex_count}",
+        f"agent_teams: {len(collected.teams_data)}",
+    ]
+    if since:
+        lines.append(f"since: {since}")
+    lines.append(FRONTMATTER_FENCE)
+    lines.append("")
+    return "\n".join(lines)
+
+
+def parse_frontmatter(text: str) -> dict[str, str]:
+    """Read a checkpoint's frontmatter into a flat mapping of raw strings.
+
+    Deliberately not a YAML parser: the block is written by build_frontmatter
+    above, so a line-oriented reader is enough and keeps the script
+    dependency-free. A checkpoint without frontmatter (any file written before
+    this feature existed) yields an empty mapping rather than an error, and so
+    does one whose block is never closed: without a closing fence there is no
+    way to tell a field from a body line that happens to contain a colon, and
+    promoting the body into the index is worse than showing no metadata.
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != FRONTMATTER_FENCE:
+        return {}
+    closing = next(
+        (
+            index
+            for index in range(1, len(lines))
+            if lines[index].strip() == FRONTMATTER_FENCE
+        ),
+        None,
+    )
+    if closing is None:
+        return {}
+    fields: dict[str, str] = {}
+    for line in lines[1:closing]:
+        key, separator, value = line.partition(":")
+        if not separator:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] == '"':
+            value = value[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        fields[key.strip()] = value
+    return fields
+
+
+def _escape_table_cell(value: str) -> str:
+    """Keep a value inside its markdown table column."""
+    return value.replace("|", "\\|").replace("\n", " ").strip()
+
+
+def _index_row(stem: str, fields: dict[str, str]) -> str:
+    """Render one INDEX.md row from a checkpoint's frontmatter."""
+    slug = _sanitize_tag(fields.get("slug", "")) or stem
+    branch = fields.get("branch", "-") or "-"
+    tags = [tag.strip() for tag in fields.get("tags", "").strip("[]").split(",")]
+    tags = [tag for tag in tags if tag][:MAX_INDEX_TAGS]
+    stats_parts = [
+        f"{fields.get('commits', '0')}c",
+        f"{fields.get('files_changed', '0')}f",
+    ]
+    if fields.get("codex_consultations", "0") not in ("0", ""):
+        stats_parts.append(f"{fields['codex_consultations']}cx")
+    if fields.get("agent_teams", "0") not in ("0", ""):
+        stats_parts.append(f"{fields['agent_teams']}tm")
+    summary = fields.get("summary", "")
+    if len(summary) > MAX_INDEX_SUMMARY_CHARS:
+        summary = summary[: MAX_INDEX_SUMMARY_CHARS - 3].rstrip() + "..."
+    cells = [
+        stem,
+        f"[{_escape_table_cell(slug)}]({stem}.md)",
+        _escape_table_cell(branch),
+        _escape_table_cell(", ".join(tags)),
+        "/".join(stats_parts),
+        _escape_table_cell(summary) or "-",
+    ]
+    return "| " + " | ".join(cells) + " |"
+
+
+def compose_index_md(project_root: Path, pending: dict[str, str] | None = None) -> str:
+    """Rebuild INDEX.md from every checkpoint's frontmatter, newest first.
+
+    Regenerated rather than appended to, for the same reason PROGRESS.md is:
+    an append-only table drifts out of sync the moment a checkpoint is deleted
+    or edited, and there is nothing in the file to notice that it has.
+    """
+    pending = pending or {}
+    sources: dict[str, Path | None] = {stem: None for stem in pending}
+    for path in get_checkpoint_files(project_root):
+        sources.setdefault(path.stem, path)
+
+    rows: list[str] = []
+    for stem in sorted(sources, reverse=True):
+        path = sources[stem]
+        if path is None:
+            text = pending[stem]
+        else:
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+        rows.append(_index_row(stem, parse_frontmatter(text)))
+
+    lines = [
+        "# Checkpoint Index",
+        "",
+        "> Auto-maintained by /checkpointing. Every checkpoint in "
+        "`.claude/checkpoints/`, newest first.",
+        "> Scan the tags and summary columns, then open only the checkpoint you need.",
+        "",
+        "Stats format: `{commits}c/{files}f[/{codex}cx][/{teams}tm]`.",
+        "",
+        "| Timestamp | Checkpoint | Branch | Tags | Stats | Summary |",
+        "|---|---|---|---|---|---|",
+    ]
+    lines.extend(rows or ["| - | - | - | - | - | no checkpoints yet |"])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+# ---------------------------------------------------------------------------
 # Checkpoint generation
 # ---------------------------------------------------------------------------
 
@@ -688,10 +1026,16 @@ def _append_design_decisions(lines: list[str], collected: Collected) -> None:
 
 
 def generate_checkpoint(
-    collected: Collected, since: str | None, summary_body: str, timestamp: str
+    collected: Collected,
+    since: str | None,
+    summary_body: str,
+    timestamp: str,
+    slug: str = DEFAULT_SLUG,
+    tags: list[str] | None = None,
 ) -> str:
     """Generate full checkpoint markdown content for the injected *timestamp*."""
-    lines: list[str] = [f"# Checkpoint {timestamp}", ""]
+    frontmatter = build_frontmatter(collected, timestamp, slug, tags or [], since)
+    lines: list[str] = [frontmatter, f"# Checkpoint {timestamp}", ""]
     lines.append(build_summary_block(summary_body))
     lines.append("")
     _append_summary_section(lines, collected)
@@ -1031,6 +1375,13 @@ def _build_parser() -> JsonArgumentParser:
         ),
     )
     parser.add_argument(
+        "--label",
+        help=(
+            "Slug for this checkpoint's frontmatter and INDEX.md row "
+            "(default: derived from the session's commit messages)"
+        ),
+    )
+    parser.add_argument(
         "--apply",
         action="store_true",
         help="Actually write; without this flag the script only previews",
@@ -1162,6 +1513,7 @@ def _human_report(payload: dict) -> str:
         f"Result: {payload['result']}",
         f"  Checkpoint:   {payload['checkpoint_path']}",
         f"  Prompt:       {payload['prompt_path']}",
+        f"  Index:        {payload['index_path']} (slug: {payload['slug']})",
         f"  PROGRESS.md:  {payload['progress_path']} ({payload['progress_entries']} entries)",
         f"  STATE.md:     {payload['state_path']} "
         f"(tracker {'inserted' if payload['state_updated'] else 'already present'})",
@@ -1209,11 +1561,25 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         )
         return EXIT_EXTERNAL_FAILURE
 
+    slug = derive_slug(collected, args.label)
+    tags = derive_tags(collected)
     checkpoint_content = generate_checkpoint(
-        collected, args.since, summary_body, timestamp
+        collected, args.since, summary_body, timestamp, slug, tags
     )
     prompt_path = checkpoint_path.with_suffix(".analyze-prompt.md")
     prompt_content = generate_skill_analysis_prompt(checkpoint_content)
+
+    index_path = root / ".claude" / "checkpoints" / INDEX_FILENAME
+    index_content = compose_index_md(root, {timestamp: checkpoint_content})
+    try:
+        index_before = (
+            index_path.read_text(encoding="utf-8") if index_path.exists() else None
+        )
+    except (OSError, UnicodeDecodeError) as exc:
+        _emit(
+            {"ok": False, "error": f"cannot read {index_path}: {exc}", "artifacts": []}
+        )
+        return EXIT_EXTERNAL_FAILURE
 
     progress = compose_progress_md(root, {timestamp: checkpoint_content})
     progress_path = root / "PROGRESS.md"
@@ -1260,6 +1626,9 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         "result": "applied" if args.apply else "preview",
         "checkpoint_path": _rel(checkpoint_path, root),
         "prompt_path": _rel(prompt_path, root),
+        "index_path": _rel(index_path, root),
+        "slug": slug,
+        "tags": tags,
         "progress_path": _rel(progress_path, root),
         "progress_entries": progress.entries,
         "state_path": _rel(state_path, root),
@@ -1285,6 +1654,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             logs_dir / f"checkpoint-preview-{stamp}.md": checkpoint_content,
             logs_dir / f"progress-preview-{stamp}.md": progress.text,
             logs_dir / f"state-preview-{stamp}.md": state_after,
+            logs_dir / f"index-preview-{stamp}.md": index_content,
         }
         for path, text in previews.items():
             error = write_preview(path, text)
@@ -1324,9 +1694,19 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
                 _emit({"ok": False, "error": error, "artifacts": []})
                 return code
 
+        # Written last, and deliberately after STATE.md: INDEX.md is fully
+        # derivable from the checkpoints and is rebuilt on the next run, so a
+        # concurrent-modification abort here must not leave the repository with
+        # a checkpoint and a PROGRESS.md entry but no tracker link.
+        error, code = atomic_replace(index_path, index_content, index_before)
+        if error:
+            _emit({"ok": False, "error": error, "artifacts": []})
+            return code
+
         payload["artifacts"] = [
             _rel(checkpoint_path, root),
             _rel(prompt_path, root),
+            _rel(index_path, root),
             _rel(progress_path, root),
         ]
         if trackers_before == 0:

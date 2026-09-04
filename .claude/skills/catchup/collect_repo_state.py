@@ -49,6 +49,8 @@ MAX_KEY_DECISIONS = 10
 MAX_ENV_COMMANDS = 20
 
 CHECKPOINT_STEM_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{6}$")
+FRONTMATTER_FENCE = "---"
+FRONTMATTER_NAME_KEYS = ("summary", "slug")
 DESIGN_PLACEHOLDER_HEADING_MARKER = "Background & Purpose"
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 KEY_DECISIONS_HEADING = "## Key Decisions"
@@ -146,6 +148,68 @@ def file_info(path: Path) -> dict:
                 "error": None,
             }
     return {"present": True, "first_line": "", "error": None}
+
+
+def _first_meaningful_line(text: str) -> str:
+    """A checkpoint's own name for itself, looking past its frontmatter block.
+
+    Checkpoints written since the fast-retrieval feature open with a ``---``
+    block, so their first non-empty line is the fence itself, which names no
+    session. The block carries a better answer than any heading (``summary``,
+    else ``slug``); when it carries neither, or when the block is unterminated
+    or absent, fall back to the first non-empty line of the body.
+
+    Deliberately a local reader rather than an import of the checkpointing
+    skill's ``parse_frontmatter``: the two skills stay decoupled, and this only
+    needs two keys out of a block it never writes.
+    """
+    lines = text.splitlines()
+    body_start = 0
+    if lines and lines[0].strip() == FRONTMATTER_FENCE:
+        closing = next(
+            (
+                index
+                for index in range(1, len(lines))
+                if lines[index].strip() == FRONTMATTER_FENCE
+            ),
+            None,
+        )
+        if closing is not None:
+            fields: dict[str, str] = {}
+            for line in lines[1:closing]:
+                key, separator, value = line.partition(":")
+                if separator:
+                    fields[key.strip()] = _unquote_frontmatter_value(value.strip())
+            for key in FRONTMATTER_NAME_KEYS:
+                value = fields.get(key, "").strip()
+                if value:
+                    return value
+            body_start = closing + 1
+    for line in lines[body_start:]:
+        if line.strip():
+            return line.strip()
+    return ""
+
+
+def _unquote_frontmatter_value(value: str) -> str:
+    """Undo the quoting build_frontmatter applies to a string scalar."""
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        return value[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+    return value
+
+
+def checkpoint_info(path: Path) -> dict:
+    """file_info for a checkpoint, whose first line is a frontmatter fence."""
+    text, error = read_text(path)
+    if error is not None:
+        return {"present": True, "first_line": None, "error": error}
+    if text is None:
+        return {"present": False, "first_line": None, "error": None}
+    return {
+        "present": True,
+        "first_line": _first_meaningful_line(text)[:FIRST_LINE_LIMIT],
+        "error": None,
+    }
 
 
 # --- git ---------------------------------------------------------------------
@@ -557,7 +621,12 @@ def collect_rules(root: Path) -> dict:
 
 
 def collect_checkpoints(root: Path) -> dict:
-    """Summarize the newest checkpoints (filename + first heading line)."""
+    """Summarize the newest checkpoints (filename + the session's own name).
+
+    ``first_line`` is the frontmatter ``summary`` (else ``slug``) when the
+    checkpoint has a frontmatter block, and the first non-empty body line
+    otherwise — never the ``---`` fence.
+    """
     checkpoints_dir = root / ".claude" / "checkpoints"
     if not checkpoints_dir.is_dir():
         return {"present": False, "items": []}
@@ -569,7 +638,7 @@ def collect_checkpoints(root: Path) -> dict:
     return {
         "present": True,
         "items": [
-            {"file": path.name, **file_info(path)}
+            {"file": path.name, **checkpoint_info(path)}
             for path in files[:CHECKPOINT_PREVIEW]
         ],
     }

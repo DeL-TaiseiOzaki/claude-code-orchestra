@@ -19,7 +19,19 @@ STRONG_ERROR_PATTERNS = [
     r"segmentation fault",
     r"core dumped",
     r"^\s*(?:TypeError|ValueError|AttributeError|ImportError|KeyError|IndexError|"
-    r"RuntimeError|SyntaxError|NameError|FileNotFoundError|PermissionError|OSError):\s",
+    r"RuntimeError|SyntaxError|NameError|FileNotFoundError|PermissionError|OSError|"
+    r"ConnectionError|ConnectionRefusedError|ConnectionResetError|TimeoutError|"
+    r"MemoryError):\s",
+    # Network failures named by errno: unambiguous, never benign prose.
+    r"\b(?:ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND)\b",
+    # Resource exhaustion.
+    r"OutOfMemoryError",
+    r"too many open files",
+    # Build / link / module resolution failures.
+    r"undefined reference to",
+    r"unresolved external symbol",
+    r"(?:compilation|build) failed",
+    r"(?:cannot find module|module not found)",
 ]
 
 # Weak signals: individually too generic (or prone to matching benign prose);
@@ -30,10 +42,22 @@ WEAK_ERROR_PATTERNS = [
     r"fatal:",
     r"(?:Cannot|Could not|Unable to)\s",
     r"cargo error",
+    # Individually ambiguous: a passing run may legitimately print "timed out
+    # (retrying)". Only further signals make them a reason to stop and diagnose.
+    # Deprecation notices are deliberately absent: a warning is by definition
+    # not an error, and pip/curl output pairs them with "Could not"/"Unable to"
+    # often enough that two-of-a-kind fired on healthy builds.
+    r"(?:timeout|timed out)",
+    r"(?:DNS|name) resolution",
+    r"resource temporarily unavailable",
+    r"returned non-zero",
+    r"exit (?:code|status)\s*[1-9]",
 ]
 
 # Minimum number of weak signals required when no strong signal is present.
-MIN_WEAK_SIGNALS = 2
+# Ten weak patterns co-occur too easily for a threshold of two: a successful
+# `git show` of this repository scored eight.
+MIN_WEAK_SIGNALS = 3
 
 # Commands to ignore (not useful to debug)
 IGNORE_COMMANDS = [
@@ -67,7 +91,9 @@ SKIP_COMMANDS = [
     "codex ",
 ]
 
-MIN_OUTPUT_LENGTH = 20
+# Terse failures ("Error: failed") are still failures, so the floor only has
+# to exclude effectively empty output.
+MIN_OUTPUT_LENGTH = 5
 
 
 def should_ignore_command(command: str) -> bool:
@@ -148,10 +174,12 @@ def build_context(data: dict) -> str | None:
     if not errors:
         return None
 
-    error_count = len(errors)
+    reason = f"{len(errors)} error pattern(s) found in command output"
+
     return (
-        f"[Error Detected] {error_count} error pattern(s) found in command output. "
-        "**Action**: Use the `codex-debugger` subagent to analyze this error. "
+        f"[Error Detected] {reason}. "
+        "**Action**: You MUST use the `codex-debugger` subagent to analyze this "
+        "error rather than guessing at a fix. "
         "Pass the full command and error output to the subagent for Codex-powered diagnosis. "
         "Example: Task(subagent_type='codex-debugger', prompt='Analyze this error: ...')"
     )

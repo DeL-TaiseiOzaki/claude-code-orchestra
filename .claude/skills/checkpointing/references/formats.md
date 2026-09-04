@@ -1,6 +1,6 @@
 # Checkpoint and PROGRESS.md Format Reference
 
-Format contracts for the two artifacts produced by `checkpoint.py`.
+Format contracts for the three artifacts produced by `checkpoint.py`.
 These describe what the script actually generates — every heading below was
 verified against a real run, not transcribed from an earlier design.
 Section headings are REQUIRED; content under each heading is filled from
@@ -21,11 +21,34 @@ the timestamp taken from the single injected clock (`--now`, default
 `datetime.now(UTC)`), so the filename, the `# Checkpoint` heading, the footer,
 and the `PROGRESS.md` link always agree. An existing file is never overwritten.
 
-The document opens with the agent-written summary block wrapped in
-progress-summary markers, followed by collected data sections. Sections marked
-*(conditional)* are emitted only when their source produced data.
+The document opens with a YAML frontmatter block, then the agent-written
+summary block wrapped in progress-summary markers, then the collected data
+sections. Sections marked *(conditional)* are emitted only when their source
+produced data.
+
+The frontmatter exists so relevance can be judged from the first ~14 lines.
+`slug` comes from `--label`, else from the dominant conventional-commit type
+plus the most frequent keywords, else `session`; `summary` is the first three
+commit subjects; `tags` combine commit types, top-level directories touched,
+`testing` / `skills` / `hooks` / `rules` markers, `codex`, and
+`agent-teams` / `team-{name}`. The slug never enters the filename — the stem
+stays the bare timestamp that `PROGRESS.md` and `collect_repo_state.py` key on.
 
 ```markdown
+---
+id: feature-agent-teams-2026-02-08-153000
+timestamp: 2026-02-08-153000
+branch: "main"
+slug: feature-agent-teams
+summary: "redesign the feature skill; add the team-execute skill"
+tags: [.claude, agent-teams, codex, feature, skills]
+commits: 12
+files_changed: 15
+codex_consultations: 3
+agent_teams: 1
+since: 2026-02-01
+---
+
 # Checkpoint 2026-02-08-153000
 
 <!-- PROGRESS-SUMMARY:START -->
@@ -115,6 +138,11 @@ All collectors succeeded.
 `## CLI Consultations` are always emitted. `## Agent Teams Activity`,
 `## Teammate Work Logs`, and `## Design Decisions (Changes)` are conditional.
 
+`since:` appears in the frontmatter only when `--since` was passed. Every
+frontmatter value is a plain string or integer; `branch` and `summary` are
+double-quoted with `"` and `\` escaped, so a commit subject containing a quote
+cannot break the block.
+
 `## Collector Status` lists every collector that failed and every record that
 was skipped, so "git could not run" is never rendered as "no activity this
 session". Skill-pattern suggestions are **not** part of the checkpoint: the
@@ -156,3 +184,36 @@ Because it is user-owned and tracked, `checkpoint.py` rewrites it under the
 Writer Safety Contract: dry-run by default, `--apply` to write, atomic
 `os.replace`, a content-hash guard, and `--contract progress` validation of the
 composed bytes before they replace the original.
+
+---
+
+## Checkpoint INDEX.md Format
+
+`.claude/checkpoints/INDEX.md` is the one-file catalog of every checkpoint,
+newest first. Like `PROGRESS.md` it is **fully regenerated** on each `--apply`
+— here from each checkpoint's frontmatter — so a deleted or hand-edited
+checkpoint is corrected on the next run instead of being advertised forever.
+
+```markdown
+# Checkpoint Index
+
+> Auto-maintained by /checkpointing. Every checkpoint in `.claude/checkpoints/`, newest first.
+> Scan the tags and summary columns, then open only the checkpoint you need.
+
+Stats format: `{commits}c/{files}f[/{codex}cx][/{teams}tm]`.
+
+| Timestamp | Checkpoint | Branch | Tags | Stats | Summary |
+|---|---|---|---|---|---|
+| 2026-02-08-153000 | [feature-agent-teams](2026-02-08-153000.md) | main | .claude, agent-teams, codex, feature, skills | 12c/15f/3cx/1tm | redesign the feature skill; add the team-execute skill |
+| 2026-02-07-120000 | [bugfix-auth-flow](2026-02-07-120000.md) | fix/auth | src, testing | 5c/8f/1cx | fix the token refresh race |
+```
+
+At most 5 tags and 72 summary characters are shown per row; `|` is escaped so a
+value cannot break out of its column. A checkpoint written before this format
+existed has no frontmatter and still gets a row, keyed on its stem, rather than
+being dropped from the catalog. `INDEX.md` is written under the same Writer
+Safety Contract as `PROGRESS.md` (preview by default to
+`.claude/logs/index-preview-*.md`, `--apply` to write, atomic replace, and a
+content-hash concurrent-modification guard). Its stem is not a timestamp, so
+`get_checkpoint_files()` never mistakes it for a checkpoint and it never
+appears in `PROGRESS.md`.

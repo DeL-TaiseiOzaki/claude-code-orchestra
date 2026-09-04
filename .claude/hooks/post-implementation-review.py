@@ -38,7 +38,7 @@ def get_state_file_path(data: dict) -> str:
 
     Namespacing prevents concurrent Claude Code sessions (same machine,
     different projects, or the same project) from clobbering each other's
-    counters and the review_suggested flag.
+    counters and last-suggested markers.
     """
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or data.get("cwd") or os.getcwd()
     project_hash = hashlib.sha256(os.path.abspath(project_dir).encode()).hexdigest()[
@@ -51,9 +51,11 @@ def get_state_file_path(data: dict) -> str:
     return f"/tmp/claude-code-impl-state-{project_hash}-{session_part}.json"
 
 
-# Thresholds for suggesting review
-MIN_FILES_FOR_REVIEW = 3
-MIN_LINES_FOR_REVIEW = 100
+# Thresholds for suggesting review. Deliberately low: a review that arrives
+# after three files and a hundred lines arrives after the design is already
+# settled, which is exactly when it is most expensive to act on.
+MIN_FILES_FOR_REVIEW = 2
+MIN_LINES_FOR_REVIEW = 50
 
 
 def load_state(state_file: str) -> dict:
@@ -64,7 +66,12 @@ def load_state(state_file: str) -> dict:
                 return json.load(f)
     except Exception:
         pass
-    return {"files_changed": [], "total_lines": 0, "review_suggested": False}
+    return {
+        "files_changed": [],
+        "total_lines": 0,
+        "suggested_at_files": 0,
+        "suggested_at_lines": 0,
+    }
 
 
 def save_state(state: dict, state_file: str):
@@ -87,17 +94,23 @@ def count_lines(content: str) -> int:
 
 
 def should_suggest_review(state: dict) -> tuple[bool, str]:
-    """Check if we should suggest a code review."""
-    if state.get("review_suggested"):
-        return False, ""
+    """Check if we should suggest a code review.
 
+    Re-arms instead of latching. A one-shot latch combined with a threshold of
+    two files meant that two one-line edits spent the session's only review
+    nudge and the 400-line refactor an hour later got none. Instead the hint
+    debounces until the session has doubled in size since it last fired, so
+    each suggestion covers materially more work than the previous one.
+    """
     files_count = len(state.get("files_changed", []))
     total_lines = state.get("total_lines", 0)
+    suggested_at_files = state.get("suggested_at_files", 0)
+    suggested_at_lines = state.get("suggested_at_lines", 0)
 
-    if files_count >= MIN_FILES_FOR_REVIEW:
+    if files_count >= max(MIN_FILES_FOR_REVIEW, suggested_at_files * 2):
         return True, f"{files_count} files modified"
 
-    if total_lines >= MIN_LINES_FOR_REVIEW:
+    if total_lines >= max(MIN_LINES_FOR_REVIEW, suggested_at_lines * 2):
         return True, f"{total_lines}+ lines written"
 
     return False, ""
@@ -139,7 +152,11 @@ def main():
         should_review, reason = should_suggest_review(state)
 
         if should_review:
-            state["review_suggested"] = True
+            # Record the size at which the hint fired; the next one waits for
+            # double that, on both axes, so firing on files does not leave the
+            # line counter free to fire again on the very next edit.
+            state["suggested_at_files"] = len(state["files_changed"])
+            state["suggested_at_lines"] = state["total_lines"]
             save_state(state, state_file)
 
             output = {
@@ -147,7 +164,9 @@ def main():
                     "hookEventName": "PostToolUse",
                     "additionalContext": (
                         f"[Code Review Suggestion] {reason} in this session. "
-                        "Consider having Codex review the implementation. "
+                        "You SHOULD have Codex review the implementation before "
+                        "reporting it done — it catches bugs, security issues, and "
+                        "design flaws while the change is still small. "
                         "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
                         "to consult Codex with git diff and preserve main context."
                     ),

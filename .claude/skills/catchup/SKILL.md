@@ -79,7 +79,8 @@ Top-level JSON keys:
   `libraries`.
 - `env` — `manifests`, `scripts` (from `pyproject.toml`), `commands`
   (each with the `source` file it was quoted from), `errors`.
-- `checkpoints` — newest 5 (file + first heading).
+- `checkpoints` — newest 5 (file + `first_line`: the frontmatter `summary`,
+  else its `slug`, else the first non-empty body line — never the `---` fence).
 - `agent_teams` — `sessions[{name, members, tasks_total, tasks_completed}]`
   and in-repo `work_logs`.
 - `cli_tools` — recent consultations for **every** tool, each tagged with

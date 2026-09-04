@@ -236,7 +236,7 @@ def create_dirs(project_root: Path, dirs: list[str]) -> list[str]:
     """Create each directory (with parents) and report the newly-created ones.
 
     Raises OSError, which main() reports as JSON + exit 3 rather than a
-    traceback (e.g. when ``.agents`` exists as a *file*).
+    traceback (e.g. when ``.claude`` exists as a *file*).
     """
     created: list[str] = []
     for rel_dir in dirs:
