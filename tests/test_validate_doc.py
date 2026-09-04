@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-VALIDATE_DOC = REPO_ROOT / ".agents" / "skills" / "_shared" / "validate_doc.py"
+VALIDATE_DOC = REPO_ROOT / ".claude" / "skills" / "_shared" / "validate_doc.py"
 
 # Per-file result shape — identical across every contract (role_variant is
 # null for contracts without variants). ``artifacts`` is the shared contract's
@@ -962,61 +962,61 @@ def test_output_is_indent2_json(tmp_path: Path) -> None:
 # mode can drift unnoticed behind a passing sibling.
 REFERENCE_TEMPLATES: dict[str, tuple[tuple[str, str | None, str | None], ...]] = {
     "spike-report": (
-        (".agents/skills/spike/references/report-template.md", None, None),
+        (".claude/skills/spike/references/report-template.md", None, None),
     ),
     "bug-report": (
         (
-            ".agents/skills/troubleshoot/references/bug-report-template.md",
+            ".claude/skills/troubleshoot/references/bug-report-template.md",
             None,
             None,
         ),
     ),
-    "work-log": ((".agents/skills/_shared/work-log-format.md", None, None),),
+    "work-log": ((".claude/skills/_shared/work-log-format.md", None, None),),
     "lib-doc": (
         (
-            ".agents/skills/research-lib/SKILL.md",
+            ".claude/skills/research-lib/SKILL.md",
             "## Documentation Template",
             "## Validate the Document",
         ),
     ),
-    "plan-doc": ((".agents/skills/plan/SKILL.md", "### 4. Output Format", "## Notes"),),
+    "plan-doc": ((".claude/skills/plan/SKILL.md", "### 4. Output Format", "## Notes"),),
     "feature-brief": (
         (
-            ".agents/skills/feature/references/brief-templates.md",
+            ".claude/skills/feature/references/brief-templates.md",
             "## Feature Brief (MODE=existing)",
             "## Project Brief (MODE=greenfield)",
         ),
         (
-            ".agents/skills/feature/references/brief-templates.md",
+            ".claude/skills/feature/references/brief-templates.md",
             "## Project Brief (MODE=greenfield)",
             None,
         ),
     ),
-    "spike-brief": ((".agents/skills/spike/references/brief-template.md", None, None),),
+    "spike-brief": ((".claude/skills/spike/references/brief-template.md", None, None),),
     "diagnosis": (
-        (".agents/skills/troubleshoot/references/diagnosis-template.md", None, None),
+        (".claude/skills/troubleshoot/references/diagnosis-template.md", None, None),
     ),
     "checkpoint-summary": (
         (
-            ".agents/skills/checkpointing/references/formats.md",
+            ".claude/skills/checkpointing/references/formats.md",
             "## Checkpoint File Format",
             "## Rolling PROGRESS.md Format",
         ),
     ),
     "progress": (
         (
-            ".agents/skills/checkpointing/references/formats.md",
+            ".claude/skills/checkpointing/references/formats.md",
             "## Rolling PROGRESS.md Format",
             None,
         ),
     ),
-    "guide": ((".agents/skills/catchup/references/guide-template.md", None, None),),
+    "guide": ((".claude/skills/catchup/references/guide-template.md", None, None),),
     # These two have no separate template: the seed document install.sh copies
     # into a project *is* the reference, so the contract is pinned to the live
     # file. A section renamed in either document without updating the contract
     # is then a test failure instead of a runtime surprise.
-    "design-doc": ((".agents/docs/DESIGN.md", None, None),),
-    "state-doc": ((".agents/STATE.md", None, None),),
+    "design-doc": ((".claude/docs/DESIGN.md", None, None),),
+    "state-doc": ((".claude/STATE.md", None, None),),
 }
 
 # `{placeholder}` tokens as the templates write them.
@@ -1265,7 +1265,7 @@ def test_design_doc_rejects_a_document_missing_a_writer_target(tmp_path: Path) -
 
 @pytest.mark.parametrize(
     ("contract", "rel_path"),
-    [("design-doc", ".agents/docs/DESIGN.md"), ("state-doc", ".agents/STATE.md")],
+    [("design-doc", ".claude/docs/DESIGN.md"), ("state-doc", ".claude/STATE.md")],
 )
 def test_contract_accepts_this_repository_s_live_document(
     contract: str, rel_path: str

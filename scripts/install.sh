@@ -5,52 +5,63 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 TEMPLATE_OWNED_DIRS=(
-    ".codex"
+    ".claude/rules"
+    ".claude/skills"
+    ".claude/agents"
+    ".claude/hooks"
+)
+# Runtime content that pre-2.0 installations kept under .agents/. The main
+# agent runtime is now physically owned by .claude/, so these paths are stale.
+# They are reported as conflicts and only removed after the user accepts the
+# backup, never migrated silently.
+LEGACY_RUNTIME_PATHS=(
+    ".agents/workflows"
     ".agents/rules"
     ".agents/skills"
     ".agents/agents"
     ".agents/hooks"
-    ".agents/workflows"
+    ".agents/docs"
+    ".agents/logs"
+    ".agents/checkpoints"
+    ".agents/STATE.md"
+    ".codex/skills"
 )
-LEGACY_NATIVE_PATHS=(
-    ".claude/checkpoints"
-    ".claude/docs"
-    ".claude/hooks"
-    ".claude/logs"
-    ".claude/rules"
-)
-# Native discovery symlinks: product-native runtimes (Claude Code) auto-discover
-# subagents and skills only from their own directories, which are not
-# configurable to point elsewhere. To keep .agents/ the single physical source
-# while still getting native auto-discovery, each entry links a native path to
-# its canonical .agents/ directory. Format: "<native-path>:<relative-target>".
-# The relative target is resolved from inside the native path's parent (.claude).
-NATIVE_DISCOVERY_LINKS=(
-    ".claude/agents:../.agents/agents"
-    ".claude/skills:../.agents/skills"
-)
+# Template-owned files that no template-owned directory already covers.
+# `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/hooks/`,
+# above are replaced wholesale, so their contents must not be repeated here.
 TEMPLATE_OWNED_FILES=(
-    ".agents/INDEX.md"
-    ".agents/check.sh"
-    ".agents/change_main.md"
-    ".agents/docs/CODEX_HANDOFF_PLAYBOOK.md"
-    ".agents/docs/libraries/.gitkeep"
-    ".agents/docs/plans/.gitkeep"
-    ".agents/docs/reviews/.gitkeep"
+    ".agents/AGENTS.md"
+    ".codex/AGENTS.md"
+    ".claude/docs/INDEX.md"
+    ".claude/docs/change_main.md"
+    ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"
+    ".claude/docs/libraries/.gitkeep"
+    ".claude/docs/plans/.gitkeep"
+    ".claude/docs/reviews/.gitkeep"
+    "scripts/check.sh"
     "scripts/install.sh"
     "scripts/update.sh"
 )
+# Machine-readable native settings. These are the user's to edit — a downstream
+# project changes its model, approval policy, or hooks here — so they are never
+# overwritten; when they differ from the template a merge candidate is written
+# beside them. Format: "<settings-path>:<candidate-path>".
+NATIVE_SETTINGS=(
+    ".claude/settings.json:.claude/settings.orchestra.json"
+    ".codex/config.toml:.codex/config.orchestra.toml"
+)
 PROJECT_FILES_IF_MISSING=(
-    ".agents/STATE.md"
-    ".agents/docs/DESIGN.md"
-    ".agents/docs/research/.gitkeep"
+    ".claude/STATE.md"
+    ".claude/docs/DESIGN.md"
+    ".claude/docs/research/.gitkeep"
 )
 GITIGNORE_ENTRIES=(
     ".claude/settings.local.json"
     ".claude/settings.orchestra.json"
+    ".codex/config.orchestra.toml"
     "CLAUDE.local.md"
-    ".agents/logs/"
-    ".agents/checkpoints/"
+    ".claude/logs/"
+    ".claude/checkpoints/"
     ".orchestra-backup-*/"
 )
 
@@ -77,9 +88,9 @@ Options:
   -f, --force  Back up and replace conflicting template-owned paths
   -h, --help   Show this help message
 
-Existing AGENTS.md and CLAUDE.md content is preserved in .agents/STATE.md.
-The template installs the shared AGENTS.md contract and makes CLAUDE.md a relative
-symlink to it. Existing
+Existing AGENTS.md and CLAUDE.md content is preserved in .claude/STATE.md.
+The template installs the root AGENTS.md router and the CLAUDE.md main-agent
+contract as real files. Existing
 .claude/settings.json is never overwritten; a merge candidate is written to
 .claude/settings.orchestra.json when the files differ.
 EOF
@@ -122,7 +133,7 @@ require_source_paths() {
     local path
     for path in "${TEMPLATE_OWNED_DIRS[@]}" \
         "${TEMPLATE_OWNED_FILES[@]}" "${PROJECT_FILES_IF_MISSING[@]}" \
-        "AGENTS.md" "CLAUDE.md" ".claude/settings.json" \
+        "AGENTS.md" "CLAUDE.md" ".claude/settings.json" ".codex/config.toml" \
         "VERSION"; do
         if [[ ! -e "${SOURCE_ROOT}/${path}" && ! -L "${SOURCE_ROOT}/${path}" ]]; then
             error "Template source is incomplete: ${path} is missing."
@@ -152,16 +163,16 @@ validate_destination_paths() {
     local path resolved parent component current
     local paths=(
         "${TEMPLATE_OWNED_DIRS[@]}"
-        "${LEGACY_NATIVE_PATHS[@]}"
+        "${LEGACY_RUNTIME_PATHS[@]}"
         "${TEMPLATE_OWNED_FILES[@]}"
         "${PROJECT_FILES_IF_MISSING[@]}"
         "AGENTS.md"
         "CLAUDE.md"
-        ".claude/agents"
-        ".claude/skills"
         ".claude/settings.json"
         ".claude/settings.orchestra.json"
         ".claude/orchestra-version"
+        ".codex/config.toml"
+        ".codex/config.orchestra.toml"
         ".gitignore"
     )
     for path in "${paths[@]}"; do
@@ -191,15 +202,22 @@ validate_project_files() {
         "AGENTS.md"
         "CLAUDE.md"
         ".claude/settings.json"
-        ".agents/STATE.md"
-        ".agents/docs/DESIGN.md"
+        ".codex/config.toml"
+        ".claude/STATE.md"
+        ".claude/docs/DESIGN.md"
         ".gitignore"
     )
     for path in "${project_files[@]}"; do
         destination="${TARGET_ROOT}/${path}"
         if [[ -L "${destination}" ]]; then
-            error "Refusing project-owned symlink: ${path}"
-            exit 2
+            # A pre-2.0 CLAUDE.md -> AGENTS.md link is the one symlink we know
+            # how to retire: it is backed up as a conflict and replaced with the
+            # real contract file. Any other symlink here is still refused.
+            if [[ "${path}" != "CLAUDE.md" ]]; then
+                error "Refusing project-owned symlink: ${path}"
+                exit 2
+            fi
+            continue
         fi
         if [[ -e "${destination}" && ! -f "${destination}" ]]; then
             error "Expected a regular file at project-owned path: ${path}"
@@ -214,29 +232,18 @@ validate_project_files() {
 
 collect_conflicts() {
     local path
-    for path in "${TEMPLATE_OWNED_DIRS[@]}" "${LEGACY_NATIVE_PATHS[@]}" \
+    for path in "${TEMPLATE_OWNED_DIRS[@]}" "${LEGACY_RUNTIME_PATHS[@]}" \
         "${TEMPLATE_OWNED_FILES[@]}"; do
         if [[ -e "${TARGET_ROOT}/${path}" || -L "${TARGET_ROOT}/${path}" ]]; then
             CONFLICTS+=("${path}")
         fi
     done
 
-    # Native discovery paths are project-owned until we link them: a target repo
-    # may already keep its own subagents/skills there. Anything that is not
-    # already the exact link we are about to create counts as a conflict, so it
-    # is reported and backed up instead of being destroyed by the link step.
-    local entry native_path target
-    for entry in "${NATIVE_DISCOVERY_LINKS[@]}"; do
-        native_path="${entry%%:*}"
-        target="${entry##*:}"
-        if [[ -L "${TARGET_ROOT}/${native_path}" ]] \
-            && [[ "$(readlink -- "${TARGET_ROOT}/${native_path}")" == "${target}" ]]; then
-            continue
-        fi
-        if [[ -e "${TARGET_ROOT}/${native_path}" || -L "${TARGET_ROOT}/${native_path}" ]]; then
-            CONFLICTS+=("${native_path}")
-        fi
-    done
+    # A pre-2.0 installation left CLAUDE.md as a symlink to AGENTS.md. Both are
+    # real files now, so report the link instead of writing through it.
+    if [[ -L "${TARGET_ROOT}/CLAUDE.md" ]]; then
+        CONFLICTS+=("CLAUDE.md")
+    fi
 
     if [[ ${#CONFLICTS[@]} -eq 0 ]]; then
         return 0
@@ -302,44 +309,20 @@ copy_owned_paths() {
         mv -f "${temporary}" "${destination}"
         info "Installed ${path}"
     done
-    chmod +x "${TARGET_ROOT}/scripts/install.sh" "${TARGET_ROOT}/scripts/update.sh"
+    chmod +x "${TARGET_ROOT}/scripts/check.sh" \
+        "${TARGET_ROOT}/scripts/install.sh" "${TARGET_ROOT}/scripts/update.sh"
 }
 
-remove_legacy_native_paths() {
+remove_legacy_runtime_paths() {
     local path
-    for path in "${LEGACY_NATIVE_PATHS[@]}"; do
-        if [[ -e "${TARGET_ROOT}/${path}" || -L "${TARGET_ROOT}/${path}" ]]; then
-            rm -rf -- "${TARGET_ROOT:?}/${path}"
-            info "Removed legacy native path ${path}"
-        fi
-    done
-}
-
-repair_claude_entrypoint() {
-    local link="${TARGET_ROOT}/CLAUDE.md"
-    local canonical="${TARGET_ROOT}/AGENTS.md"
-    if [[ -L "${link}" ]] \
-        && [[ "$(realpath -m -- "${link}")" == "$(realpath -m -- "${canonical}")" ]]; then
-        return 0
-    fi
-    rm -rf -- "${link}"
-    ln -s "AGENTS.md" "${link}"
-    info "Restored CLAUDE.md -> AGENTS.md"
-}
-
-link_native_discovery_dirs() {
-    local entry native_path target link
-    for entry in "${NATIVE_DISCOVERY_LINKS[@]}"; do
-        native_path="${entry%%:*}"
-        target="${entry##*:}"
-        link="${TARGET_ROOT}/${native_path}"
-        if [[ -L "${link}" && "$(readlink -- "${link}")" == "${target}" ]]; then
+    for path in "${LEGACY_RUNTIME_PATHS[@]}" "CLAUDE.md"; do
+        if [[ "${path}" == "CLAUDE.md" && ! -L "${TARGET_ROOT}/CLAUDE.md" ]]; then
             continue
         fi
-        rm -rf -- "${link}"
-        mkdir -p "$(dirname -- "${link}")"
-        ln -s "${target}" "${link}"
-        info "Linked ${native_path} -> ${target}"
+        if [[ -e "${TARGET_ROOT}/${path}" || -L "${TARGET_ROOT}/${path}" ]]; then
+            rm -rf -- "${TARGET_ROOT:?}/${path}"
+            info "Removed legacy path ${path}"
+        fi
     done
 }
 
@@ -358,13 +341,11 @@ copy_project_files_if_missing() {
 }
 
 install_agent_files() {
-    local source="${SOURCE_ROOT}/AGENTS.md"
-    local destination="${TARGET_ROOT}/AGENTS.md"
     local existing_agents="${TARGET_ROOT}/AGENTS.md"
     local existing_claude="${TARGET_ROOT}/CLAUDE.md"
-    local state="${TARGET_ROOT}/.agents/STATE.md"
-    local temporary="${TARGET_ROOT}/.AGENTS.md.tmp.$$"
-    mkdir -p "${TARGET_ROOT}/.agents/logs" "${TARGET_ROOT}/.agents/checkpoints"
+    local state="${TARGET_ROOT}/.claude/STATE.md"
+    local name source destination temporary
+    mkdir -p "${TARGET_ROOT}/.claude/logs" "${TARGET_ROOT}/.claude/checkpoints"
 
     if [[ -f "${existing_agents}" ]]; then
         {
@@ -383,31 +364,41 @@ install_agent_files() {
             cat "${existing_claude}"
         } >> "${state}"
     fi
-    cp -a "${source}" "${temporary}"
-    mv -f "${temporary}" "${destination}"
-    info "Installed shared AGENTS.md and preserved existing instructions in .agents/STATE.md"
+    for name in "AGENTS.md" "CLAUDE.md"; do
+        source="${SOURCE_ROOT}/${name}"
+        destination="${TARGET_ROOT}/${name}"
+        temporary="${TARGET_ROOT}/.${name}.tmp.$$"
+        cp -a "${source}" "${temporary}"
+        mv -f "${temporary}" "${destination}"
+    done
+    info "Installed AGENTS.md and CLAUDE.md; preserved existing instructions in .claude/STATE.md"
 }
 
 install_settings() {
-    local source="${SOURCE_ROOT}/.claude/settings.json"
-    local destination="${TARGET_ROOT}/.claude/settings.json"
-    local candidate="${TARGET_ROOT}/.claude/settings.orchestra.json"
-    mkdir -p "${TARGET_ROOT}/.claude"
+    local entry settings_path candidate_path source destination candidate
+    for entry in "${NATIVE_SETTINGS[@]}"; do
+        settings_path="${entry%%:*}"
+        candidate_path="${entry##*:}"
+        source="${SOURCE_ROOT}/${settings_path}"
+        destination="${TARGET_ROOT}/${settings_path}"
+        candidate="${TARGET_ROOT}/${candidate_path}"
+        mkdir -p "$(dirname "${destination}")"
 
-    if [[ ! -f "${destination}" ]]; then
-        cp -a "${source}" "${destination}"
-        info "Installed .claude/settings.json"
-        return 0
-    fi
-    if cmp -s "${source}" "${destination}"; then
-        info "Preserved matching .claude/settings.json"
-        return 0
-    fi
+        if [[ ! -f "${destination}" ]]; then
+            cp -a "${source}" "${destination}"
+            info "Installed ${settings_path}"
+            continue
+        fi
+        if cmp -s "${source}" "${destination}"; then
+            info "Preserved matching ${settings_path}"
+            continue
+        fi
 
-    cp -a "${source}" "${candidate}.tmp.$$"
-    mv -f "${candidate}.tmp.$$" "${candidate}"
-    warn "Preserved existing .claude/settings.json."
-    warn "Merge required Orchestra settings from .claude/settings.orchestra.json, then delete the candidate."
+        cp -a "${source}" "${candidate}.tmp.$$"
+        mv -f "${candidate}.tmp.$$" "${candidate}"
+        warn "Preserved existing ${settings_path}."
+        warn "Merge required Orchestra settings from ${candidate_path}, then delete the candidate."
+    done
 }
 
 install_version_marker() {
@@ -457,12 +448,10 @@ main() {
     collect_conflicts
     confirm_install
     backup_conflicts
-    remove_legacy_native_paths
+    remove_legacy_runtime_paths
     copy_owned_paths
     copy_project_files_if_missing
     install_agent_files
-    repair_claude_entrypoint
-    link_native_discovery_dirs
     install_settings
     install_version_marker
     ensure_gitignore_entries

@@ -1,7 +1,7 @@
 """Behavioural tests for checkpointing/checkpoint.py.
 
 The script writes two user-owned, git-tracked documents (root ``PROGRESS.md``
-and ``.agents/STATE.md``) and had no dedicated tests at all. These pin the
+and ``.claude/STATE.md``) and had no dedicated tests at all. These pin the
 Writer Safety Contract for both writes, the single injected clock, and the
 central contract change: a missing or incomplete five-part summary is a failure,
 never a generated substitute.
@@ -23,8 +23,8 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "checkpointing" / "checkpoint.py"
-VALIDATE_DOC = REPO_ROOT / ".agents" / "skills" / "_shared" / "validate_doc.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "checkpointing" / "checkpoint.py"
+VALIDATE_DOC = REPO_ROOT / ".claude" / "skills" / "_shared" / "validate_doc.py"
 
 NOW = "2026-07-25T10:00:00+00:00"
 STAMP = "2026-07-25-100000"
@@ -73,11 +73,11 @@ cp = _load_module(SCRIPT, "checkpoint_under_test")
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
     """A git repository with shared state and a fresh pending summary."""
-    (tmp_path / ".agents" / "logs").mkdir(parents=True)
-    (tmp_path / ".agents" / "STATE.md").write_text(
+    (tmp_path / ".claude" / "logs").mkdir(parents=True)
+    (tmp_path / ".claude" / "STATE.md").write_text(
         STATE_WITH_WORK_BLOCK, encoding="utf-8"
     )
-    (tmp_path / ".agents" / "logs" / "pending-summary.md").write_text(
+    (tmp_path / ".claude" / "logs" / "pending-summary.md").write_text(
         VALID_SUMMARY, encoding="utf-8"
     )
     (tmp_path / "claude-home").mkdir()
@@ -114,7 +114,7 @@ def run(project: Path, *extra: str) -> subprocess.CompletedProcess[str]:
 
 
 def summary_flag(project: Path) -> list[str]:
-    return ["--summary-file", ".agents/logs/pending-summary.md"]
+    return ["--summary-file", ".claude/logs/pending-summary.md"]
 
 
 # --- the summary is judgment, never generated --------------------------------
@@ -135,7 +135,7 @@ def test_a_missing_summary_flag_is_a_contract_violation(project: Path) -> None:
     assert payload["ok"] is False
     assert "--summary-file is required" in payload["error"]
     assert not (project / "PROGRESS.md").exists()
-    assert not (project / ".agents" / "checkpoints").exists()
+    assert not (project / ".claude" / "checkpoints").exists()
 
 
 def test_an_unreadable_summary_file_writes_nothing(project: Path) -> None:
@@ -143,7 +143,7 @@ def test_an_unreadable_summary_file_writes_nothing(project: Path) -> None:
 
     assert result.returncode == 2, result.stdout
     assert not (project / "PROGRESS.md").exists()
-    assert (project / ".agents" / "STATE.md").read_text(
+    assert (project / ".claude" / "STATE.md").read_text(
         encoding="utf-8"
     ) == STATE_WITH_WORK_BLOCK
 
@@ -178,11 +178,11 @@ def test_no_generated_summary_fallback_remains() -> None:
 
 
 def test_a_summary_older_than_the_newest_checkpoint_is_stale(project: Path) -> None:
-    checkpoints = project / ".agents" / "checkpoints"
+    checkpoints = project / ".claude" / "checkpoints"
     checkpoints.mkdir(parents=True)
     old = checkpoints / "2026-07-24-090000.md"
     old.write_text("# Checkpoint\n", encoding="utf-8")
-    summary = project / ".agents" / "logs" / "pending-summary.md"
+    summary = project / ".claude" / "logs" / "pending-summary.md"
     import os
 
     os.utime(summary, (0, 0))
@@ -203,11 +203,11 @@ def test_dry_run_writes_only_previews(project: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["result"] == "preview"
     assert not (project / "PROGRESS.md").exists()
-    assert (project / ".agents" / "STATE.md").read_text(
+    assert (project / ".claude" / "STATE.md").read_text(
         encoding="utf-8"
     ) == STATE_WITH_WORK_BLOCK
-    assert not (project / ".agents" / "checkpoints" / f"{STAMP}.md").exists()
-    previews = sorted(p.name for p in (project / ".agents" / "logs").glob("*preview*"))
+    assert not (project / ".claude" / "checkpoints" / f"{STAMP}.md").exists()
+    previews = sorted(p.name for p in (project / ".claude" / "logs").glob("*preview*"))
     assert previews == [
         "checkpoint-preview-20260725-100000.md",
         "progress-preview-20260725-100000.md",
@@ -219,7 +219,7 @@ def test_dry_run_writes_only_previews(project: Path) -> None:
 def test_the_progress_preview_matches_what_apply_writes(project: Path) -> None:
     run(project, *summary_flag(project))
     preview = (
-        project / ".agents" / "logs" / "progress-preview-20260725-100000.md"
+        project / ".claude" / "logs" / "progress-preview-20260725-100000.md"
     ).read_text(encoding="utf-8")
 
     run(project, *summary_flag(project), "--apply")
@@ -240,12 +240,12 @@ def test_apply_writes_checkpoint_progress_and_the_tracker(project: Path) -> None
     assert payload["state_updated"] is True
     assert payload["summary_validated"] is True
 
-    checkpoint = project / ".agents" / "checkpoints" / f"{STAMP}.md"
+    checkpoint = project / ".claude" / "checkpoints" / f"{STAMP}.md"
     assert checkpoint.is_file()
     assert checkpoint.with_suffix(".analyze-prompt.md").is_file()
 
     progress = (project / "PROGRESS.md").read_text(encoding="utf-8")
-    assert f"## [{STAMP}](.agents/checkpoints/{STAMP}.md)" in progress
+    assert f"## [{STAMP}](.claude/checkpoints/{STAMP}.md)" in progress
     assert "Broke the every-session loop." in progress
     assert "## サマリ" not in progress
 
@@ -258,7 +258,7 @@ def test_the_tracker_lands_before_the_first_work_block(project: Path) -> None:
     """
     run(project, *summary_flag(project), "--apply")
 
-    lines = (project / ".agents" / "STATE.md").read_text(encoding="utf-8").splitlines()
+    lines = (project / ".claude" / "STATE.md").read_text(encoding="utf-8").splitlines()
     assert lines.count("## Progress Tracker") == 1
     assert lines.index("## Progress Tracker") < lines.index("## Current Feature: alpha")
     assert lines.index("## Repository Identity") < lines.index("## Progress Tracker")
@@ -266,7 +266,7 @@ def test_the_tracker_lands_before_the_first_work_block(project: Path) -> None:
 
 def test_the_tracker_write_is_idempotent(project: Path) -> None:
     run(project, *summary_flag(project), "--apply")
-    before = (project / ".agents" / "STATE.md").read_text(encoding="utf-8")
+    before = (project / ".claude" / "STATE.md").read_text(encoding="utf-8")
 
     (project / "second.md").write_text(VALID_SUMMARY, encoding="utf-8")
     result = subprocess.run(
@@ -293,11 +293,11 @@ def test_the_tracker_write_is_idempotent(project: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["state_updated"] is False
     assert payload["progress_entries"] == 2
-    assert (project / ".agents" / "STATE.md").read_text(encoding="utf-8") == before
+    assert (project / ".claude" / "STATE.md").read_text(encoding="utf-8") == before
 
 
 def test_consume_summary_deletes_the_draft(project: Path) -> None:
-    summary = project / ".agents" / "logs" / "pending-summary.md"
+    summary = project / ".claude" / "logs" / "pending-summary.md"
 
     result = run(project, *summary_flag(project), "--apply", "--consume-summary")
 
@@ -308,7 +308,7 @@ def test_consume_summary_deletes_the_draft(project: Path) -> None:
 
 def test_an_existing_checkpoint_timestamp_is_never_overwritten(project: Path) -> None:
     run(project, *summary_flag(project), "--apply")
-    checkpoint = project / ".agents" / "checkpoints" / f"{STAMP}.md"
+    checkpoint = project / ".claude" / "checkpoints" / f"{STAMP}.md"
     before = checkpoint.read_text(encoding="utf-8")
     (project / "again.md").write_text(VALID_SUMMARY, encoding="utf-8")
 
@@ -325,7 +325,7 @@ def test_an_existing_checkpoint_timestamp_is_never_overwritten(project: Path) ->
 def test_one_clock_makes_filename_header_and_footer_agree(project: Path) -> None:
     run(project, *summary_flag(project), "--apply")
 
-    text = (project / ".agents" / "checkpoints" / f"{STAMP}.md").read_text(
+    text = (project / ".claude" / "checkpoints" / f"{STAMP}.md").read_text(
         encoding="utf-8"
     )
     assert text.startswith(f"# Checkpoint {STAMP}\n")
@@ -342,7 +342,7 @@ def test_an_unparseable_now_is_bad_args(project: Path) -> None:
             "--now",
             "yesterday",
             "--summary-file",
-            ".agents/logs/pending-summary.md",
+            ".claude/logs/pending-summary.md",
         ],
         capture_output=True,
         text=True,
@@ -364,7 +364,7 @@ def test_an_unparseable_since_emits_json_instead_of_a_traceback(project: Path) -
 
 
 def test_an_absent_state_md_is_a_hard_stop(project: Path) -> None:
-    (project / ".agents" / "STATE.md").unlink()
+    (project / ".claude" / "STATE.md").unlink()
 
     result = run(project, *summary_flag(project), "--apply")
 
@@ -375,7 +375,7 @@ def test_an_absent_state_md_is_a_hard_stop(project: Path) -> None:
 def test_two_tracker_headings_are_rejected_not_tolerated(project: Path) -> None:
     """The substring presence test used to accept a state refresh_guard calls
     invalid, so the two scripts disagreed on the same invariant."""
-    state = project / ".agents" / "STATE.md"
+    state = project / ".claude" / "STATE.md"
     state.write_text(
         state.read_text(encoding="utf-8")
         + "\n## Progress Tracker\n\none\n\n## Progress Tracker\n\ntwo\n",
@@ -394,11 +394,11 @@ def test_two_tracker_headings_are_rejected_not_tolerated(project: Path) -> None:
 def test_a_failed_collector_is_reported_not_rendered_as_no_activity(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / ".agents" / "logs").mkdir(parents=True)
-    (tmp_path / ".agents" / "STATE.md").write_text(
+    (tmp_path / ".claude" / "logs").mkdir(parents=True)
+    (tmp_path / ".claude" / "STATE.md").write_text(
         STATE_WITH_WORK_BLOCK, encoding="utf-8"
     )
-    (tmp_path / ".agents" / "logs" / "pending-summary.md").write_text(
+    (tmp_path / ".claude" / "logs" / "pending-summary.md").write_text(
         VALID_SUMMARY, encoding="utf-8"
     )
     (tmp_path / "claude-home").mkdir()
@@ -408,7 +408,7 @@ def test_a_failed_collector_is_reported_not_rendered_as_no_activity(
     assert result.returncode == 0, result.stdout
     payload = json.loads(result.stdout)
     assert payload["collector_errors"], "a non-git directory must not read as clean"
-    checkpoint = (tmp_path / ".agents" / "checkpoints" / f"{STAMP}.md").read_text(
+    checkpoint = (tmp_path / ".claude" / "checkpoints" / f"{STAMP}.md").read_text(
         encoding="utf-8"
     )
     assert "## Collector Status" in checkpoint
@@ -416,7 +416,7 @@ def test_a_failed_collector_is_reported_not_rendered_as_no_activity(
 
 
 def test_a_malformed_cli_log_line_is_counted(project: Path) -> None:
-    (project / ".agents" / "logs" / "cli-tools.jsonl").write_text(
+    (project / ".claude" / "logs" / "cli-tools.jsonl").write_text(
         '{"tool": "codex", "prompt": "ok", "timestamp": "2026-07-25T09:00:00Z"}\n'
         "not json at all\n",
         encoding="utf-8",
@@ -434,7 +434,7 @@ def test_a_malformed_cli_log_line_is_counted(project: Path) -> None:
 def test_only_timestamp_named_files_count_as_checkpoints(tmp_path: Path) -> None:
     """Path.glob("*.md") matches dotfiles, so a pending draft used to occupy a
     PROGRESS.md slot and silently push a real entry out."""
-    checkpoints = tmp_path / ".agents" / "checkpoints"
+    checkpoints = tmp_path / ".claude" / "checkpoints"
     checkpoints.mkdir(parents=True)
     for name in (
         "2026-07-25-100000.md",
@@ -450,7 +450,7 @@ def test_only_timestamp_named_files_count_as_checkpoints(tmp_path: Path) -> None
 
 
 def test_progress_md_keeps_at_most_five_entries(project: Path) -> None:
-    checkpoints = project / ".agents" / "checkpoints"
+    checkpoints = project / ".claude" / "checkpoints"
     checkpoints.mkdir(parents=True)
     for day in range(1, 8):
         (checkpoints / f"2026-07-0{day}-120000.md").write_text(
@@ -470,7 +470,7 @@ def test_progress_md_keeps_at_most_five_entries(project: Path) -> None:
 def test_a_checkpoint_without_markers_is_counted_not_silently_skipped(
     project: Path,
 ) -> None:
-    checkpoints = project / ".agents" / "checkpoints"
+    checkpoints = project / ".claude" / "checkpoints"
     checkpoints.mkdir(parents=True)
     (checkpoints / "2026-07-01-120000.md").write_text(
         "# Checkpoint\n", encoding="utf-8"
@@ -496,7 +496,7 @@ def _argv(project: Path, *extra: str) -> list[str]:
         NOW,
         "--json",
         "--summary-file",
-        ".agents/logs/pending-summary.md",
+        ".claude/logs/pending-summary.md",
         "--apply",
         *extra,
     ]
@@ -559,7 +559,7 @@ def test_validation_runs_before_the_replace_and_leaves_no_temp_file(
 
 
 def test_a_state_write_that_would_lose_a_heading_is_refused(project: Path) -> None:
-    state_before = (project / ".agents" / "STATE.md").read_text(encoding="utf-8")
+    state_before = (project / ".claude" / "STATE.md").read_text(encoding="utf-8")
     damaged = "# Agent State\n\n## Progress Tracker\n\nlink\n"
 
     error = cp.validate_state_composition(damaged, state_before)

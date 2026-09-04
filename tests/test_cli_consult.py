@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "_shared" / "cli_consult.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "_shared" / "cli_consult.py"
 
 
 def write_fake_cli(
@@ -131,7 +131,7 @@ def test_claude_success_reports_result_and_session_id(tmp_path: Path) -> None:
     response_file = payload["response_file"]
     assert not Path(response_file).is_absolute()
     assert (tmp_path / response_file).read_text(encoding="utf-8") == "The answer body"
-    assert response_file.startswith(".agents/logs/claude/")
+    assert response_file.startswith(".claude/logs/claude/")
 
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
     assert argv[1:4] == ["-p", "--output-format", "json"]
@@ -227,7 +227,7 @@ def test_antigravity_captures_text_output_verbatim(tmp_path: Path) -> None:
     assert payload["cli"] == "antigravity"
     assert payload["model"] == "fast"
     assert payload["response_head"] == "Antigravity answer\n"
-    assert payload["response_file"].startswith(".agents/logs/antigravity/")
+    assert payload["response_file"].startswith(".claude/logs/antigravity/")
     assert payload["write_access"] is True
 
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
@@ -494,10 +494,10 @@ def test_now_pins_the_log_filenames(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert (
         payload["response_file"]
-        == ".agents/logs/antigravity/20260725T100000Z-pinned.md"
+        == ".claude/logs/antigravity/20260725T100000Z-pinned.md"
     )
     assert payload["prompt_file"] == (
-        ".agents/logs/antigravity/20260725T100000Z-pinned.prompt.md"
+        ".claude/logs/antigravity/20260725T100000Z-pinned.prompt.md"
     )
 
 
@@ -541,15 +541,15 @@ def test_same_second_and_label_cannot_overwrite_an_earlier_response(
 
 
 def test_unwritable_log_directory_is_json_and_exit_3(tmp_path: Path) -> None:
-    """`.agents/logs` as a regular file used to produce a bare
+    """`.claude/logs` as a regular file used to produce a bare
     NotADirectoryError traceback and exit 1, which the shared exit vocabulary
     reads as 'bad arguments'."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     write_fake_cli(bin_dir, "claude", stdout=claude_envelope("hi"))
     prompt_file = write_prompt(tmp_path, "Objective: unwritable logs")
-    (tmp_path / ".agents").mkdir()
-    (tmp_path / ".agents" / "logs").write_text("not a directory", encoding="utf-8")
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "logs").write_text("not a directory", encoding="utf-8")
 
     result = run_cli_consult(
         tmp_path,
@@ -570,7 +570,7 @@ def test_unwritable_prompt_file_is_json_and_exit_3(tmp_path: Path) -> None:
     bin_dir.mkdir()
     write_fake_cli(bin_dir, "claude", stdout=claude_envelope("hi"))
     prompt_file = write_prompt(tmp_path, "Objective: unwritable prompt copy")
-    blocked = tmp_path / ".agents" / "logs" / "claude"
+    blocked = tmp_path / ".claude" / "logs" / "claude"
     blocked.mkdir(parents=True)
     (blocked / "20260725T100000Z-blocked.prompt.md").mkdir()
 

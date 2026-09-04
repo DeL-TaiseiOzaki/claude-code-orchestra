@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-REPRO = REPO_ROOT / ".agents" / "skills" / "troubleshoot" / "repro.py"
+REPRO = REPO_ROOT / ".claude" / "skills" / "troubleshoot" / "repro.py"
 
 EXIT_OK = 0
 EXIT_BAD_ARGS = 1
@@ -200,14 +200,14 @@ def test_expect_exit_mismatch_is_a_contract_violation(tmp_path: Path) -> None:
 def test_label_keys_the_log_file(tmp_path: Path) -> None:
     _code, first = run(tmp_path, "echo original", "--label", "bug-initial")
     _code, second = run(tmp_path, "echo verify", "--label", "bug-fix-verify")
-    assert first["log_file"] == ".agents/logs/troubleshoot-repro-bug-initial.log"
-    assert second["log_file"] == ".agents/logs/troubleshoot-repro-bug-fix-verify.log"
+    assert first["log_file"] == ".claude/logs/troubleshoot-repro-bug-initial.log"
+    assert second["log_file"] == ".claude/logs/troubleshoot-repro-bug-fix-verify.log"
     assert "original" in (tmp_path / first["log_file"]).read_text(encoding="utf-8")
 
 
 def test_unlabelled_runs_share_one_log_path(tmp_path: Path) -> None:
     _code, payload = run(tmp_path, "true")
-    assert payload["log_file"] == ".agents/logs/troubleshoot-repro.log"
+    assert payload["log_file"] == ".claude/logs/troubleshoot-repro.log"
     assert payload["label"] is None
 
 
@@ -226,7 +226,7 @@ def test_a_max_length_slug_plus_a_phase_suffix_is_still_a_valid_label(
     label = f"{'a' * 64}-fix-verify"
     code, payload = run(tmp_path, "true", "--label", label)
     assert code == EXIT_OK
-    assert payload["log_file"] == f".agents/logs/troubleshoot-repro-{label}.log"
+    assert payload["log_file"] == f".claude/logs/troubleshoot-repro-{label}.log"
 
 
 # --- traceback extraction is honest about what it recognizes ----------------

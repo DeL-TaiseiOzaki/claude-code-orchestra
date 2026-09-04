@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-HOOKS_SOURCE_DIR = REPO_ROOT / ".agents" / "hooks"
+HOOKS_SOURCE_DIR = REPO_ROOT / ".claude" / "hooks"
 DISPATCHER_NAME = "post-bash-check.py"
 
 
@@ -131,14 +131,14 @@ def test_codex_wrapper_call_logs_jsonl(tmp_path: Path) -> None:
             "exit_code": 0,
             "model": "gpt-5.6-sol",
             "sandbox": "read-only",
-            "response_file": ".agents/logs/codex/20260725T000000Z-design.md",
+            "response_file": ".claude/logs/codex/20260725T000000Z-design.md",
             "response_head": "TL;DR the plan holds.",
             "error": None,
         }
     )
     payload = bash_hook_input(
         command=(
-            "python3 .agents/skills/_shared/codex_consult.py "
+            "python3 .claude/skills/_shared/codex_consult.py "
             f"--prompt-file {prompt_file} --label design --sandbox read-only"
         ),
         stdout=wrapper_result,
@@ -156,7 +156,7 @@ def test_codex_wrapper_call_logs_jsonl(tmp_path: Path) -> None:
     assert entries[0]["model"] == "gpt-5.6-sol"
     assert entries[0]["prompt"] == "Objective: review the plan"
     assert entries[0]["response"] == "TL;DR the plan holds."
-    assert entries[0]["response_file"].startswith(".agents/logs/codex/")
+    assert entries[0]["response_file"].startswith(".claude/logs/codex/")
     assert entries[0]["success"] is True
 
 
@@ -173,7 +173,7 @@ def test_peer_cli_wrapper_call_logs_its_callee(tmp_path: Path) -> None:
     )
     payload = bash_hook_input(
         command=(
-            "python3 .agents/skills/_shared/cli_consult.py --cli antigravity "
+            "python3 .claude/skills/_shared/cli_consult.py --cli antigravity "
             "--prompt-stdin --label research"
         ),
         stdout=wrapper_result,
@@ -196,7 +196,7 @@ def test_wrapper_help_call_is_not_logged(tmp_path: Path) -> None:
     hooks_dir = build_isolated_hooks_dir(tmp_path)
     log_file = hooks_dir.parent / "logs" / "cli-tools.jsonl"
     payload = bash_hook_input(
-        command="python3 .agents/skills/_shared/cli_consult.py --help",
+        command="python3 .claude/skills/_shared/cli_consult.py --help",
         stdout="usage: cli_consult.py ...",
         exit_code=0,
     )

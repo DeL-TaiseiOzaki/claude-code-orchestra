@@ -20,7 +20,7 @@ approval_policy = "never"
 # unattended with no sandbox and no confirmation prompts. Planning/review
 # consultations should still pass an explicit `--sandbox read-only` flag to
 # avoid accidental writes during read-only tasks. Completion verification
-# (Sol Guardrails, .agents/rules/cli-execution.md section "Guardrails (Completion
+# (Sol Guardrails, root AGENTS.md section "Guardrails (Completion
 # Verification)") remains mandatory regardless of sandbox mode.
 sandbox_mode = "danger-full-access"
 
@@ -28,14 +28,22 @@ sandbox_mode = "danger-full-access"
 [features]
 skills = true
 
-# Skills configuration - enable project skills
+# Enabled project skills. Deliberately short: most skills under
+# .claude/skills/ are Claude-lead orchestration whose steps invoke Claude
+# Code's Task tool with a `subagent_type` (feature, spike, team-execute,
+# troubleshoot, plan, tdd, simplify, catchup, research-lib, codex-system).
+# Codex cannot execute those steps, so enabling them here would hand it a
+# procedure that stalls partway through. The two below are runtime-neutral:
+# both are plain file reads and a guarded write through a shared script.
+# init and checkpointing are also runtime-neutral but belong to the main
+# agent's session bookkeeping, not to a delegated Tier 2 run.
 [[skills.config]]
 enabled = true
-path = ".agents/skills/context-loader"
+path = ".claude/skills/context-loader"
 
 [[skills.config]]
 enabled = true
-path = ".agents/skills/design-tracker"
+path = ".claude/skills/design-tracker"
 
 # Response style
 verbosity = "medium"

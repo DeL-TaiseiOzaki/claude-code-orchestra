@@ -20,8 +20,8 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "catchup" / "write_guide.py"
-VALIDATE_DOC = REPO_ROOT / ".agents" / "skills" / "_shared" / "validate_doc.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "catchup" / "write_guide.py"
+VALIDATE_DOC = REPO_ROOT / ".claude" / "skills" / "_shared" / "validate_doc.py"
 
 NOW = "2026-07-25T09:30:00+00:00"
 
@@ -46,7 +46,7 @@ wg = _load_module(SCRIPT, "write_guide_under_test")
 
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
-    (tmp_path / ".agents" / "logs").mkdir(parents=True)
+    (tmp_path / ".claude" / "logs").mkdir(parents=True)
     return tmp_path
 
 
@@ -89,7 +89,7 @@ def test_dry_run_writes_only_a_preview(project: Path) -> None:
     payload = parsed(result)
     assert payload["result"] == "preview"
     assert payload["applied"] is False
-    assert payload["preview_path"] == ".agents/logs/guide-preview-20260725-093000.md"
+    assert payload["preview_path"] == ".claude/logs/guide-preview-20260725-093000.md"
     assert not (project / "GUIDE.md").exists()
     assert payload["artifacts"] == [payload["preview_path"]]
 
@@ -97,7 +97,7 @@ def test_dry_run_writes_only_a_preview(project: Path) -> None:
 def test_the_preview_is_byte_identical_to_what_apply_writes(project: Path) -> None:
     run(project, BODY)
     preview = (
-        project / ".agents" / "logs" / "guide-preview-20260725-093000.md"
+        project / ".claude" / "logs" / "guide-preview-20260725-093000.md"
     ).read_text(encoding="utf-8")
 
     run(project, BODY, "--apply")

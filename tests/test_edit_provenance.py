@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "_shared" / "edit_provenance.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "_shared" / "edit_provenance.py"
 
 
 def run_script(project_root: Path, *args: str) -> subprocess.CompletedProcess[str]:

@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "context-loader" / "load_context.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "context-loader" / "load_context.py"
 
 DESIGN_PLACEHOLDER = (
     "# Design Document\n\n"
@@ -41,14 +41,14 @@ def run_load_context(
 
 
 def write_rules(root: Path, stems: list[str]) -> None:
-    rules_dir = root / ".agents" / "rules"
+    rules_dir = root / ".claude" / "rules"
     rules_dir.mkdir(parents=True, exist_ok=True)
     for stem in stems:
         (rules_dir / f"{stem}.md").write_text(f"# {stem}\n", encoding="utf-8")
 
 
 def write_state(root: Path, main_agent_block: str = "\nClaude Code\n") -> None:
-    agents_dir = root / ".agents"
+    agents_dir = root / ".claude"
     agents_dir.mkdir(parents=True, exist_ok=True)
     text = (
         "# Agent State\n\n"
@@ -63,7 +63,7 @@ def write_state(root: Path, main_agent_block: str = "\nClaude Code\n") -> None:
 PROGRESS_WITH_ENTRY = (
     "# PROGRESS\n\n"
     "> Auto-maintained by /checkpointing.\n\n"
-    "## [2026-07-25-100000](.agents/checkpoints/2026-07-25-100000.md)\n\n"
+    "## [2026-07-25-100000](.claude/checkpoints/2026-07-25-100000.md)\n\n"
     "### 何をしたのか\n- Shipped Wave 2.\n"
 )
 
@@ -78,7 +78,7 @@ def test_happy_path_full_context_and_rule_ordering(tmp_path: Path) -> None:
         ["testing", "coding-principles", "zzz-extra", "aaa-extra", "dev-environment"],
     )
     write_state(tmp_path)
-    docs_dir = tmp_path / ".agents" / "docs"
+    docs_dir = tmp_path / ".claude" / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
     (docs_dir / "DESIGN.md").write_text(DESIGN_FILLED, encoding="utf-8")
     write_progress(tmp_path)
@@ -96,11 +96,11 @@ def test_happy_path_full_context_and_rule_ordering(tmp_path: Path) -> None:
     # Preferred prefix first (only the ones present, in prefix order), then
     # unrecognised files appended alphabetically.
     assert payload["rules"]["files"] == [
-        ".agents/rules/coding-principles.md",
-        ".agents/rules/dev-environment.md",
-        ".agents/rules/testing.md",
-        ".agents/rules/aaa-extra.md",
-        ".agents/rules/zzz-extra.md",
+        ".claude/rules/coding-principles.md",
+        ".claude/rules/dev-environment.md",
+        ".claude/rules/testing.md",
+        ".claude/rules/aaa-extra.md",
+        ".claude/rules/zzz-extra.md",
     ]
     assert payload["state"]["present"] is True
     assert payload["state"]["main_agent"] == "Claude Code"
@@ -117,15 +117,15 @@ def test_happy_path_full_context_and_rule_ordering(tmp_path: Path) -> None:
     # session-to-session continuity /feature reads first, and it used to be
     # reported by the script and then left out of the read plan entirely.
     assert payload["read_order"] == [
-        ".agents/rules/coding-principles.md",
-        ".agents/rules/dev-environment.md",
-        ".agents/rules/testing.md",
-        ".agents/rules/aaa-extra.md",
-        ".agents/rules/zzz-extra.md",
-        ".agents/STATE.md",
+        ".claude/rules/coding-principles.md",
+        ".claude/rules/dev-environment.md",
+        ".claude/rules/testing.md",
+        ".claude/rules/aaa-extra.md",
+        ".claude/rules/zzz-extra.md",
+        ".claude/STATE.md",
         "PROGRESS.md",
-        ".agents/docs/DESIGN.md",
-        ".agents/docs/libraries/duckdb.md",
+        ".claude/docs/DESIGN.md",
+        ".claude/docs/libraries/duckdb.md",
     ]
 
 
@@ -144,11 +144,11 @@ def test_missing_optional_inputs_degrade_gracefully(tmp_path: Path) -> None:
     assert payload["libraries"]["present"] is False
     assert payload["libraries"]["files"] == []
     assert payload["libraries"]["matched"] == []
-    assert ".agents/docs/DESIGN.md" in payload["missing"]
+    assert ".claude/docs/DESIGN.md" in payload["missing"]
     assert "PROGRESS.md" in payload["missing"]
     assert any("/init" in w for w in payload["warnings"])
     # Absent files are never dereferenced in the read plan.
-    assert ".agents/docs/DESIGN.md" not in payload["read_order"]
+    assert ".claude/docs/DESIGN.md" not in payload["read_order"]
 
 
 def test_missing_rules_dir_exits_2(tmp_path: Path) -> None:
@@ -159,7 +159,7 @@ def test_missing_rules_dir_exits_2(tmp_path: Path) -> None:
     assert result.returncode == 2
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
-    assert ".agents/rules" in payload["missing"]
+    assert ".claude/rules" in payload["missing"]
 
 
 def test_missing_state_md_exits_2(tmp_path: Path) -> None:
@@ -170,7 +170,7 @@ def test_missing_state_md_exits_2(tmp_path: Path) -> None:
     assert result.returncode == 2
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
-    assert ".agents/STATE.md" in payload["missing"]
+    assert ".claude/STATE.md" in payload["missing"]
 
 
 def test_main_agent_missing_value_parses_to_none(tmp_path: Path) -> None:
@@ -190,9 +190,9 @@ def test_real_repo_design_template_is_detected_as_placeholder(tmp_path: Path) ->
     'Keep distributed DESIGN.md a pristine placeholder')."""
     write_rules(tmp_path, ["coding-principles"])
     write_state(tmp_path)
-    docs_dir = tmp_path / ".agents" / "docs"
+    docs_dir = tmp_path / ".claude" / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
-    real_design = (REPO_ROOT / ".agents" / "docs" / "DESIGN.md").read_text(
+    real_design = (REPO_ROOT / ".claude" / "docs" / "DESIGN.md").read_text(
         encoding="utf-8"
     )
     (docs_dir / "DESIGN.md").write_text(real_design, encoding="utf-8")
@@ -209,7 +209,7 @@ def test_real_repo_design_template_is_detected_as_placeholder(tmp_path: Path) ->
 def test_task_libraries_matches_by_substring(tmp_path: Path) -> None:
     write_rules(tmp_path, ["coding-principles"])
     write_state(tmp_path)
-    libraries_dir = tmp_path / ".agents" / "docs" / "libraries"
+    libraries_dir = tmp_path / ".claude" / "docs" / "libraries"
     libraries_dir.mkdir(parents=True, exist_ok=True)
     (libraries_dir / "duckdb-python.md").write_text(
         "# DuckDB Python\n", encoding="utf-8"
@@ -223,13 +223,13 @@ def test_task_libraries_matches_by_substring(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
     assert payload["libraries"]["matched"] == ["duckdb-python.md"]
-    assert payload["read_order"][-1] == ".agents/docs/libraries/duckdb-python.md"
+    assert payload["read_order"][-1] == ".claude/docs/libraries/duckdb-python.md"
 
 
 def test_no_task_libraries_matches_nothing(tmp_path: Path) -> None:
     write_rules(tmp_path, ["coding-principles"])
     write_state(tmp_path)
-    libraries_dir = tmp_path / ".agents" / "docs" / "libraries"
+    libraries_dir = tmp_path / ".claude" / "docs" / "libraries"
     libraries_dir.mkdir(parents=True, exist_ok=True)
     (libraries_dir / "duckdb.md").write_text("# DuckDB\n", encoding="utf-8")
 
@@ -240,7 +240,7 @@ def test_no_task_libraries_matches_nothing(tmp_path: Path) -> None:
     assert payload["libraries"]["files"] == ["duckdb.md"]
     assert payload["libraries"]["matched"] == []
     assert all(
-        not p.startswith(".agents/docs/libraries/") for p in payload["read_order"]
+        not p.startswith(".claude/docs/libraries/") for p in payload["read_order"]
     )
 
 
@@ -276,7 +276,7 @@ def test_progress_md_is_read_after_state_and_before_design(tmp_path: Path) -> No
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
     order = payload["read_order"]
-    assert order.index("PROGRESS.md") == order.index(".agents/STATE.md") + 1
+    assert order.index("PROGRESS.md") == order.index(".claude/STATE.md") + 1
     assert "PROGRESS.md" not in payload["missing"]
 
 
@@ -297,7 +297,7 @@ def test_an_unreadable_state_md_is_unreadable_not_missing(tmp_path: Path) -> Non
     """A permission/encoding fault must not be reported as an un-bootstrapped
     repository, which would steer the agent to /init instead of the filesystem."""
     write_rules(tmp_path, ["coding-principles"])
-    state = tmp_path / ".agents" / "STATE.md"
+    state = tmp_path / ".claude" / "STATE.md"
     state.parent.mkdir(parents=True, exist_ok=True)
     state.write_bytes(b"# Agent State\n\n\xff\xfe not utf-8 \xff\n")
 
@@ -306,8 +306,8 @@ def test_an_unreadable_state_md_is_unreadable_not_missing(tmp_path: Path) -> Non
     assert result.returncode == 2
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
-    assert payload["unreadable"] == [".agents/STATE.md"]
-    assert ".agents/STATE.md" not in payload["missing"]
+    assert payload["unreadable"] == [".claude/STATE.md"]
+    assert ".claude/STATE.md" not in payload["missing"]
     assert any("unreadable" in w for w in payload["warnings"])
 
 
@@ -316,7 +316,7 @@ def test_design_placeholder_is_null_when_the_marker_heading_is_gone(
 ) -> None:
     write_rules(tmp_path, ["coding-principles"])
     write_state(tmp_path)
-    docs_dir = tmp_path / ".agents" / "docs"
+    docs_dir = tmp_path / ".claude" / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
     (docs_dir / "DESIGN.md").write_text(
         "# Design Document\n\n## Overview\n\nRenamed away from the template.\n",
@@ -335,7 +335,7 @@ def test_placeholder_fixture_itself_is_detected(tmp_path: Path) -> None:
     """Sanity-check the DESIGN_PLACEHOLDER/DESIGN_FILLED fixtures used above."""
     write_rules(tmp_path, ["coding-principles"])
     write_state(tmp_path)
-    docs_dir = tmp_path / ".agents" / "docs"
+    docs_dir = tmp_path / ".claude" / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
     (docs_dir / "DESIGN.md").write_text(DESIGN_PLACEHOLDER, encoding="utf-8")
 

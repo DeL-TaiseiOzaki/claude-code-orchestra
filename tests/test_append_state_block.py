@@ -1,6 +1,6 @@
 """Enforce the Writer Safety Contract for _shared/append_state_block.py.
 
-This script mutates ``.agents/STATE.md`` — the file every session reads first —
+This script mutates ``.claude/STATE.md`` — the file every session reads first —
 and had no test file at all. The tests below pin the four documented guarantees
 (dry-run by default, atomic replace, concurrent-modification guard, validation
 of the composed result before replacing), the ``## Repository Identity`` writer
@@ -24,8 +24,8 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "_shared" / "append_state_block.py"
-TEMPLATE_STATE = REPO_ROOT / ".agents" / "STATE.md"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "_shared" / "append_state_block.py"
+TEMPLATE_STATE = REPO_ROOT / ".claude" / "STATE.md"
 
 
 def _load_module(path: Path, name: str) -> ModuleType:
@@ -41,15 +41,15 @@ asb = _load_module(SCRIPT, "append_state_block_writer_under_test")
 
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
-    """A fixture repository whose .agents/STATE.md is a copy of the real one."""
-    state = tmp_path / ".agents" / "STATE.md"
+    """A fixture repository whose .claude/STATE.md is a copy of the real one."""
+    state = tmp_path / ".claude" / "STATE.md"
     state.parent.mkdir(parents=True)
     shutil.copy(TEMPLATE_STATE, state)
     return tmp_path
 
 
 def state_text(project: Path) -> str:
-    return (project / ".agents" / "STATE.md").read_text(encoding="utf-8")
+    return (project / ".claude" / "STATE.md").read_text(encoding="utf-8")
 
 
 def write_input(project: Path, data: dict, name: str = "input.json") -> Path:
@@ -125,7 +125,7 @@ def test_dry_run_changes_nothing_on_disk(
 def test_apply_reports_the_state_document_as_an_artifact(project: Path) -> None:
     payload = parsed(run(project, "feature", BLOCK, "--apply"))
     assert payload["result"] == "applied"
-    assert payload["artifacts"] == [".agents/STATE.md"]
+    assert payload["artifacts"] == [".claude/STATE.md"]
 
 
 # --- work blocks -------------------------------------------------------------
@@ -216,7 +216,7 @@ def test_identity_writer_preserves_an_existing_work_block(project: Path) -> None
 
 
 def test_identity_writer_creates_the_section_when_it_is_missing(project: Path) -> None:
-    state = project / ".agents" / "STATE.md"
+    state = project / ".claude" / "STATE.md"
     lines = state.read_text(encoding="utf-8").splitlines()
     start = lines.index(asb.IDENTITY_HEADING)
     end = lines.index(asb.PROGRESS_TRACKER_HEADING)
@@ -291,7 +291,7 @@ def test_progress_tracker_preserved_is_reported_on_every_path(
 
 
 def test_a_state_document_without_the_tracker_is_exit_2(project: Path) -> None:
-    state = project / ".agents" / "STATE.md"
+    state = project / ".claude" / "STATE.md"
     state.write_text("# Agent State\n\nnothing else\n", encoding="utf-8")
 
     result = run(project, "feature", BLOCK, "--apply")
@@ -306,7 +306,7 @@ def test_a_missing_state_document_is_exit_2(tmp_path: Path) -> None:
 
 
 def test_a_duplicated_identity_heading_is_refused(project: Path) -> None:
-    state = project / ".agents" / "STATE.md"
+    state = project / ".claude" / "STATE.md"
     before = state.read_text(encoding="utf-8")
     state.write_text(before + f"\n{asb.IDENTITY_HEADING}\n\nsecond\n", encoding="utf-8")
 
@@ -348,7 +348,7 @@ def _argv(project: Path, block_type: str, data: dict) -> list[str]:
 def test_the_hash_guard_refuses_a_document_changed_since_load(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    state = project / ".agents" / "STATE.md"
+    state = project / ".claude" / "STATE.md"
     real_read_text = Path.read_text
     real_write_text = Path.write_text
     reads = {"state": 0}
@@ -375,7 +375,7 @@ def test_the_hash_guard_refuses_a_document_changed_since_load(
 def test_validation_runs_before_the_replace_and_leaves_no_temp_file(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    state = project / ".agents" / "STATE.md"
+    state = project / ".claude" / "STATE.md"
     before = state.read_text(encoding="utf-8")
     calls = {"n": 0}
 

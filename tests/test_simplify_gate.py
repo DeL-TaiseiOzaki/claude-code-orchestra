@@ -24,8 +24,8 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "simplify" / "simplify_gate.py"
-BASELINE = Path(".agents") / "logs" / "simplify-baseline.json"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "simplify" / "simplify_gate.py"
+BASELINE = Path(".claude") / "logs" / "simplify-baseline.json"
 
 
 def _load_module(path: Path, name: str) -> ModuleType:
@@ -50,7 +50,7 @@ def repo(tmp_path: Path) -> Path:
     git(tmp_path, "init", "-q", "-b", "main", ".")
     git(tmp_path, "config", "user.email", "test@example.com")
     git(tmp_path, "config", "user.name", "Test")
-    (tmp_path / ".gitignore").write_text(".agents/logs/*\n", encoding="utf-8")
+    (tmp_path / ".gitignore").write_text(".claude/logs/*\n", encoding="utf-8")
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "target.py").write_text("def f():\n    return 1\n", "utf-8")
     (tmp_path / "src" / "other.py").write_text("def g():\n    return 2\n", "utf-8")

@@ -1,4 +1,4 @@
-"""Contract tests for `.agents/skills/_shared/verify.sh`.
+"""Contract tests for `.claude/skills/_shared/verify.sh`.
 
 No test invoked this script before, which is how three defects survived: no
 `--help` (`{"error":"unknown argument: --help"}`, exit 1 — the first command a
@@ -6,7 +6,7 @@ caller tries), no `ok` field on the success payload, and `overall: "no_gates"`
 exiting 0 so a code-editing skill could declare done with zero checks executed.
 
 Shell scripts are not exempt from the Shared Script Contract
-(`.agents/skills/_shared/README.md`), so the same clauses are asserted here as
+(`.claude/skills/_shared/README.md`), so the same clauses are asserted here as
 `test_shared_script_contract.py` asserts for the Python helpers.
 """
 
@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-VERIFY_SH = REPO_ROOT / ".agents" / "skills" / "_shared" / "verify.sh"
+VERIFY_SH = REPO_ROOT / ".claude" / "skills" / "_shared" / "verify.sh"
 
 # Running the real gates needs uv on PATH. Its absence is an environment fact,
 # not a defect in verify.sh — and it is exactly what the no_gates tests below
@@ -101,7 +101,7 @@ def test_help_does_not_write_the_log_file(tmp_path: Path) -> None:
     """--help must answer without touching the filesystem."""
     project = make_project(tmp_path, PASSING_TEST)
     run_verify("--project-root", str(project), "--help")
-    assert not (project / ".agents" / "logs" / "verify.log").exists()
+    assert not (project / ".claude" / "logs" / "verify.log").exists()
 
 
 # --- bad arguments (exit 1) ---------------------------------------------------
@@ -135,9 +135,9 @@ def test_project_root_pointing_nowhere_is_exit_1(tmp_path: Path) -> None:
 
 def test_bad_argument_never_writes_a_log_into_the_real_repo() -> None:
     """An argument error must fail before any filesystem work."""
-    before = (REPO_ROOT / ".agents" / "logs" / "verify.log").exists()
+    before = (REPO_ROOT / ".claude" / "logs" / "verify.log").exists()
     run_verify("--definitely-not-a-real-flag")
-    assert (REPO_ROOT / ".agents" / "logs" / "verify.log").exists() == before
+    assert (REPO_ROOT / ".claude" / "logs" / "verify.log").exists() == before
 
 
 # --- no_gates is a failure unless explicitly allowed (exit 2) ----------------
@@ -226,8 +226,8 @@ def test_log_file_and_artifacts_are_repo_relative_and_written(tmp_path: Path) ->
     project = make_project(tmp_path, PASSING_TEST)
     payload = payload_of(run_verify("--project-root", str(project)))
 
-    assert payload["log_file"] == ".agents/logs/verify.log"
-    assert payload["artifacts"] == [".agents/logs/verify.log"]
+    assert payload["log_file"] == ".claude/logs/verify.log"
+    assert payload["artifacts"] == [".claude/logs/verify.log"]
     written = project / payload["log_file"]
     assert written.is_file()
     # The gate output really is captured, not just claimed.
@@ -239,7 +239,7 @@ def test_project_root_is_honoured_for_every_path_it_touches(tmp_path: Path) -> N
     """--project-root must relocate the log too: a fixture run may not write
     into the real repository."""
     project = make_project(tmp_path, PASSING_TEST)
-    real_log = REPO_ROOT / ".agents" / "logs" / "verify.log"
+    real_log = REPO_ROOT / ".claude" / "logs" / "verify.log"
     before = real_log.stat().st_mtime_ns if real_log.exists() else None
 
     run_verify("--project-root", str(project))

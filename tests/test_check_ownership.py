@@ -19,7 +19,7 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "team-execute" / "check_ownership.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "team-execute" / "check_ownership.py"
 
 
 def _load_module(path: Path, name: str) -> ModuleType:
@@ -44,7 +44,7 @@ def repo(tmp_path: Path) -> Path:
     git(tmp_path, "init", "-q", "-b", "main", ".")
     git(tmp_path, "config", "user.email", "test@example.com")
     git(tmp_path, "config", "user.name", "Test")
-    (tmp_path / ".gitignore").write_text(".agents/logs/*\n", encoding="utf-8")
+    (tmp_path / ".gitignore").write_text(".claude/logs/*\n", encoding="utf-8")
     for rel in ("src/api/routes.py", "src/core/engine.py", "tests/test_api.py"):
         path = tmp_path / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -57,10 +57,10 @@ def repo(tmp_path: Path) -> Path:
 def assignment(
     repo: Path, owners: dict[str, list[str]], name: str = "owners.json"
 ) -> str:
-    # Under .agents/logs/ because that is where the lead is told to put it: the
+    # Under .claude/logs/ because that is where the lead is told to put it: the
     # directory is gitignored, so the assignment file is not itself a change
     # the reconcile pass has to account for.
-    path = repo / ".agents" / "logs" / name
+    path = repo / ".claude" / "logs" / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"owners": owners}), encoding="utf-8")
     return str(path)
@@ -157,17 +157,17 @@ def test_directory_prefix_respects_the_slash_boundary(repo: Path) -> None:
 
 
 def test_a_leading_dot_is_preserved(repo: Path) -> None:
-    """`lstrip("./")` would turn `.agents/docs` into `agents/docs` and quietly
+    """`lstrip("./")` would turn `.claude/docs` into `agents/docs` and quietly
     check a tree that does not exist."""
-    (repo / ".agents" / "docs").mkdir(parents=True)
-    (repo / ".agents" / "docs" / "d.md").write_text("x\n", encoding="utf-8")
+    (repo / ".claude" / "docs").mkdir(parents=True)
+    (repo / ".claude" / "docs" / "d.md").write_text("x\n", encoding="utf-8")
     git(repo, "add", "-A")
-    spec = assignment(repo, {"a": [".agents/docs"], "b": [".agents/docs/d.md"]})
+    spec = assignment(repo, {"a": [".claude/docs"], "b": [".claude/docs/d.md"]})
 
     result = run(repo, "--assignment", spec, "--mode", "preflight")
 
     assert result.returncode == 2
-    assert parsed(result)["overlaps"][0]["path"] == ".agents/docs/d.md"
+    assert parsed(result)["overlaps"][0]["path"] == ".claude/docs/d.md"
 
 
 def test_patterns_matching_nothing_are_reported(repo: Path) -> None:

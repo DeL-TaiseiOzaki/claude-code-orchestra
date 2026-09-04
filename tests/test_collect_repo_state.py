@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".agents" / "skills" / "catchup" / "collect_repo_state.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "catchup" / "collect_repo_state.py"
 
 
 def run(project: Path, *extra: str) -> subprocess.CompletedProcess[str]:
@@ -62,7 +62,7 @@ def project(tmp_path: Path) -> Path:
 
 
 def write_skill(root: Path, name: str, frontmatter: str) -> None:
-    skill_dir = root / ".agents" / "skills" / name
+    skill_dir = root / ".claude" / "skills" / name
     skill_dir.mkdir(parents=True, exist_ok=True)
     (skill_dir / "SKILL.md").write_text(
         f"---\n{frontmatter}\n---\n\n# {name}\n", encoding="utf-8"
@@ -103,7 +103,7 @@ def test_nested_metadata_short_description_is_reached(project: Path) -> None:
         {
             "name": "nested",
             "short_description": "The short one",
-            "file": ".agents/skills/nested/SKILL.md",
+            "file": ".claude/skills/nested/SKILL.md",
         }
     ]
 
@@ -186,8 +186,8 @@ def test_an_unknown_flag_is_exit_1(project: Path) -> None:
 
 
 def test_state_working_blocks_are_collected(project: Path) -> None:
-    (project / ".agents").mkdir(exist_ok=True)
-    (project / ".agents" / "STATE.md").write_text(
+    (project / ".claude").mkdir(exist_ok=True)
+    (project / ".claude" / "STATE.md").write_text(
         "# Agent State\n\n## Main Agent\n\nClaude Code\n\n"
         "## Current Project: orchestra\n\n- Wave 2 in flight\n\n"
         "## Current Bug Fix: loop\n\n- tracker loop\n",
@@ -205,7 +205,7 @@ def test_state_working_blocks_are_collected(project: Path) -> None:
 def test_design_key_decisions_are_collected_and_placeholders_flagged(
     project: Path,
 ) -> None:
-    docs = project / ".agents" / "docs"
+    docs = project / ".claude" / "docs"
     docs.mkdir(parents=True)
     (docs / "DESIGN.md").write_text(
         "# Design\n\n## 背景・目的 (Background & Purpose)\n\n"
@@ -277,7 +277,7 @@ def test_agent_teams_sessions_and_work_logs_are_collected(project: Path) -> None
     tasks.mkdir(parents=True)
     (tasks / "1.json").write_text(json.dumps({"status": "completed"}), encoding="utf-8")
     (tasks / "2.json").write_text(json.dumps({"status": "pending"}), encoding="utf-8")
-    logs = project / ".agents" / "logs" / "agent-teams" / "wave2"
+    logs = project / ".claude" / "logs" / "agent-teams" / "wave2"
     logs.mkdir(parents=True)
     (logs / "ctx.md").write_text("## Summary\nDid the work.\n", encoding="utf-8")
 
@@ -301,7 +301,7 @@ def test_a_malformed_team_config_is_reported(project: Path) -> None:
 
 
 def test_cli_tools_includes_every_tool_and_counts_bad_lines(project: Path) -> None:
-    logs = project / ".agents" / "logs"
+    logs = project / ".claude" / "logs"
     logs.mkdir(parents=True)
     (logs / "cli-tools.jsonl").write_text(
         json.dumps({"tool": "codex", "prompt": "design"})
@@ -322,7 +322,7 @@ def test_an_absent_cli_log_is_distinct_from_an_unreadable_one(project: Path) -> 
     absent = json.loads(run(project).stdout)["cli_tools"]
     assert absent == {"present": False, "items": [], "skipped_lines": 0, "error": None}
 
-    logs = project / ".agents" / "logs"
+    logs = project / ".claude" / "logs"
     logs.mkdir(parents=True)
     (logs / "cli-tools.jsonl").write_bytes(b"\xff\xfe not utf-8\n")
 
@@ -332,7 +332,7 @@ def test_an_absent_cli_log_is_distinct_from_an_unreadable_one(project: Path) -> 
 
 
 def test_only_timestamp_named_checkpoints_are_listed(project: Path) -> None:
-    checkpoints = project / ".agents" / "checkpoints"
+    checkpoints = project / ".claude" / "checkpoints"
     checkpoints.mkdir(parents=True)
     (checkpoints / "2026-07-25-100000.md").write_text(
         "# Checkpoint\n", encoding="utf-8"
@@ -345,7 +345,7 @@ def test_only_timestamp_named_checkpoints_are_listed(project: Path) -> None:
 
 
 def test_an_unreadable_rule_file_is_reported_not_blank(project: Path) -> None:
-    rules = project / ".agents" / "rules"
+    rules = project / ".claude" / "rules"
     rules.mkdir(parents=True)
     (rules / "broken.md").write_bytes(b"\xff\xfe not utf-8\n")
 

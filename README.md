@@ -41,7 +41,7 @@ bash "$template_dir/scripts/install.sh" . && rm -rf "$template_dir"
 
 The installer preserves project-owned files, including `README.md`, `VERSION`, and
 existing `AGENTS.md` / `CLAUDE.md` content. It installs the merged content in
-`.agents/STATE.md`, installs the concise shared `AGENTS.md` contract, and creates
+`.claude/STATE.md`, installs the concise shared `AGENTS.md` contract, and creates
 `CLAUDE.md -> AGENTS.md`. Template-owned path conflicts stop the install before
 changes are made. After reviewing the reported paths, `--force` can be used to back
 them up under `.orchestra-backup-*/` and replace them.
@@ -113,24 +113,24 @@ Confirm versions afterward:
 claude --version && codex --version
 ```
 
-The Codex model is centralized in `.claude/settings.json` (`env.CODEX_MODEL`), which every `${CODEX_MODEL:-...}` reference resolves to. `.codex/config.toml` (`model` + `model_reasoning_effort = "xhigh"`) must be kept in sync — `.agents/check.sh` verifies coherence between the two. To always use the latest model, bump that single value (currently `gpt-5.6-sol`) — no need to edit individual skill files. The `${CODEX_MODEL:-...}` fallback is just a default for when the env var is unset. Note: `update.sh` never auto-merges `.claude/settings.json` — downstream users must bump `env.CODEX_MODEL` manually after reviewing the Phase 5 diff.
+The Codex model is centralized in `.claude/settings.json` (`env.CODEX_MODEL`), which every `${CODEX_MODEL:-...}` reference resolves to. `.codex/config.toml` (`model` + `model_reasoning_effort = "xhigh"`) must be kept in sync — `scripts/check.sh` verifies coherence between the two. To always use the latest model, bump that single value (currently `gpt-5.6-sol`) — no need to edit individual skill files. The `${CODEX_MODEL:-...}` fallback is just a default for when the env var is unset. Note: `update.sh` never auto-merges `.claude/settings.json` — downstream users must bump `env.CODEX_MODEL` manually after reviewing the Phase 5 diff.
 
-Claude subagent routing is explicit in `.agents/agents/`: `general-purpose-sonnet`
+Claude subagent routing is explicit in `.claude/agents/`: `general-purpose-sonnet`
 and `general-purpose-opus` pin their own model aliases in frontmatter. Unspecified
 subagents default to Sonnet through `.claude/settings.json`
 (`env.CLAUDE_CODE_SUBAGENT_MODEL`).
 
-Peer CLI agents are reached through `.agents/skills/_shared/cli_consult.py`,
+Peer CLI agents are reached through `.claude/skills/_shared/cli_consult.py`,
 which supports Claude Code (`--cli claude`) and Antigravity (`--cli
 antigravity`, headless `agy -p`). Gemini CLI support was removed.
 
 ## Architecture
 
-The normative, tool-neutral orchestration policy and the complete agent/skill
-overview live in root `AGENTS.md`; `.agents/rules/tiers.md` defines the stable
-tier details.
+The normative orchestration policy and the complete agent/skill overview live in
+`CLAUDE.md`; root `AGENTS.md` carries the CLI-agent contract every runtime
+auto-loads, and `.claude/rules/tiers.md` the stable tier details.
 Claude Code is the initial main agent. If the user asks to promote Codex,
-Antigravity, or another runtime, follow `.agents/change_main.md`. The diagram
+Antigravity, or another runtime, follow `.claude/docs/change_main.md`. The diagram
 below is a non-normative overview of the default setup.
 
 ```
@@ -164,11 +164,11 @@ below is a non-normative overview of the default setup.
 
 ### Context Management (Important)
 
-Use the routing policy and execution patterns in root `AGENTS.md`.
-Product-specific delegation mechanics remain in `.agents/rules/` and the
+Use the routing policy and execution patterns in `CLAUDE.md`.
+Product-specific delegation mechanics remain in `.claude/rules/` and the
 corresponding canonical agent or skill definitions.
 
-The posture is **delegation-first**: `.agents/rules/delegation.md` makes direct
+The posture is **delegation-first**: `.claude/rules/delegation.md` makes direct
 execution by the main agent the exception, limited to a closed Self-Handle List,
 and names the triggers, route table, and subagent prompt contract that every
 skill follows. Delegating moves the work, not the accountability — the caller
@@ -176,14 +176,17 @@ still runs the acceptance checks and inspects the diff.
 
 ## Directory Structure
 
-`.agents/` owns shared policy, runtime content, project context, and state.
-`.claude/` and `.codex/` retain only product-native configuration. Their settings
-point directly to canonical capabilities under `.agents/`.
+`.claude/` is the physical source for the agent runtime: rules, skills, agent
+definitions, hooks, project documents, and state. `.agents/` (Antigravity) and
+`.codex/` (Codex) are each a runtime's native directory and hold exactly one
+thing — that runtime's entry contract. Every shared document lives under
+`.claude/` and is referenced by path, never copied. Nothing in the layout is
+reached through a symlink.
 
 ```
 .
-├── AGENTS.md                    # Shared mission, routing, agent/skill catalog, and gates
-├── CLAUDE.md -> AGENTS.md       # Claude Code discovery symlink
+├── AGENTS.md                    # CLI agent contract, auto-loaded by every runtime; routes the main agent to CLAUDE.md
+├── CLAUDE.md                    # Main agent contract: mission, routing, agent/skill catalog, gates
 ├── README.md
 ├── PROGRESS.md                  # Generated by the first /checkpointing run; latest 5 summaries
 ├── LICENSE
@@ -191,45 +194,48 @@ point directly to canonical capabilities under `.agents/`.
 ├── uv.lock                      # Dependency lock file
 ├── VERSION                      # Version of this template repository; downstream projects may replace it
 │
-├── .agents/                     # Shared tool-neutral orchestration SSOT
-│   ├── INDEX.md                 # Agent registry — lists all CLI subagents and their tiers
+├── .claude/                     # Main agent runtime (physical source)
+│   ├── settings.json            # Claude Code settings; hooks point to .claude/hooks/
+│   ├── orchestra-version        # Installed Orchestra version in downstream projects
 │   ├── STATE.md                 # Main agent, repository identity, and working state
-│   ├── change_main.md           # On-demand main-agent change runbook
-│   ├── check.sh                 # Contract, bootstrap, model, and tier coherence checker
-│   ├── agents/                  # Claude agent definitions (canonical)
-│   ├── skills/                  # Shared workflow skills and deterministic helpers
+│   ├── agents/                  # Subagent definitions, auto-discovered by Claude Code
+│   ├── skills/                  # Workflow skills and deterministic helpers
 │   │   └── _shared/             # Bundled runtime: helpers every skill may depend on
-│   ├── hooks/                   # Claude hook implementations (canonical)
-│   ├── rules/                   # Shared policy: delegation, tiers, CLI, coding, testing, security
-│   ├── docs/                    # Design, handoff, research, review, and library documents
+│   ├── hooks/                   # Hook implementations
+│   ├── rules/                   # Policy: delegation, tiers, CLI, coding, testing, security, state
+│   ├── docs/                    # INDEX.md registry, change_main.md runbook, design, research, reviews
 │   ├── logs/                    # Runtime logs (git-ignored)
-│   ├── checkpoints/             # Session checkpoints (git-ignored)
-│   └── workflows/
-│       └── antigravity/         # Experimental Antigravity adapter skeletons
-│           ├── feature.md
-│           └── troubleshoot.md
+│   └── checkpoints/             # Session checkpoints (git-ignored)
 │
-├── .claude/
-│   ├── settings.json             # Claude Code settings; hooks point to .agents/
-│   └── orchestra-version         # Installed Orchestra version in downstream projects
+├── .agents/                     # Antigravity's native directory
+│   └── AGENTS.md                # Antigravity adapter: headless behaviour and limits
 │
-├── .codex/                      # Codex native configuration only
-│   └── config.toml              # Shared skills point to .agents/
+├── .codex/                      # Codex's native directory
+│   ├── AGENTS.md                # Codex adapter: model config, sandbox discipline, enabled skills
+│   └── config.toml              # Native configuration (never overwritten); skills point to .claude/skills/
 │
 ├── tests/                      # Contract tests for the template's own scripts and docs
 │
 └── scripts/
+    ├── check.sh                # Contract, bootstrap, model, and tier coherence checker
     ├── install.sh              # Conflict-aware installer for existing projects
     └── update.sh               # Template update script
 ```
 
+Every CLI runtime auto-loads root `AGENTS.md`, which is self-contained: response
+structure, handoff rules, how to call another CLI as a subagent, and the
+completion-verification guardrails are all in the file that gets loaded. From
+there the main agent reads `CLAUDE.md`, and each runtime reads its own short
+adapter (`.codex/AGENTS.md`, `.agents/AGENTS.md`) only for what is specific to
+it. Nothing a delegated run depends on sits behind a pointer.
+
 ### Stabilizing Codex Integration
 
-- Use templates from `@.agents/docs/CODEX_HANDOFF_PLAYBOOK.md` to standardize requests to Codex
-- `.agents/rules/codex-delegation.md` defines the "Codex-first delegation" policy and exception conditions
+- Use templates from `@.claude/docs/CODEX_HANDOFF_PLAYBOOK.md` to standardize requests to Codex
+- `.claude/rules/codex-delegation.md` defines the "Codex-first delegation" policy and exception conditions
 - `.codex/config.toml` uses `approval_policy = "never"` to prevent blocking in non-interactive flows, and `sandbox_mode = "danger-full-access"` for unrestricted execution
 - The shared wrappers default to the same unrestricted access rather than being quietly stricter than the CLI they wrap, so what an agent may touch does not depend on which path reached it. `--sandbox read-only` (Codex) and `--read-only` (`cli_consult.py`) remain explicit opt-ins for planning and review calls
-- Since nothing confines a delegated run, every wrapper call is bracketed by `.agents/skills/_shared/edit_provenance.py` and records the files it created, changed, or deleted — with `caller` and `label` — to `.agents/logs/cli-tools.jsonl`. That log is how you answer "which subagent changed this?"
+- Since nothing confines a delegated run, every wrapper call is bracketed by `.claude/skills/_shared/edit_provenance.py` and records the files it created, changed, or deleted — with `caller` and `label` — to `.claude/logs/cli-tools.jsonl`. That log is how you answer "which subagent changed this?"
 
 ## Workflow
 
@@ -256,7 +262,7 @@ delegated to bundled scripts instead of being described in prose, so they cannot
 drift between phases or fail silently. Judgment steps stay in markdown. The
 boundary and the shared script contract (one JSON object on stdout, a common
 exit-code vocabulary, errors never swallowed) are documented in
-`.agents/skills/_shared/README.md`.
+`.claude/skills/_shared/README.md`.
 
 ### Core Workflow
 
@@ -289,7 +295,7 @@ Two-phase Agent Teams execution (merger of the old `/team-implement` and `/team-
 **Phase 1 IMPLEMENT:**
 - Launches Teammates per module/layer with separated file ownership
 - Manages dependencies via shared task list for autonomous coordination
-- Each Teammate records a work log to `.agents/logs/agent-teams/` upon completion
+- Each Teammate records a work log to `.claude/logs/agent-teams/` upon completion
 
 **Phase 2 REVIEW (reviewer composition):**
 - **Security Reviewer** — Detects security vulnerabilities
@@ -372,11 +378,11 @@ Used for design decisions, debugging, and trade-off analysis.
 
 #### `/design-tracker` — Design Decision Tracking
 
-Detects design decisions during conversation and structurally updates the relevant section of `.agents/docs/DESIGN.md` (機能要件 / 非機能要件 / アーキテクチャ / 技術選定 / 制約 / Key Decisions). Activates proactively and also on explicit requests ("record this", "update DESIGN").
+Detects design decisions during conversation and structurally updates the relevant section of `.claude/docs/DESIGN.md` (機能要件 / 非機能要件 / アーキテクチャ / 技術選定 / 制約 / Key Decisions). Activates proactively and also on explicit requests ("record this", "update DESIGN").
 
 #### `/research-lib` — Library Research
 
-Investigates a library and generates comprehensive documentation in `.agents/docs/libraries/`.
+Investigates a library and generates comprehensive documentation in `.claude/docs/libraries/`.
 
 ```
 /research-lib httpx
@@ -384,14 +390,14 @@ Investigates a library and generates comprehensive documentation in `.agents/doc
 
 #### `/update-lib-docs` — Update Library Documentation
 
-Updates existing documentation in `.agents/docs/libraries/` with the latest information.
+Updates existing documentation in `.claude/docs/libraries/` with the latest information.
 
 ### Session Management
 
 #### `/checkpointing` — Session Persistence
 
-Records session activity into `.agents/checkpoints/`, regenerates the rolling
-`PROGRESS.md`, and compacts stale working blocks in `.agents/STATE.md` while
+Records session activity into `.claude/checkpoints/`, regenerates the rolling
+`PROGRESS.md`, and compacts stale working blocks in `.claude/STATE.md` while
 preserving the main-agent selection, repository identity, and progress link.
 
 ```bash
@@ -403,8 +409,8 @@ preserving the main-agent selection, repository identity, and progress link.
 #### `/init` — Project Initialization
 
 Analyzes the project structure, auto-detects tech stack, commands, and
-configuration. Populates `.agents/docs/DESIGN.md` and updates only the thin
-`## Repository Identity` section in `.agents/STATE.md`.
+configuration. Populates `.claude/docs/DESIGN.md` and updates only the thin
+`## Repository Identity` section in `.claude/STATE.md`.
 
 #### `/catchup` — Onboarding Guide
 
@@ -445,21 +451,22 @@ rm -rf "$template_dir"
 ```
 
 **How it works:**
-- `AGENTS.md` is replaced with the shared agent contract;
-  `CLAUDE.md` is repaired as a symlink to it.
-- `.agents/STATE.md`, project design/research, logs, and checkpoints are
+- `AGENTS.md` (router) and `CLAUDE.md` (main agent contract) are replaced with
+  the template versions. A pre-2.0 `CLAUDE.md` symlink is retired first.
+- `.claude/STATE.md`, project design/research, logs, and checkpoints are
   preserved. Legacy 2/3-zone `AGENTS.md` or `CLAUDE.md` state is migrated into
-  `.agents/STATE.md` before the bootstrap is replaced.
-- Only template-owned `.agents/` subdirectories are atomically synced. Legacy
-  shared-content paths under `.claude/` and `.codex/` are removed.
-- Real legacy `.claude/{docs,logs,checkpoints}` data is migrated to `.agents/`;
-  collisions are backed up before missing files are merged.
-- Known legacy `.claude/hooks/` references in Claude settings are migrated to
-  `.agents/hooks/`; other settings differences still require manual review.
-- `.claude/settings.json` only shows a diff (manual merge required)
+  `.claude/STATE.md` before the bootstrap is replaced.
+- Only template-owned runtime subdirectories are atomically synced. Legacy
+  runtime paths under `.agents/` and `.codex/` are removed.
+- Real legacy `.agents/{docs,logs,checkpoints}` data and `.agents/STATE.md` are
+  moved to `.claude/`; collisions are backed up before missing files are merged.
+- Known legacy `.agents/hooks/` and `.agents/logs/` references in Claude
+  settings are migrated to `.claude/`; other settings differences still require
+  manual review.
+- `.claude/settings.json` and `.codex/config.toml` are never overwritten; both only show a diff (manual merge required)
 - The installed template version is stored in `.claude/orchestra-version`; a downstream project's root `VERSION` is never modified
 - If the update modifies `scripts/update.sh` itself (e.g. a new version adds
-  template directories such as `.agents/`), **run `./scripts/update.sh` a second
+  template directories such as `.claude/rules/`), **run `./scripts/update.sh` a second
   time** — the first run still uses the old script's sync list. Newer scripts
   print a reminder when this applies (updating from v0.2.0 does not, so run
   twice when upgrading to v0.3.0)
