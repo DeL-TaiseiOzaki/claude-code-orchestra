@@ -28,7 +28,8 @@ The main agent does the work itself **only** when the whole task is one of:
    lead (`workspace.py`, `validate_doc.py`, `update_design.py`,
    `append_state_block.py`, `checkpoint.py`, `collect_repo_state.py`, …).
 5. User interaction: clarifying questions, approvals, routing decisions,
-   integration of returned results, and the final Japanese report.
+   integration of returned results, and the final report to the user, whose
+   language and style follow `.claude/rules/language.md`.
 
 The list is closed. "It would be faster to just do it myself" is not on it, and
 neither is "the task is small enough that delegating feels like overhead."

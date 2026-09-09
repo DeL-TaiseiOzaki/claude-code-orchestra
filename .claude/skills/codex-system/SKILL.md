@@ -218,7 +218,7 @@ python3 .claude/skills/_shared/codex_consult.py --prompt-file "${prompt_file}" -
 
 ## Language Protocol
 
-See `.claude/rules/language.md` (SSOT): ask Codex in English, receive in English, report to the user per that rule.
+Ask Codex in English and receive English back. The user-facing report follows `CLAUDE.md` `## Language Protocol` for language and `.claude/rules/language.md` `## Response Style` for how that reply reads.
 
 ## Codex Plugin Commands (codex-plugin-cc)
 

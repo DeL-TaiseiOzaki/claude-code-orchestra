@@ -118,6 +118,7 @@ task before acting.
 - Think and reason in English.
 - Write code, identifiers, comments, commands, and technical documents in English.
 - Communicate with the user in Japanese.
+- Response style (natural Japanese, concise but complete): `.claude/rules/language.md`.
 
 ## Native Runtime Boundary
 

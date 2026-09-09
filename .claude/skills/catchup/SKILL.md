@@ -171,6 +171,6 @@ omitted.
 - **`.gitignore` awareness**: `.claude/checkpoints/` and `.claude/logs/` are
   gitignored. On a fresh clone they will be absent; the collector reports that
   as `present: false` rather than failing.
-- **Language**: `GUIDE.md` content follows the project's user-facing language
-  convention (Japanese for this repository), while code identifiers and command
-  names stay in English.
+- **Language**: `GUIDE.md` is user-facing prose, so it follows
+  `.claude/rules/language.md` rather than the English technical-document rule,
+  while code identifiers and command names stay in English.

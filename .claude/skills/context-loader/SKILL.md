@@ -107,7 +107,8 @@ drift this script exists to prevent. Apply what you read in
 
 ## Output
 
-After loading context, briefly confirm in Japanese:
+After loading context, briefly confirm to the user per
+`.claude/rules/language.md`:
 
 - how many rule files were read, and that `.claude/STATE.md` was read;
 - the `missing`, `unreadable`, and `warnings` arrays **quoted verbatim** from the

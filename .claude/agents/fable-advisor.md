@@ -87,11 +87,9 @@ Arguments against the recommendation -- acknowledge them honestly.
 Keep the review note under ~100 lines.
 
 Return a **3-5 bullet summary** as your final message to the orchestrator.
-The orchestrator reports to the user in Japanese per `.claude/rules/language.md`;
-your output is in English.
 
 ## Language Rules
 
-- **Thinking/Reasoning**: English
-- **Code identifiers and paths**: English
-- **Output to orchestrator**: English
+Everything this agent produces is English: reasoning, code identifiers and
+paths, and the return to the orchestrator. The orchestrator's own reply to the
+user follows `.claude/rules/language.md`.
