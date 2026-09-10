@@ -154,4 +154,4 @@ When recording, report concisely:
 - **Reasoning / code examples**: English
 - **Document content**: English (technical terms); Japanese descriptions are
   acceptable to match the existing 要件定義書 headings
-- **Report**: follow the surrounding session's language
+- **Report to the user**: per `.claude/rules/language.md`

@@ -96,9 +96,9 @@ Return actionable results, not raw Codex dumps.
 
 ## Language Rules
 
-- **Codex queries**: English
-- **Thinking/Reasoning**: English
-- **Output to main**: English
+Everything this agent produces is English: Codex queries, reasoning, and the
+return to the main agent. The main agent's own reply to the user follows
+`.claude/rules/language.md`.
 
 ## Output Format
 

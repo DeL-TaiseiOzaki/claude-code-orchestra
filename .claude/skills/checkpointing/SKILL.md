@@ -163,4 +163,5 @@ be lost is reported in `sections_dropped` and aborts the run with exit `2`.
   destination already exists.
 - All destructive moves require an explicit preview and user approval.
 - Report the checkpoint path, state blocks pruned, sections preserved, research
-  notes archived, validation result, and remaining risks in Japanese.
+  notes archived, validation result, and remaining risks, per
+  `.claude/rules/language.md`.

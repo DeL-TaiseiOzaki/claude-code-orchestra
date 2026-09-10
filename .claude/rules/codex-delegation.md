@@ -130,5 +130,6 @@ Verification)".
 
 ## Language Protocol
 
-See root `AGENTS.md` section "Language Protocol": ask Codex in English and
-report to the user in Japanese.
+Ask Codex in English and read its answer in English. The user-facing report
+follows `CLAUDE.md` `## Language Protocol` for language and
+`.claude/rules/language.md` `## Response Style` for how that reply reads.

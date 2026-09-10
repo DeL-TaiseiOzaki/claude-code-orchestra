@@ -157,7 +157,7 @@ An update edits the existing document in place:
 
 ## Report
 
-After updating, report to user (in Japanese):
+After updating, report to the user per `.claude/rules/language.md`:
 
 - Which libraries were updated
 - Significant changes found

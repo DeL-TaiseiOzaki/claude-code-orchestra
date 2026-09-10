@@ -144,4 +144,4 @@ alone is no longer the gate.
 Then review `.claude/rules/` for irrelevant stack-specific rules, but do
 not remove them without user approval. Report the evidence you used and the
 evidence you rejected, the two updated files, any `warnings`, and your
-recommendations in Japanese.
+recommendations, per `.claude/rules/language.md`.

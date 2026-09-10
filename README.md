@@ -522,3 +522,7 @@ Automation hooks execute agent coordination and quality checks at the appropriat
 - **Responses to users**: Japanese
 - **Technical documentation**: English
 - **README, etc.**: Japanese permitted
+
+Normative definitions: `CLAUDE.md` `## Language Protocol` for which language
+goes where, `.claude/rules/language.md` `## Response Style` for how the
+user-facing reply reads and how long it runs.
