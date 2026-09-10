@@ -518,12 +518,11 @@ Automation hooks execute agent coordination and quality checks at the appropriat
 
 ## Language Rules
 
-Normative definitions, not restated here:
+- **Code, thinking, and reasoning**: English
+- **Responses to users**: Japanese
+- **Technical documentation**: English
+- **README, etc.**: Japanese permitted
 
-- **Which language goes where**: `CLAUDE.md` `## Language Protocol`
-- **How the user-facing reply reads and how long it runs**:
-  `.claude/rules/language.md` `## Response Style`
-
-One carve-out this README owns: narrative documents such as this one may be
-written in Japanese, unlike the technical documentation the protocol keeps in
-English.
+Normative definitions: `CLAUDE.md` `## Language Protocol` for which language
+goes where, `.claude/rules/language.md` `## Response Style` for how the
+user-facing reply reads and how long it runs.
