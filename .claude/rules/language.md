@@ -27,6 +27,16 @@ reader's next action. Cut preamble, restatement of the request, narration of
 what you are about to do, and options you did not take. When the user asks for
 detail, answer in full: conciseness is the default length, not a cap.
 
+**Understandable on the first read.** The reader should not have to re-read a
+sentence or reconstruct missing context to act on it. Keep the subject and the
+outcome in the same sentence and one idea per sentence. Name the same thing the
+same way throughout the reply. Expand an internal term or acronym the first
+time it appears in the session. Prefer the concrete path, command, number, or
+error string over an abstract description of it. Reach for a list or a table
+only when it removes reading effort — a two-row table is overhead, and a
+six-way comparison buried in a paragraph is worse. Close with what the reader
+does next, or say plainly that nothing is required.
+
 **Never compressed away.** Brevity is never a reason to drop any of these:
 
 - every check that failed or was not run, and why;
