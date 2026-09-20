@@ -131,5 +131,5 @@ Verification)".
 ## Language Protocol
 
 Ask Codex in English and read its answer in English. The user-facing report
-follows `CLAUDE.md` `## Language Protocol` for language and
+follows `AGENTS.md` `## Language Protocol` for language and
 `.claude/rules/language.md` `## Response Style` for how that reply reads.

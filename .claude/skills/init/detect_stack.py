@@ -310,20 +310,35 @@ def detect_agent_bootstrap(root: Path) -> tuple[dict[str, bool], list[str]]:
     This mirrors ``scripts/check.sh``: ``.claude/agents`` and ``.claude/skills``
     are real directories, and a missing one disables native auto-discovery
     entirely, so /init must not report success while either is absent.
+
+    ``no_claude_md_shadow`` is the inverse marker: Claude Code reads the root
+    ``AGENTS.md`` only when no ``CLAUDE.md``, ``.claude/CLAUDE.md`` or
+    ``CLAUDE.local.md`` is present, so any of those files silently disables the
+    whole contract.
     """
     agents_md = root / "AGENTS.md"
-    claude_md = root / "CLAUDE.md"
     state_md = root / ".claude" / "STATE.md"
     state_text, _ = _read_text(state_md) if state_md.is_file() else (None, None)
     status = {
         "agents_md": agents_md.is_file() and not agents_md.is_symlink(),
-        "claude_md": claude_md.is_file() and not claude_md.is_symlink(),
+        "no_claude_md_shadow": not _claude_md_shadows(root),
         "state_md": state_text is not None and "# Agent State" in state_text,
         "claude_agents_dir": _is_runtime_dir(root, "agents"),
         "claude_skills_dir": _is_runtime_dir(root, "skills"),
         "cli_subagent_contract": (root / ".agents" / "AGENTS.md").is_file(),
     }
     return status, [name for name, ok in status.items() if not ok]
+
+
+CLAUDE_MD_SHADOW_PATHS = ("CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md")
+
+
+def _claude_md_shadows(root: Path) -> bool:
+    """True when a file Claude Code prefers over AGENTS.md exists in the repo."""
+    return any(
+        (root / relative).exists() or (root / relative).is_symlink()
+        for relative in CLAUDE_MD_SHADOW_PATHS
+    )
 
 
 def _is_runtime_dir(root: Path, name: str) -> bool:

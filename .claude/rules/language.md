@@ -1,6 +1,6 @@
 # Shared Language Rule
 
-The normative language policy lives in `CLAUDE.md` under
+The normative language policy lives in `AGENTS.md` under
 `## Language Protocol`. Every runtime must apply that shared policy to its
 conversation, agents, skills, hooks, and generated documents. This file neither
 overrides nor duplicates it.
@@ -22,7 +22,7 @@ no switching politeness register mid-reply. Technical terms, code identifiers,
 paths, commands, and log excerpts stay verbatim in their original form.
 
 **Concise but complete.** Lead with the conclusion — that ordering is already
-fixed in `CLAUDE.md` `## Execution Patterns` — then give only what changes the
+fixed in `AGENTS.md` `## Execution Patterns` — then give only what changes the
 reader's next action. Cut preamble, restatement of the request, narration of
 what you are about to do, and options you did not take. When the user asks for
 detail, answer in full: conciseness is the default length, not a cap.

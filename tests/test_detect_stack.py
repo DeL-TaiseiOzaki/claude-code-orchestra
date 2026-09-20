@@ -41,12 +41,11 @@ def run(root: Path, *extra: str) -> tuple[int, dict, str]:
 def project(tmp_path: Path) -> Path:
     """A fixture repository with a complete, valid agent bootstrap.
 
-    Mirrors what ``scripts/check.sh`` verifies: the root router, the
-    ``CLAUDE.md`` contract, shared state, the CLI-subagent contract, and both
-    native runtime directories.
+    Mirrors what ``scripts/check.sh`` verifies: the root ``AGENTS.md``
+    contract, shared state, the CLI-subagent contract, and both native runtime
+    directories. No ``CLAUDE.md`` exists, because one would shadow AGENTS.md.
     """
     (tmp_path / "AGENTS.md").write_text("# AGENTS\n", encoding="utf-8")
-    (tmp_path / "CLAUDE.md").write_text("# CLAUDE\n", encoding="utf-8")
     (tmp_path / ".agents").mkdir()
     (tmp_path / ".agents" / "AGENTS.md").write_text("# CLI\n", encoding="utf-8")
     state = tmp_path / ".claude" / "STATE.md"
@@ -320,11 +319,28 @@ def test_missing_state_marker_fails_the_bootstrap(project: Path) -> None:
     assert "state_md" in payload["error"]
 
 
-def test_missing_claude_md_fails_the_bootstrap(project: Path) -> None:
-    (project / "CLAUDE.md").unlink()
+def test_a_root_claude_md_fails_the_bootstrap(project: Path) -> None:
+    """Claude Code reads AGENTS.md only when no CLAUDE.md is present, so a
+    leftover CLAUDE.md silently disables the contract."""
+    (project / "CLAUDE.md").write_text("# CLAUDE\n", encoding="utf-8")
     code, payload, _ = run(project)
     assert code == 2
-    assert payload["agent_bootstrap"]["claude_md"] is False
+    assert payload["agent_bootstrap"]["no_claude_md_shadow"] is False
+    assert "no_claude_md_shadow" in payload["error"]
+
+
+def test_a_claude_local_md_fails_the_bootstrap(project: Path) -> None:
+    (project / "CLAUDE.local.md").write_text("# local\n", encoding="utf-8")
+    code, payload, _ = run(project)
+    assert code == 2
+    assert payload["agent_bootstrap"]["no_claude_md_shadow"] is False
+
+
+def test_a_nested_claude_md_fails_the_bootstrap(project: Path) -> None:
+    (project / ".claude" / "CLAUDE.md").write_text("# nested\n", encoding="utf-8")
+    code, payload, _ = run(project)
+    assert code == 2
+    assert payload["agent_bootstrap"]["no_claude_md_shadow"] is False
 
 
 def test_missing_cli_subagent_contract_fails_the_bootstrap(project: Path) -> None:

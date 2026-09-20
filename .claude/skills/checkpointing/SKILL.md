@@ -8,7 +8,7 @@ metadata:
 # Checkpointing
 
 Capture durable session context without growing the always-loaded root
-`CLAUDE.md`. Canonical state and artifacts live under `.claude/`.
+`AGENTS.md`. Canonical state and artifacts live under `.claude/`.
 
 ## Owned Paths
 
@@ -154,7 +154,7 @@ be lost is reported in `sections_dropped` and aborts the run with exit `2`.
 
 ## Safety Gates
 
-- Root `AGENTS.md` and `CLAUDE.md` are never modified.
+- Root `AGENTS.md` is never modified.
 - `INDEX.md` is generated, never hand-maintained; it is not a checkpoint and is
   never listed in `PROGRESS.md`.
 - State structure must contain exactly one `# Agent State` heading and one

@@ -89,8 +89,9 @@ Options:
   -h, --help   Show this help message
 
 Existing AGENTS.md and CLAUDE.md content is preserved in .claude/STATE.md.
-The template installs the root AGENTS.md router and the CLAUDE.md main-agent
-contract as real files. Existing
+The template installs the root AGENTS.md contract as a real file. An existing
+CLAUDE.md is moved aside to CLAUDE.md.pre-agents-md.bak, because Claude Code
+reads AGENTS.md only when no CLAUDE.md is present. Existing
 .claude/settings.json is never overwritten; a merge candidate is written to
 .claude/settings.orchestra.json when the files differ.
 EOF
@@ -133,7 +134,7 @@ require_source_paths() {
     local path
     for path in "${TEMPLATE_OWNED_DIRS[@]}" \
         "${TEMPLATE_OWNED_FILES[@]}" "${PROJECT_FILES_IF_MISSING[@]}" \
-        "AGENTS.md" "CLAUDE.md" ".claude/settings.json" ".codex/config.toml" \
+        "AGENTS.md" ".claude/settings.json" ".codex/config.toml" \
         "VERSION"; do
         if [[ ! -e "${SOURCE_ROOT}/${path}" && ! -L "${SOURCE_ROOT}/${path}" ]]; then
             error "Template source is incomplete: ${path} is missing."
@@ -168,6 +169,7 @@ validate_destination_paths() {
         "${PROJECT_FILES_IF_MISSING[@]}"
         "AGENTS.md"
         "CLAUDE.md"
+        "CLAUDE.md.pre-agents-md.bak"
         ".claude/settings.json"
         ".claude/settings.orchestra.json"
         ".claude/orchestra-version"
@@ -211,8 +213,9 @@ validate_project_files() {
         destination="${TARGET_ROOT}/${path}"
         if [[ -L "${destination}" ]]; then
             # A pre-2.0 CLAUDE.md -> AGENTS.md link is the one symlink we know
-            # how to retire: it is backed up as a conflict and replaced with the
-            # real contract file. Any other symlink here is still refused.
+            # how to retire: it is backed up as a conflict and then removed, so
+            # AGENTS.md is the only root contract. Any other symlink here is
+            # still refused.
             if [[ "${path}" != "CLAUDE.md" ]]; then
                 error "Refusing project-owned symlink: ${path}"
                 exit 2
@@ -239,8 +242,8 @@ collect_conflicts() {
         fi
     done
 
-    # A pre-2.0 installation left CLAUDE.md as a symlink to AGENTS.md. Both are
-    # real files now, so report the link instead of writing through it.
+    # A pre-2.0 installation left CLAUDE.md as a symlink to AGENTS.md. AGENTS.md
+    # is a real file now, so report the link instead of writing through it.
     if [[ -L "${TARGET_ROOT}/CLAUDE.md" ]]; then
         CONFLICTS+=("CLAUDE.md")
     fi
@@ -364,14 +367,33 @@ install_agent_files() {
             cat "${existing_claude}"
         } >> "${state}"
     fi
-    for name in "AGENTS.md" "CLAUDE.md"; do
-        source="${SOURCE_ROOT}/${name}"
-        destination="${TARGET_ROOT}/${name}"
-        temporary="${TARGET_ROOT}/.${name}.tmp.$$"
-        cp -a "${source}" "${temporary}"
-        mv -f "${temporary}" "${destination}"
-    done
-    info "Installed AGENTS.md and CLAUDE.md; preserved existing instructions in .claude/STATE.md"
+    name="AGENTS.md"
+    source="${SOURCE_ROOT}/${name}"
+    destination="${TARGET_ROOT}/${name}"
+    temporary="${TARGET_ROOT}/.${name}.tmp.$$"
+    cp -a "${source}" "${temporary}"
+    mv -f "${temporary}" "${destination}"
+    info "Installed AGENTS.md; preserved existing instructions in .claude/STATE.md"
+    retire_target_claude_md
+}
+
+# Claude Code reads the root AGENTS.md only when no CLAUDE.md, .claude/CLAUDE.md
+# or CLAUDE.local.md is found in the working directory or above. A CLAUDE.md
+# left in place would therefore load instead of the Orchestra contract, so the
+# file is moved aside — never deleted; its content is already in .claude/STATE.md.
+retire_target_claude_md() {
+    local existing="${TARGET_ROOT}/CLAUDE.md"
+    [[ -f "${existing}" && ! -L "${existing}" ]] || return 0
+
+    local backup="${existing}.pre-agents-md.bak"
+    if [[ -e "${backup}" || -L "${backup}" ]]; then
+        backup="${backup}.$(date +%Y%m%d%H%M%S)-$$"
+    fi
+    mv -f "${existing}" "${backup}"
+    warn "Moved CLAUDE.md to $(basename "${backup}")."
+    warn "Claude Code loads CLAUDE.md instead of AGENTS.md when both exist, so leaving"
+    warn "a CLAUDE.md in the repository silently disables the Orchestra contract."
+    warn "Its instructions were preserved in .claude/STATE.md; delete the backup once reviewed."
 }
 
 install_settings() {

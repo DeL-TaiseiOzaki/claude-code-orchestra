@@ -1,8 +1,12 @@
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ORCHESTRATION_PATH = REPO_ROOT / "CLAUDE.md"
-ROUTER_PATH = REPO_ROOT / "AGENTS.md"
+# One root contract: the main-agent orchestration policy and the CLI-executor
+# contract were merged into AGENTS.md, and CLAUDE.md was deleted. Claude Code
+# reads AGENTS.md directly only while no CLAUDE.md shadows it.
+CONTRACT_PATH = REPO_ROOT / "AGENTS.md"
+SHADOWING_CLAUDE_FILES = ("CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md")
 SHARED_RUNTIME_DIRS = (
     "rules",
     "skills",
@@ -27,6 +31,16 @@ REQUIRED_HEADINGS = (
 )
 
 
+def count_headings(content: str, heading: str) -> int:
+    """Count `heading` only where it is a real heading line.
+
+    The contract quotes its own section names inline (``see `## Cross-CLI
+    Subagent Invocation` below``), so a substring count reads a cross-reference
+    as a duplicate section. This mirrors check.sh's `grep -Fxq`.
+    """
+    return len(re.findall(rf"^{re.escape(heading)}$", content, re.MULTILINE))
+
+
 def read_repo_file(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
 
@@ -36,19 +50,23 @@ def assert_references_in_order(content: str, references: tuple[str, ...]) -> Non
     assert positions == sorted(positions)
 
 
-def test_claude_md_is_the_main_agent_orchestration_contract() -> None:
-    assert ORCHESTRATION_PATH.is_file()
-    assert not ORCHESTRATION_PATH.is_symlink()
-    content = ORCHESTRATION_PATH.read_text(encoding="utf-8")
+def test_root_contract_is_the_main_agent_orchestration_contract() -> None:
+    """The main-agent policy sections used to live in CLAUDE.md; they are now
+    the first half of the single root AGENTS.md."""
+    assert CONTRACT_PATH.is_file()
+    assert not CONTRACT_PATH.is_symlink()
+    content = CONTRACT_PATH.read_text(encoding="utf-8")
 
     for heading in REQUIRED_HEADINGS:
-        assert content.count(heading) == 1
+        assert count_headings(content, heading) == 1
 
 
-def test_claude_md_is_concise_complete_instruction_file() -> None:
-    content = read_repo_file("CLAUDE.md")
+def test_root_contract_is_concise_complete_instruction_file() -> None:
+    content = read_repo_file("AGENTS.md")
 
-    assert len(content.splitlines()) <= 150
+    # The cap is 400 rather than the 150 that bounded the pre-merge router:
+    # one file now carries both contracts. It is a ceiling, not a target.
+    assert len(content.splitlines()) <= 400
     for reference in (
         ".claude/rules/",
         ".claude/skills/",
@@ -65,8 +83,8 @@ def test_claude_md_is_concise_complete_instruction_file() -> None:
     assert not (REPO_ROOT / ".claude/rules/orchestration.md").exists()
 
 
-def test_claude_md_catalogs_every_bundled_agent_and_skill() -> None:
-    content = read_repo_file("CLAUDE.md")
+def test_root_contract_catalogs_every_bundled_agent_and_skill() -> None:
+    content = read_repo_file("AGENTS.md")
     agent_names = {
         path.stem for path in (REPO_ROOT / ".claude" / "agents").glob("*.md")
     }
@@ -85,10 +103,14 @@ def test_root_agents_md_is_the_self_contained_cli_contract() -> None:
     a thin router, a delegated Codex run loaded a pointer instead of the
     cross-CLI rules and the completion guardrails it is bound by — so the
     sections a delegated run depends on must be in this file, not behind a link.
-    It still must not restate CLAUDE.md's own policy sections."""
-    assert ROUTER_PATH.is_file()
-    assert not ROUTER_PATH.is_symlink()
-    content = ROUTER_PATH.read_text(encoding="utf-8")
+
+    The same argument later applied to the main-agent half: CLAUDE.md was merged
+    in and deleted, so this file now carries REQUIRED_HEADINGS too. Those
+    headings were once asserted *absent* here — the design changed, the check
+    was not loosened."""
+    assert CONTRACT_PATH.is_file()
+    assert not CONTRACT_PATH.is_symlink()
+    content = CONTRACT_PATH.read_text(encoding="utf-8")
 
     for section in (
         "## Required Response Structure",
@@ -96,23 +118,33 @@ def test_root_agents_md_is_the_self_contained_cli_contract() -> None:
         "## Cross-CLI Subagent Invocation",
         "## Guardrails (Completion Verification)",
     ):
-        assert content.count(section) == 1
+        assert count_headings(content, section) == 1
     for route in (
-        "CLAUDE.md",
         ".agents/AGENTS.md",
         ".codex/AGENTS.md",
         ".claude/rules/tiers.md",
     ):
         assert route in content
     for policy_heading in REQUIRED_HEADINGS:
-        assert policy_heading not in content
+        assert policy_heading in content
+
+
+def test_no_claude_md_shadows_the_root_contract() -> None:
+    """Claude Code loads root AGENTS.md directly only while no CLAUDE.md sits in
+    the working directory or above it. It reads the first CLAUDE.md it finds
+    instead and silently stops loading AGENTS.md — no warning, no error — so the
+    main agent would run without its contract. This invariant is what makes the
+    single-root-contract design work."""
+    for relative_path in SHADOWING_CLAUDE_FILES:
+        path = REPO_ROOT / relative_path
+        assert not path.exists(), f"{relative_path} shadows root AGENTS.md"
+        assert not path.is_symlink(), f"{relative_path} shadows root AGENTS.md"
 
 
 def test_contract_files_are_real_files_not_symlinks() -> None:
     """The layout is symlink-free by design: a checkout on a filesystem or CI
     runner that does not honour symlinks must still carry every contract."""
     for relative_path in (
-        "CLAUDE.md",
         "AGENTS.md",
         ".agents/AGENTS.md",
         ".codex/AGENTS.md",
@@ -200,6 +232,7 @@ def test_shared_runtime_docs_use_canonical_claude_paths() -> None:
     )
     violations: list[str] = []
     reviews_dir = REPO_ROOT / ".claude" / "docs" / "reviews"
+    logs_dir = REPO_ROOT / ".claude" / "logs"
     checker = REPO_ROOT / "scripts" / "check.sh"
     for path in list((REPO_ROOT / ".agents").rglob("*")) + list(
         (REPO_ROOT / ".claude").rglob("*")
@@ -216,6 +249,12 @@ def test_shared_runtime_docs_use_canonical_claude_paths() -> None:
         # proposal has to be able to name a script that does not exist yet.
         # Same rationale as check.sh's logs/checkpoints/research exclusions.
         if reviews_dir in path.parents:
+            continue
+        # Run logs are generated evidence, not runtime documentation, and are
+        # gitignored. check.sh excludes them from its own doc scan for the same
+        # reason: a migration inventory has to quote the paths it migrated away
+        # from.
+        if logs_dir in path.parents:
             continue
         content = path.read_text(encoding="utf-8")
         if any(stale_path in content for stale_path in stale_paths):
@@ -269,9 +308,9 @@ def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
     the wrapper — and leaving `claude -p` / `agy -p` with no hardened path
     at all."""
     content = read_repo_file("AGENTS.md")
-    section = content.split("## Cross-CLI Subagent Invocation", 1)[1].split("\n## ", 1)[
-        0
-    ]
+    section = content.split("\n## Cross-CLI Subagent Invocation\n", 1)[1].split(
+        "\n## ", 1
+    )[0]
 
     for wrapper in (
         ".claude/skills/_shared/cli_consult.py",
@@ -286,7 +325,9 @@ def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
     assert "read-only" in section.lower()
     assert "--read-only" in section
 
-    assert "cli_consult.py" in read_repo_file("CLAUDE.md")
+    # The main-agent half of the same contract names the wrapper as well, so a
+    # caller that only read the Native Runtime Boundary section still finds it.
+    assert "cli_consult.py" in read_repo_file("AGENTS.md")
 
 
 def test_registry_marks_main_agent_contract_as_normative() -> None:
