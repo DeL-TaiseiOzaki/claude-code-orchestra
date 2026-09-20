@@ -14,9 +14,10 @@ available as executors or advisors when their capabilities fit the task.
 
 - `.claude/` remains the physical source for rules, skills, agent definitions,
   hooks, state, and docs, whichever runtime is main.
-- Root `AGENTS.md` remains the CLI-agent contract every runtime auto-loads, and
-  `CLAUDE.md` the main-agent contract. `.agents/AGENTS.md` and `.codex/AGENTS.md`
-  stay short per-runtime adapters. All are real files.
+- Root `AGENTS.md` remains the single contract every runtime auto-loads: it
+  carries both the main-agent and the CLI-agent contract. `.agents/AGENTS.md`
+  and `.codex/AGENTS.md` stay short per-runtime adapters. All are real files,
+  and no `CLAUDE.md` exists — Claude Code reads `AGENTS.md` only when none does.
 - Rules, skills, agent definitions, hooks, state, and docs are not copied into
   `.agents/` or `.codex/`; those directories reference `.claude/` by path.
 - Machine-readable native settings remain in each product's required path and
@@ -30,12 +31,10 @@ available as executors or advisors when their capabilities fit the task.
    default for future installations. Treat an unqualified request as
    repository-only.
 2. Verify that the target runtime is installed and can read root `AGENTS.md`,
-   the contract it routes to, `.claude/STATE.md`, relevant `.claude/rules/`, and
-   its supported skills.
+   `.claude/STATE.md`, relevant `.claude/rules/`, and its supported skills.
 3. Inspect the target runtime's current native discovery/configuration
    requirements. Add only the minimum native config needed and point it directly
-   to root `AGENTS.md`, `CLAUDE.md`, or `.agents/` where supported; do not
-   invent integration
+   to root `AGENTS.md` or `.agents/` where supported; do not invent integration
    surfaces in advance for runtimes that are not being activated.
 4. Update only the `## Main Agent` value in `.claude/STATE.md`.
 5. Map main-agent responsibilities to the target runtime. Keep Claude Code,
@@ -44,7 +43,7 @@ available as executors or advisors when their capabilities fit the task.
 6. Translate hooks, model selection, permissions, and sandbox settings only
    where the target runtime requires machine-readable configuration. Preserve
    least privilege and document any unavoidable semantic difference.
-7. Update the default statement in `CLAUDE.md`, the `.claude/STATE.md`
+7. Update the default statement in `AGENTS.md`, the `.claude/STATE.md`
    seed, and installer/updater manifests only when the user requested a new
    template default. A repository-only switch changes only `.claude/STATE.md`
    and must survive updates without modifying template-owned bootstrap files.

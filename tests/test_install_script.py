@@ -109,7 +109,7 @@ def test_install_adds_complete_template_without_overwriting_project_version(
     assert (target / ".agents/AGENTS.md").is_file()
     assert (target / ".claude/rules/tiers.md").is_file()
     assert (target / ".codex/AGENTS.md").is_file()
-    assert "## Skill Catalog" in (target / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "## Skill Catalog" in (target / "AGENTS.md").read_text(encoding="utf-8")
     assert not (target / ".claude/rules/orchestration.md").exists()
     assert (target / ".claude/rules").is_dir()
     assert (target / ".claude/skills").is_dir()
@@ -117,8 +117,11 @@ def test_install_adds_complete_template_without_overwriting_project_version(
     assert (target / ".claude/hooks").is_dir()
     assert (target / "AGENTS.md").is_file()
     assert not (target / "AGENTS.md").is_symlink()
-    assert (target / "CLAUDE.md").is_file()
+    # Claude Code reads AGENTS.md only when no CLAUDE.md shadows it, so the
+    # installer must never create one.
+    assert not (target / "CLAUDE.md").exists()
     assert not (target / "CLAUDE.md").is_symlink()
+    assert not (target / ".claude/CLAUDE.md").exists()
     assert {path.name for path in (target / ".claude").iterdir()} == {
         "orchestra-version",
         "settings.json",
@@ -141,7 +144,7 @@ def test_install_adds_complete_template_without_overwriting_project_version(
     assert (target / ".claude/settings.json").is_file()
     assert (target / ".claude/docs/research/.gitkeep").is_file()
     assert (target / ".claude/STATE.md").is_file()
-    assert "@orchestra:" not in (target / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "@orchestra:" not in (target / "AGENTS.md").read_text(encoding="utf-8")
     gitignore = (target / ".gitignore").read_text(encoding="utf-8")
     assert ".claude/logs/" in gitignore
     assert ".claude/checkpoints/" in gitignore
@@ -157,14 +160,53 @@ def test_install_preserves_existing_claude_md_in_shared_state(tmp_path: Path) ->
     result = run_install(target)
 
     assert result.returncode == 0, result.stderr
-    assert (target / "CLAUDE.md").is_file()
-    assert not (target / "CLAUDE.md").is_symlink()
     installed = (target / ".claude/STATE.md").read_text(encoding="utf-8")
     assert installed.count(existing_content.strip()) == 1
-    for contract in ("AGENTS.md", "CLAUDE.md"):
-        assert existing_content.strip() not in (target / contract).read_text(
-            encoding="utf-8"
-        )
+    assert existing_content.strip() not in (target / "AGENTS.md").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_install_moves_an_existing_claude_md_aside_with_a_warning(
+    tmp_path: Path,
+) -> None:
+    """A CLAUDE.md left in place would load instead of AGENTS.md, so it is
+    renamed — never deleted — and the user is told why."""
+    target = tmp_path / "project"
+    init_git_repo(target)
+    existing_content = "# Existing instructions\n\nKeep this project rule.\n"
+    (target / "CLAUDE.md").write_text(existing_content, encoding="utf-8")
+
+    result = run_install(target)
+
+    assert result.returncode == 0, result.stderr
+    assert not (target / "CLAUDE.md").exists()
+    backup = target / "CLAUDE.md.pre-agents-md.bak"
+    assert backup.read_text(encoding="utf-8") == existing_content
+    output = result.stdout + result.stderr
+    assert "CLAUDE.md.pre-agents-md.bak" in output
+    assert "instead of AGENTS.md" in output
+
+
+def test_install_keeps_an_earlier_claude_md_backup(tmp_path: Path) -> None:
+    """Re-running the installer must not overwrite a backup it made before."""
+    target = tmp_path / "project"
+    init_git_repo(target)
+    (target / "CLAUDE.md.pre-agents-md.bak").write_text("first\n", encoding="utf-8")
+    (target / "CLAUDE.md").write_text("second\n", encoding="utf-8")
+
+    result = run_install(target)
+
+    assert result.returncode == 0, result.stderr
+    assert (target / "CLAUDE.md.pre-agents-md.bak").read_text(
+        encoding="utf-8"
+    ) == "first\n"
+    extra = [
+        path
+        for path in target.glob("CLAUDE.md.pre-agents-md.bak.*")
+        if path.read_text(encoding="utf-8") == "second\n"
+    ]
+    assert len(extra) == 1
 
 
 def test_install_refuses_template_owned_path_conflicts_by_default(
@@ -251,9 +293,9 @@ def test_force_install_backs_up_existing_native_subagents_and_skills(
 
 
 def test_install_retires_a_legacy_claude_md_symlink(tmp_path: Path) -> None:
-    """Pre-2.0 installs shipped CLAUDE.md as a symlink to AGENTS.md. Both are
-    real files now, so the link is reported as a conflict and only replaced
-    once the user accepts the backup."""
+    """Pre-2.0 installs shipped CLAUDE.md as a symlink to AGENTS.md. AGENTS.md
+    is the only root contract now, so the link is reported as a conflict and
+    only removed once the user accepts the backup."""
     target = tmp_path / "project"
     init_git_repo(target)
     (target / "AGENTS.md").write_text("# Old bootstrap\n", encoding="utf-8")
@@ -266,9 +308,12 @@ def test_install_retires_a_legacy_claude_md_symlink(tmp_path: Path) -> None:
     result = run_install(target, "--force")
 
     assert result.returncode == 0, result.stderr
-    assert (target / "CLAUDE.md").is_file()
+    assert not (target / "CLAUDE.md").exists()
     assert not (target / "CLAUDE.md").is_symlink()
-    assert "## Skill Catalog" in (target / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "## Skill Catalog" in (target / "AGENTS.md").read_text(encoding="utf-8")
+    backups = list(target.glob(".orchestra-backup-*"))
+    assert len(backups) == 1
+    assert (backups[0] / "CLAUDE.md").is_symlink()
 
 
 def test_install_preserves_existing_settings_and_writes_merge_candidate(
@@ -513,7 +558,6 @@ def test_update_migrates_legacy_claude_zones_into_shared_state(tmp_path: Path) -
     install_result = run_install(target, script=template / "scripts/install.sh")
     assert install_result.returncode == 0, install_result.stderr
 
-    (target / "CLAUDE.md").unlink()
     legacy_state = "## Current Project\n\nKeep this migrated state.\n"
     (target / "CLAUDE.md").write_text(
         "# Old Claude adapter\n\n"
@@ -531,13 +575,37 @@ def test_update_migrates_legacy_claude_zones_into_shared_state(tmp_path: Path) -
     update_result = run_update(target, template)
 
     assert update_result.returncode == 0, update_result.stderr
-    assert (target / "CLAUDE.md").is_file()
+    # The zones are migrated first, then the file that would shadow AGENTS.md is
+    # moved aside instead of being deleted or re-installed.
+    assert not (target / "CLAUDE.md").exists()
     assert not (target / "CLAUDE.md").is_symlink()
+    backup = target / "CLAUDE.md.pre-agents-md.bak"
+    assert "Legacy project." in backup.read_text(encoding="utf-8")
     migrated = (target / ".claude/STATE.md").read_text(encoding="utf-8")
     assert "Legacy project." in migrated
     assert legacy_state.strip() in migrated
-    for contract in ("AGENTS.md", "CLAUDE.md"):
-        assert "Legacy project." not in (target / contract).read_text(encoding="utf-8")
+    assert "Legacy project." not in (target / "AGENTS.md").read_text(encoding="utf-8")
+    assert "## Skill Catalog" in (target / "AGENTS.md").read_text(encoding="utf-8")
+
+
+def test_update_moves_a_plain_claude_md_aside(tmp_path: Path) -> None:
+    """Earlier templates installed a real CLAUDE.md with no boundary markers.
+    It has nothing to migrate, but it still shadows AGENTS.md."""
+    template = build_template_repo(tmp_path)
+    target = tmp_path / "project"
+    init_git_repo(target)
+    install_result = run_install(target, script=template / "scripts/install.sh")
+    assert install_result.returncode == 0, install_result.stderr
+    (target / "CLAUDE.md").write_text("# Old main contract\n", encoding="utf-8")
+
+    update_result = run_update(target, template)
+
+    assert update_result.returncode == 0, update_result.stderr
+    assert not (target / "CLAUDE.md").exists()
+    assert (target / "CLAUDE.md.pre-agents-md.bak").read_text(
+        encoding="utf-8"
+    ) == "# Old main contract\n"
+    assert "instead of AGENTS.md" in update_result.stdout + update_result.stderr
 
 
 def test_update_leaves_no_stage_and_swap_debris_and_syncs_safe_dirs(

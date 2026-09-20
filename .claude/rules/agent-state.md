@@ -1,9 +1,9 @@
 # Agent State Contract
 
-Root `AGENTS.md` is a thin router, and `CLAUDE.md` is the main agent's
-contract. Both are template-owned, immutable bootstraps. Repository-specific
-and cross-session state belongs in `.claude/STATE.md`, never in either
-bootstrap path.
+Root `AGENTS.md` is the full agent contract: it carries both the main-agent
+contract and the CLI-executor contract. It is template-owned and an immutable
+bootstrap. Repository-specific and cross-session state belongs in
+`.claude/STATE.md`, never in that bootstrap path.
 
 ## State Ownership
 
@@ -15,7 +15,8 @@ bootstrap path.
 
 The installer and updater preserve `.claude/STATE.md`. They recognize legacy
 `AGENTS.md` and `CLAUDE.md` boundary markers only to migrate old Zone B/C
-content into this file. New bootstraps must not contain boundary markers.
+content into this file. New bootstraps must not contain boundary markers, and
+the legacy `CLAUDE.md` itself is moved aside once its content is migrated.
 
 ## Mechanical Checks
 

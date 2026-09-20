@@ -27,7 +27,7 @@ metadata:
 - You want to capture the current session for later (use `/checkpointing`)
 - You want running design history (use `/design-tracker` or read `DESIGN.md` directly)
 
-Full skill routing: `CLAUDE.md` section "Routing Policy".
+Full skill routing: `AGENTS.md` section "Routing Policy".
 
 ## Workflow
 

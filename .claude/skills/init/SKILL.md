@@ -7,15 +7,16 @@ disable-model-invocation: true
 # Initialize Project Configuration
 
 Initialize project-owned context without expanding the always-loaded root
-`CLAUDE.md`.
+`AGENTS.md`.
 
 ## Ownership
 
 - `.claude/docs/DESIGN.md` owns macro requirements and design.
 - `.claude/STATE.md` owns the active main agent, thin repository identity, and
   cross-session working state.
-- Root `AGENTS.md` and `CLAUDE.md` are template-owned and must not be edited by
-  this skill.
+- Root `AGENTS.md` is template-owned and must not be edited by this skill.
+  Never create a `CLAUDE.md`: Claude Code reads `AGENTS.md` only when no
+  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists.
 - `PROGRESS.md` is maintained by `/checkpointing`.
 
 ## Steps
@@ -47,14 +48,14 @@ Read these fields before writing anything:
   `go.mod`, `setup.py`, `Makefile`, `Dockerfile`).
 - `manifests` — every checked filename with an explicit `true`/`false`, so
   "checked and absent" is never mistaken for "never checked".
-- `agent_bootstrap` — `agents_md`, `claude_md`, `state_md`,
+- `agent_bootstrap` — `agents_md`, `no_claude_md_shadow`, `state_md`,
   `claude_agents_dir`, `claude_skills_dir`, `cli_subagent_contract`.
 
 Exit codes: `0` normal · `1` bad arguments, including a `--project-root` that is
 not a directory · `2` the agent bootstrap is invalid — `ok: false` and `error`
-name the failed markers. Exit `2` covers the root `AGENTS.md` router, the
-`CLAUDE.md` main-agent contract, shared state, the CLI-subagent contract, **and
-both native runtime directories** (`.claude/agents` and `.claude/skills` must be
+name the failed markers. Exit `2` covers the root `AGENTS.md` contract, the
+absence of a shadowing `CLAUDE.md`, shared state, the CLI-subagent contract,
+**and both native runtime directories** (`.claude/agents` and `.claude/skills` must be
 real directories; a missing one silently disables all native agent and skill
 discovery). Stop and repair the installation — `bash scripts/check.sh` diagnoses
 the same layout — before writing context.

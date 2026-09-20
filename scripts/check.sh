@@ -166,16 +166,21 @@ check_safe_dirs() {
 check "Template runtime paths in SAFE_DIRS" check_safe_dirs
 
 # --------------------------------------------------------------------------
-# 5) CLAUDE.md is the complete main-agent orchestration contract
+# 5) Root AGENTS.md is the complete contract: the main-agent orchestration
+#    policy and the CLI-executor contract now live in the one file every
+#    runtime auto-loads.
 # --------------------------------------------------------------------------
 check_root_contract() {
-    local contract="${ROOT}/CLAUDE.md"
+    local contract="${ROOT}/AGENTS.md"
     if [[ ! -f "${contract}" || -L "${contract}" ]]; then
-        echo "  CLAUDE.md not found, or is a symlink instead of a real file"
+        echo "  AGENTS.md not found, or is a symlink instead of a real file"
         return 1
     fi
 
     local ok=true
+    # Both halves of the merged contract. The main-agent policy sections come
+    # first, the CLI-executor sections after; a delegated run loads this file
+    # and nothing else, so every section has to be in it.
     local headings=(
         "## Mission"
         "## Non-Goals"
@@ -187,6 +192,11 @@ check_root_contract() {
         "## Quality Gates"
         "## Language Protocol"
         "## Native Runtime Boundary"
+        "## Required Response Structure"
+        "## Handoff Rules"
+        "## Cross-CLI Subagent Invocation"
+        "## Internal Context References"
+        "## Guardrails (Completion Verification)"
     )
     local heading
     for heading in "${headings[@]}"; do
@@ -201,7 +211,7 @@ check_root_contract() {
         local agent_name
         agent_name="$(basename "${definition}" .md)"
         grep -Fq "\`${agent_name}\`" "${contract}" || {
-            echo "  Missing agent in CLAUDE.md catalog: ${agent_name}"
+            echo "  Missing agent in AGENTS.md catalog: ${agent_name}"
             ok=false
         }
     done
@@ -209,7 +219,17 @@ check_root_contract() {
         local skill_name
         skill_name="$(basename "$(dirname "${definition}")")"
         grep -Fq "\`${skill_name}\`" "${contract}" || {
-            echo "  Missing skill in CLAUDE.md catalog: ${skill_name}"
+            echo "  Missing skill in AGENTS.md catalog: ${skill_name}"
+            ok=false
+        }
+    done
+
+    # Runtime adapters stay reachable from the one contract every CLI loads.
+    local reference
+    for reference in ".agents/AGENTS.md" ".codex/AGENTS.md" \
+        ".claude/rules/tiers.md"; do
+        grep -Fq "${reference}" "${contract}" || {
+            echo "  Missing route in root AGENTS.md: ${reference}"
             ok=false
         }
     done
@@ -222,7 +242,7 @@ check_root_contract() {
     local index_entry
     index_entry=$(grep -F 'Root agent contract' "${ROOT}/.claude/docs/INDEX.md" || true)
     if [[ "${index_entry}" != *"normative"* ]]; then
-        echo "  CLAUDE.md is not registered as normative in INDEX.md"
+        echo "  Root agent contract is not registered as normative in INDEX.md"
         ok=false
     fi
 
@@ -231,7 +251,27 @@ check_root_contract() {
 check "Root orchestration contract" check_root_contract
 
 # --------------------------------------------------------------------------
-# 6) Root instructions stay minimal and carry the always-needed information
+# 5b) No CLAUDE.md anywhere: Claude Code reads root AGENTS.md directly ONLY
+#     while no CLAUDE.md sits in the working directory or above it. A
+#     CLAUDE.md shadows the contract silently -- no warning, no error.
+# --------------------------------------------------------------------------
+check_no_claude_md() {
+    local ok=true
+    local shadow
+    for shadow in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md; do
+        if [[ -e "${ROOT}/${shadow}" || -L "${ROOT}/${shadow}" ]]; then
+            echo "  ${shadow} exists: Claude Code reads it instead of root AGENTS.md"
+            echo "  and silently stops loading the contract. Delete it; the merged"
+            echo "  main-agent policy belongs in AGENTS.md."
+            ok=false
+        fi
+    done
+    ${ok}
+}
+check "No CLAUDE.md shadows AGENTS.md" check_no_claude_md
+
+# --------------------------------------------------------------------------
+# 6) Root instructions stay bounded and carry the always-needed information
 # --------------------------------------------------------------------------
 check_ordered_references() {
     local file="$1"
@@ -255,11 +295,14 @@ check_ordered_references() {
 }
 
 check_bootstrap_references() {
-    local root_agents="${ROOT}/CLAUDE.md"
+    local root_agents="${ROOT}/AGENTS.md"
     local ok=true
 
-    if (( $(wc -l < "${root_agents}") > 150 )); then
-        echo "  CLAUDE.md exceeds 150 lines"
+    # The merged contract carries two roles, so the cap is 400 rather than the
+    # 150 that bounded the old router-only file. It is a ceiling, not a target:
+    # detail belongs under .claude/rules/.
+    if (( $(wc -l < "${root_agents}") > 400 )); then
+        echo "  AGENTS.md exceeds 400 lines"
         ok=false
     fi
     local reference
@@ -273,34 +316,8 @@ check_bootstrap_references() {
     grep -Fq "Japanese" "${root_agents}" || ok=false
     grep -Fqi "verify" "${root_agents}" || ok=false
     if grep -q '@orchestra:' "${root_agents}"; then
-        echo "  Legacy boundary marker found in CLAUDE.md"
+        echo "  Legacy boundary marker found in AGENTS.md"
         ok=false
-    fi
-
-    # Root AGENTS.md is the contract every CLI runtime auto-loads. It must be
-    # self-contained: the sections a delegated run depends on have to be in the
-    # file that gets loaded, not behind a pointer the callee may not follow.
-    local router="${ROOT}/AGENTS.md"
-    if [[ ! -f "${router}" || -L "${router}" ]]; then
-        echo "  Root AGENTS.md not found, or is a symlink instead of a real file"
-        ok=false
-    else
-        local section
-        for section in "## Required Response Structure" "## Handoff Rules" \
-            "## Cross-CLI Subagent Invocation" \
-            "## Guardrails (Completion Verification)"; do
-            grep -Fxq "${section}" "${router}" || {
-                echo "  Root AGENTS.md is missing a self-contained section: ${section}"
-                ok=false
-            }
-        done
-        for reference in "CLAUDE.md" ".agents/AGENTS.md" ".codex/AGENTS.md" \
-            ".claude/rules/tiers.md"; do
-            grep -Fq "${reference}" "${router}" || {
-                echo "  Missing route in root AGENTS.md: ${reference}"
-                ok=false
-            }
-        done
     fi
 
     ${ok}
@@ -325,7 +342,7 @@ check_native_boundaries() {
     # The layout is symlink-free: every contract file is a real file so the
     # checkout survives filesystems and CI runners that do not honour symlinks.
     local real_file
-    for real_file in CLAUDE.md AGENTS.md .agents/AGENTS.md .codex/AGENTS.md \
+    for real_file in AGENTS.md .agents/AGENTS.md .codex/AGENTS.md \
         .claude/STATE.md .claude/rules/tiers.md .claude/docs/INDEX.md \
         .claude/docs/change_main.md; do
         if [[ ! -f "${ROOT}/${real_file}" || -L "${ROOT}/${real_file}" ]]; then
@@ -414,7 +431,7 @@ check_skill_scripts() {
         "${ROOT}/.claude" "${ROOT}/.agents" "${ROOT}/.codex" 2>/dev/null | sort -u || true)
     referenced+=$'\n'
     referenced+=$(grep -rhoE '\.claude/skills/[A-Za-z0-9_/-]+\.(py|sh)' \
-        "${ROOT}/CLAUDE.md" "${ROOT}/AGENTS.md" "${ROOT}/README.md" 2>/dev/null | sort -u || true)
+        "${ROOT}/AGENTS.md" "${ROOT}/README.md" 2>/dev/null | sort -u || true)
     local ref
     while IFS= read -r ref; do
         [[ -z "${ref}" ]] && continue

@@ -4,7 +4,7 @@
 > Written at `/init`, kept current by `/design-tracker` (also invoked from `/checkpointing`).
 >
 > **Document map:** Shared rules → [rules/](../rules/) ·
-> Shared bootstrap → [AGENTS.md](../../AGENTS.md) · State → [STATE.md](../STATE.md) · Claude symlink → [CLAUDE.md](../../CLAUDE.md) ·
+> Root contract → [AGENTS.md](../../AGENTS.md) · State → [STATE.md](../STATE.md) ·
 > Micro work progress (latest 5 checkpoints) → [PROGRESS.md](../../PROGRESS.md)
 
 ## 背景・目的 (Background & Purpose)

@@ -56,7 +56,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\": {\"additionalContext\": \"Context compaction triggered. Key context: CLAUDE.md contains the shared mission, routing, agent and skill catalogs, and quality gates; .claude/STATE.md contains the active main agent and working state; .claude/rules/ contains detailed policy; .claude/docs/DESIGN.md contains project design. AGENTS.md is the CLI-agent contract: cross-CLI invocation and completion guardrails.\"}}'"
+            "command": "echo '{\"hookSpecificOutput\": {\"additionalContext\": \"Context compaction triggered. Key context: AGENTS.md is the single root contract -- it contains the shared mission, routing, agent and skill catalogs, and quality gates, plus the CLI-agent contract for cross-CLI invocation and completion guardrails; .claude/STATE.md contains the active main agent and working state; .claude/rules/ contains detailed policy; .claude/docs/DESIGN.md contains project design.\"}}'"
           }
         ]
       }

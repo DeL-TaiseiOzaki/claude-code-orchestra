@@ -68,7 +68,7 @@ options:
 - Feasibility unknown / go-no-go decision needed first → `/spike`
 - Truly trivial changes (single function, <10 LOC) → edit directly, skip this skill
 
-Full skill routing: `CLAUDE.md` section "Routing Policy".
+Full skill routing: `AGENTS.md` section "Routing Policy".
 
 ---
 
@@ -245,7 +245,7 @@ did not.
 
 Append feature context to `.claude/STATE.md` for cross-session persistence,
 following `.claude/rules/agent-state.md`. Use the shared writer script for a
-deterministic, atomic update; never edit root `AGENTS.md` or `CLAUDE.md`.
+deterministic, atomic update; never edit root `AGENTS.md`.
 
 **Gather these fields** from the planning phases:
 

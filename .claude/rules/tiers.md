@@ -10,7 +10,7 @@ and referenced by skills, rules, and configuration.
 - **Selection criteria**: Default for all tasks unless escalation is needed.
 - **Permission boundary**: The active runtime's native permissions; changing
   the main agent must follow `.claude/docs/change_main.md`.
-- **Inputs**: User prompt, `CLAUDE.md`, tier definitions, and relevant
+- **Inputs**: User prompt, `AGENTS.md`, tier definitions, and relevant
   product-native rules.
 - **Outputs**: Direct edits, user-facing responses, delegation calls to other tiers.
 - **Default runtime**: Claude Code. The active runtime is recorded in

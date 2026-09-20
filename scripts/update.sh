@@ -36,7 +36,6 @@ SAFE_DIRS=(
 # above are replaced wholesale, so their contents must not be repeated here.
 SAFE_FILES=(
     "AGENTS.md"
-    "CLAUDE.md"
     ".agents/AGENTS.md"
     ".codex/AGENTS.md"
     ".claude/docs/INDEX.md"
@@ -497,7 +496,8 @@ sync_safe_files() {
 #
 # Current releases keep AGENTS.md immutable and store mutable context in
 # .claude/STATE.md. Boundary helpers remain only to migrate older 2/3-zone
-# AGENTS.md or CLAUDE.md files before the minimal bootstrap overwrites them.
+# AGENTS.md or CLAUDE.md files before AGENTS.md is overwritten and CLAUDE.md is
+# moved aside.
 
 # Strip leading blank or ━ separator lines from stdin
 _strip_leading_frame() {
@@ -621,20 +621,45 @@ migrate_legacy_agent_state() {
     warn "Migrated legacy agent state from ${label} to .claude/STATE.md."
 }
 
-# Pre-2.0 installations shipped CLAUDE.md as a symlink to AGENTS.md. Both are
-# real files now, so the link is removed before sync_safe_files writes the
-# template's CLAUDE.md; otherwise the copy would write through the link and
-# clobber AGENTS.md.
+# Pre-2.0 installations shipped CLAUDE.md as a symlink to AGENTS.md. AGENTS.md
+# is the only root contract now, so the link is simply removed: it carries no
+# content of its own.
 retire_claude_symlink() {
     header "Retiring Legacy CLAUDE.md Symlink"
 
     local link="${PROJECT_ROOT}/CLAUDE.md"
     if [[ ! -L "${link}" ]]; then
-        info "CLAUDE.md is already a real file"
+        info "No legacy CLAUDE.md symlink"
         return 0
     fi
     rm -f -- "${link}"
     UPDATED_FILES+=("REMOVED: CLAUDE.md (legacy symlink to AGENTS.md)")
+}
+
+# Claude Code reads the root AGENTS.md only when no CLAUDE.md, .claude/CLAUDE.md
+# or CLAUDE.local.md is found in the working directory or above. Earlier template
+# versions installed a CLAUDE.md, which would now load instead of AGENTS.md, so
+# the file is moved aside — never deleted. migrate_legacy_agent_state has already
+# copied any project-specific zones into .claude/STATE.md.
+retire_root_claude_md() {
+    header "Retiring Legacy CLAUDE.md"
+
+    local existing="${PROJECT_ROOT}/CLAUDE.md"
+    if [[ ! -f "${existing}" || -L "${existing}" ]]; then
+        info "No root CLAUDE.md to retire"
+        return 0
+    fi
+
+    local backup="${existing}.pre-agents-md.bak"
+    if [[ -e "${backup}" || -L "${backup}" ]]; then
+        backup="${backup}.$(date +%Y%m%d%H%M%S)-$$"
+    fi
+    mv -f "${existing}" "${backup}"
+    UPDATED_FILES+=("MOVED: CLAUDE.md -> $(basename "${backup}")")
+    warn "Moved CLAUDE.md to $(basename "${backup}")."
+    warn "Claude Code loads CLAUDE.md instead of AGENTS.md when both exist, so leaving"
+    warn "a CLAUDE.md in the repository silently disables the Orchestra contract."
+    warn "Any project instructions it held are in .claude/STATE.md; delete the backup once reviewed."
 }
 
 # =============================================================================
@@ -767,6 +792,7 @@ main() {
     cleanup_deprecated_paths
     migrate_legacy_agent_state
     retire_claude_symlink
+    retire_root_claude_md
     sync_safe_dirs
     sync_safe_files
     migrate_native_settings_paths

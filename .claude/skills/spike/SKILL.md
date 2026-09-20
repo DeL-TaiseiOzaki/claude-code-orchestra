@@ -47,7 +47,7 @@ This skill handles time-boxed feasibility studies and technical investigations. 
 - Simple library lookup → direct research (Opus subagent)
 - Code review → `/team-execute --review-only`
 
-Full skill routing: `CLAUDE.md` section "Routing Policy".
+Full skill routing: `AGENTS.md` section "Routing Policy".
 
 ### Investigation Modes
 

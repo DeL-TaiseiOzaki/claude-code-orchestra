@@ -12,8 +12,8 @@
 
 | Item                          | Status                | Canonical File                                | Notes                              |
 |-------------------------------|-----------------------|-----------------------------------------------|------------------------------------|
-| Root agent contract           | normative             | `CLAUDE.md`                                   | Mission, routing, catalogs, execution, quality, language, ownership |
-| CLI agent contract            | normative             | `AGENTS.md`                                   | Auto-loaded by every CLI runtime: response, handoff, cross-CLI invocation, guardrails |
+| Root agent contract           | normative             | `AGENTS.md`                                   | Mission, routing, catalogs, execution, quality, language, ownership |
+| CLI agent contract            | normative             | `AGENTS.md`                                   | Same file, second half: response, handoff, cross-CLI invocation, guardrails |
 | Tier definitions              | normative             | `.claude/rules/tiers.md`                            | 3-tier hierarchy (default/sol/fable) |
 | Delegation-first policy       | normative             | `.claude/rules/delegation.md`                       | Self-handle list, mandatory triggers, route table, subagent prompt contract |
 | Antigravity adapter           | normative             | `.agents/AGENTS.md`                           | Headless behaviour, why `--read-only` is refused |
@@ -32,4 +32,4 @@
 
 - **Model configuration**: `.claude/settings.json` (`env.CODEX_MODEL`) and `.codex/config.toml` (`model`)
 - **Claude-to-Codex details**: `.claude/rules/codex-delegation.md`
-- **Root bootstrap**: `AGENTS.md` is the CLI-agent contract itself and routes the main agent to `CLAUDE.md`; no symlinks are involved
+- **Root bootstrap**: `AGENTS.md` is the single root contract for both the main agent and every CLI runtime; no `CLAUDE.md` and no symlinks are involved
