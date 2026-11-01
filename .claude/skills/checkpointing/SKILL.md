@@ -17,7 +17,7 @@ Capture durable session context without growing the always-loaded root
 - `.claude/checkpoints/INDEX.md`: generated catalog of every checkpoint.
 - `PROGRESS.md`: latest five checkpoint summaries.
 - `.claude/STATE.md`: one Progress Tracker link and current working blocks.
-- `.claude/logs/`: drafts, previews, work logs, and CLI activity.
+- `.claude/logs/`: drafts, previews, and work logs.
 - `.claude/docs/research/`: research notes; inactive notes may be archived only
   after user approval.
 
@@ -30,7 +30,7 @@ untouched.
 1. Determine the time window from the newest checkpoint, or use all available
    history when none exists.
 2. Gather the user requests and decisions from the current conversation, git
-   changes, CLI logs, team work logs, and relevant design changes.
+   changes, team work logs, and relevant design changes.
 3. Write a Japanese five-part summary containing:
    `何をしたのか`, `どういうやり取りをユーザーと行ったのか`, `どうやったのか`,
    `途中でどういう課題が起こったのか`, and `将来のアクション`.
@@ -65,7 +65,7 @@ untouched.
    `{ok, result, checkpoint_path, prompt_path, index_path, slug, tags,
    progress_path, progress_entries, state_path, state_updated,
    summary_validated, summary_consumed, commits, files_changed,
-   cli_consultations, agent_teams, work_logs, collector_errors,
+   agent_teams, work_logs, collector_errors,
    skipped_records, warnings, artifacts}`; without it the same facts are printed
    as prose. Quote `collector_errors` and `warnings` verbatim when reporting —
    a failed collector is not an empty session.

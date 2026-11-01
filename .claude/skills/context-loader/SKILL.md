@@ -35,9 +35,9 @@ missing, unreadable, warnings}`. `read_order` is the exact ordered list of
 repo-relative paths to read, in this order:
 
 1. the rule files in `.claude/rules/` (coding principles, delegation, dev
-   environment, language, security, testing, tiers, CLI execution, Codex
-   delegation, and any newly added rule file);
-2. `.claude/STATE.md` — the active main agent and current working blocks;
+   environment, language, security, testing, tiers, and any newly added rule
+   file);
+2. `.claude/STATE.md` — repository identity and current working blocks;
 3. `PROGRESS.md` — the rolling record of the latest five checkpoints, and the
    session-to-session continuity `/feature` reads first;
 4. `.claude/docs/DESIGN.md` — architecture decisions and constraints;
@@ -77,7 +77,7 @@ default is to delegate, and working alone is the exception. Before the first
    context · one known file, ~20 lines or fewer · a named gate or a
    skill-bundled lead script · user interaction)? If yes, do it directly.
 2. Otherwise name the route from the rule's table — `general-purpose-sonnet`,
-   `general-purpose-opus`, `codex-debugger`, Codex, `fable-advisor` — or the
+   `general-purpose-opus`, `debugger`, `fable-advisor` — or the
    skill that owns the workflow, and delegate with all six elements of the
    Subagent Prompt Contract.
 3. Split independent units and launch them **in one message** so they run in
@@ -114,6 +114,6 @@ After loading context, briefly confirm to the user per
 - the `missing`, `unreadable`, and `warnings` arrays **quoted verbatim** from the
   JSON — not paraphrased, not summarised as "no issues";
 - `design.placeholder` and `progress.entries` as reported;
-- **the route chosen in Step 3** — the subagent, Codex, or skill that will do
+- **the route chosen in Step 3** — the subagent or skill that will do
   the work, or, when handling it directly, which Self-Handle List item applies;
 - ready to execute the task.

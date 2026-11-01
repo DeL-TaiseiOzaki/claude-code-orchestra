@@ -27,8 +27,9 @@ def load_hook(filename: str) -> ModuleType:
 
 
 agent_router = load_hook("agent-router.py")
-check_before_write = load_hook("check-codex-before-write.py")
-error_to_codex = load_hook("error-to-codex.py")
+check_before_write = load_hook("check-design-before-write.py")
+check_after_task = load_hook("check-plan-after-task.py")
+error_to_debugger = load_hook("error-to-debugger.py")
 post_test_analysis = load_hook("post-test-analysis.py")
 post_impl_review = load_hook("post-implementation-review.py")
 
@@ -44,11 +45,11 @@ def bash_payload(command: str, stdout: str) -> dict:
 # --- agent-router.py -------------------------------------------------------
 
 
-def test_detect_agent_with_genuine_design_question_routes_to_codex():
+def test_detect_agent_with_genuine_design_question_routes_to_deep_reasoning():
     agent, trigger = agent_router.detect_agent(
         "How should I design the retry layer? I am not sure about the trade-off."
     )
-    assert agent == "codex"
+    assert agent == "deep"
     assert trigger in {"design", "not sure", "trade-off"}
 
 
@@ -61,51 +62,83 @@ def test_detect_agent_with_mechanical_ask_does_not_route():
 def test_detect_agent_with_two_character_japanese_prompt_still_routes():
     """The deleted `len(prompt) < 3` gate skipped exactly this prompt."""
     agent, trigger = agent_router.detect_agent("設計")
-    assert (agent, trigger) == ("codex", "設計")
+    assert (agent, trigger) == ("deep", "設計")
 
 
-# --- check-codex-before-write.py -------------------------------------------
+def test_detect_agent_with_explicit_review_request_routes_to_review():
+    """The specific review phrase must win over the bare "review" keyword."""
+    assert agent_router.detect_agent("please review this diff") == (
+        "review",
+        "review this",
+    )
 
 
-def test_should_suggest_codex_for_large_new_written_file():
-    suggest, reason = check_before_write.should_suggest_codex(
+# --- check-design-before-write.py ------------------------------------------
+
+
+def test_should_suggest_design_review_for_large_new_written_file():
+    suggest, reason = check_before_write.should_suggest_design_review(
         "/repo/tools/helper.py", "x = 1\n" * 200, is_new_file=True
     )
     assert suggest is True
     assert "new file" in reason
 
 
-def test_should_suggest_codex_not_for_medium_prose_edit():
+def test_should_suggest_design_review_not_for_medium_prose_edit():
     """Boundary: 210 characters of an Edit is a paragraph, not a new file."""
-    suggest, reason = check_before_write.should_suggest_codex(
+    suggest, reason = check_before_write.should_suggest_design_review(
         "/repo/docs/notes.md", "a" * 210, is_new_file=False
     )
     assert (suggest, reason) == (False, "")
 
 
-def test_should_suggest_codex_ignores_build_artefact_paths():
-    suggest, _ = check_before_write.should_suggest_codex("/repo/__pycache__/x.pyc", "")
+def test_should_suggest_design_review_ignores_build_artefact_paths():
+    suggest, _ = check_before_write.should_suggest_design_review(
+        "/repo/__pycache__/x.pyc", ""
+    )
     assert suggest is False
 
 
-def test_should_suggest_codex_counts_only_real_definitions():
-    suggest, _ = check_before_write.should_suggest_codex(
+def test_should_suggest_design_review_counts_only_real_definitions():
+    suggest, _ = check_before_write.should_suggest_design_review(
         "/repo/x.h", "typedef struct A A;\ntypedef struct B B;\n"
     )
     assert suggest is False
 
-    suggest, reason = check_before_write.should_suggest_codex(
+    suggest, reason = check_before_write.should_suggest_design_review(
         "/repo/x.py", "def alpha():\n    pass\n\ndef beta():\n    pass\n"
     )
     assert suggest is True
     assert "definitions" in reason
 
 
-# --- error-to-codex.py -----------------------------------------------------
+# --- check-plan-after-task.py ----------------------------------------------
+
+
+def test_plan_validation_suggested_after_plan_agent():
+    suggest, reason = check_after_task.should_suggest_plan_validation(
+        {"subagent_type": "Plan", "description": "outline", "prompt": "x"}
+    )
+    assert (suggest, reason) == (True, "Plan task completed")
+
+
+def test_plan_validation_not_suggested_after_a_review_task():
+    """A review that triggered another review would never terminate."""
+    suggest, _ = check_after_task.should_suggest_plan_validation(
+        {
+            "subagent_type": "general-purpose-opus",
+            "description": "Review the migration plan",
+            "prompt": "review the plan and design",
+        }
+    )
+    assert suggest is False
+
+
+# --- error-to-debugger.py --------------------------------------------------
 
 
 def test_error_hook_fires_on_real_traceback():
-    context = error_to_codex.build_context(
+    context = error_to_debugger.build_context(
         bash_payload(
             "python3 script.py",
             'Traceback (most recent call last):\n  File "s.py", line 1\n'
@@ -119,7 +152,7 @@ def test_error_hook_fires_on_real_traceback():
 def test_error_hook_quiet_on_two_weak_signals():
     """Boundary: MIN_WEAK_SIGNALS is 3, so a deprecation plus a "Could not"
     that a healthy pip install prints must not be enough."""
-    context = error_to_codex.build_context(
+    context = error_to_debugger.build_context(
         bash_payload(
             "uv pip install requests",
             "Could not find a cached wheel, building from source\n"
@@ -143,7 +176,7 @@ def test_test_analysis_fires_on_red_suite():
         )
     )
     assert context is not None
-    assert "[Codex Debug Suggestion]" in context
+    assert "[Debug Suggestion]" in context
 
 
 def test_test_analysis_quiet_on_green_suite_with_error_in_test_names():

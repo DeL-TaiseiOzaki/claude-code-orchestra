@@ -2,7 +2,7 @@
 
 Template contracts for the MODE=existing Feature Brief and MODE=greenfield Project Brief.
 Both sections are REQUIRED when the corresponding mode is active.
-`{placeholder}` tokens are filled by the orchestrator from user requirements, Opus codebase scan, and Codex scope assessment.
+`{placeholder}` tokens are filled by the orchestrator from user requirements, Opus codebase scan, and Opus scope assessment.
 
 ---
 
@@ -23,11 +23,11 @@ Both sections are REQUIRED when the corresponding mode is active.
 - Include: {list}
 - Exclude: {list}
 
-### Complexity Classification (from Codex)
+### Complexity Classification (from Opus)
 - Classification: {SIMPLE / MODERATE / COMPLEX}
 - Estimated files: {count}
 - Estimated LOC: {range}
-- Implementation route: {Codex direct / Codex + review / team-execute}
+- Implementation route: {single subagent / subagent + review / team-execute}
 
 ### Integration Points
 - {Integration point 1}: {how the feature connects}

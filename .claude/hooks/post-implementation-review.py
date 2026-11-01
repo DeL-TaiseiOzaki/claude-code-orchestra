@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PostToolUse hook: Suggest Codex review after significant implementations.
+PostToolUse hook: Suggest code review after significant implementations.
 
 Tracks file changes and suggests code review when substantial
 code has been written.
@@ -164,11 +164,12 @@ def main():
                     "hookEventName": "PostToolUse",
                     "additionalContext": (
                         f"[Code Review Suggestion] {reason} in this session. "
-                        "You SHOULD have Codex review the implementation before "
+                        "You SHOULD have the implementation reviewed before "
                         "reporting it done — it catches bugs, security issues, and "
                         "design flaws while the change is still small. "
-                        "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
-                        "to consult Codex with git diff and preserve main context."
+                        "**Recommended**: Agent tool with "
+                        "subagent_type='general-purpose-opus', passing the git diff "
+                        "range, which also preserves main context."
                     ),
                 }
             }

@@ -3,9 +3,9 @@
 **The main agent's default answer to "who does this work?" is *not me*.**
 
 This rule is normative and tool-neutral. It governs *whether* to delegate and
-*to whom*. `.claude/rules/codex-delegation.md` covers the Codex-specific
-triggers and handoff contract; `.claude/rules/tiers.md` defines the tiers; this
-file is the one that decides that delegation happens at all.
+*to whom*, including when work escalates to deep reasoning (Tier 2 `deep`);
+`.claude/rules/tiers.md` defines the tiers; this file is the one that decides
+that delegation happens at all.
 
 ## Default Posture
 
@@ -56,13 +56,58 @@ decide:
 | Routine, well-scoped implementation with clear acceptance criteria | `general-purpose-sonnet` |
 | Ambiguous, cross-cutting, security / concurrency / data-integrity / migration-sensitive implementation | `general-purpose-opus` |
 | Codebase-wide investigation, large-context analysis, external research | `general-purpose-opus` |
-| Unknown root cause, failing tests or builds, unexpected behaviour | `codex-debugger` |
-| Architecture, planning, decomposition, complex algorithms, code review | Codex (`codex-system` skill / `.claude/skills/_shared/codex_consult.py`) |
+| Unknown root cause, failing tests or builds, unexpected behaviour | `debugger` |
+| Architecture, planning, decomposition, complex algorithms, code review | `general-purpose-opus` (built-in `Plan` agent for a read-only plan) |
 | Repeated failure, conflicting proposals, final review of a large change | `fable-advisor` (rare) |
 
 Escalate rather than retry: a `general-purpose-sonnet` task that comes back
-wrong or under-specified goes to `general-purpose-opus` or Codex, not back to
+wrong or under-specified goes to `general-purpose-opus`, not back to
 the same tier with the same prompt.
+
+## Deep-Reasoning Triggers
+
+**When in doubt, get a deep-reasoning pass.** One `general-purpose-opus`
+consult costs one round trip; proceeding on an unverified assumption costs the
+rework, the review, and the re-review. This resolves *uncertainty*; it does not
+override the Self-Handle List or the over-delegation anti-pattern — a known
+one-line edit stays a one-line edit.
+
+Route to Tier 2 (`general-purpose-opus`, or `debugger` for failures) when
+**any** of these apply:
+
+- Design/architecture decisions are involved.
+- The change spans 2+ files with behavior impact.
+- The root cause is unclear (→ `debugger`).
+- The user requests comparison/trade-off analysis.
+- A step-by-step implementation plan is needed.
+- You are about to introduce or reshape a seam other code depends on
+  (new module or class, shared/core code, public interface).
+- The change is security-sensitive: auth, input validation, crypto, permissions.
+- The code is concurrent or asynchronous, where the failure modes are non-local.
+- You are writing error handling, retry, or cache invalidation logic.
+- Two or more fix attempts have already failed (→ consider `fable-advisor`).
+
+Uncertainty is itself a trigger. "I think this is right" is a reason to
+consult; "I know this is right, and here is the evidence" is a reason not to.
+
+### Hook-Detected Triggers
+
+Repository hooks surface these automatically; treat each hint as a prompt to
+route, not as noise to dismiss. Confirm the command actually failed before
+routing to `debugger`: the Bash hook only ever sees successful commands (the
+runtime does not invoke it for a failing one) and matches on output text, so it
+fires on read-only commands that merely display error-shaped output.
+
+| Situation | Hook | Suggested route |
+|-----------|------|-----------------|
+| Prompt contains design / debug / review / uncertainty keywords | `agent-router.py` | `general-purpose-opus`, `debugger`, or `fable-advisor` |
+| Write/Edit touching design-related or structural code | `check-design-before-write.py` | `general-purpose-opus` design review |
+| Planning subagent finished | `check-plan-after-task.py` | `general-purpose-opus` plan validation |
+| Test or build failure | `post-test-analysis.py` | `debugger` |
+| Bash output matches error patterns | `error-to-debugger.py` | `debugger` |
+| 2+ files or 50+ lines changed this session | `post-implementation-review.py` | `general-purpose-opus` code review |
+
+A hint is advisory: the routing decision stays with the agent.
 
 ## Parallel by Default
 

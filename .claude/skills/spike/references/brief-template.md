@@ -2,7 +2,7 @@
 
 Template contract for the Phase 1 Spike Brief artifact.
 All sections are REQUIRED.
-`{placeholder}` tokens are filled by the orchestrator from user parameters and Codex question decomposition.
+`{placeholder}` tokens are filled by the orchestrator from user parameters and the Opus question decomposition.
 
 ---
 
@@ -23,7 +23,7 @@ All sections are REQUIRED.
 - NO-GO if: {conditions that make this a NO-GO}
 - INCONCLUSIVE if: {what would leave us uncertain}
 
-### Sub-questions (from Codex decomposition)
+### Sub-questions (from Opus decomposition)
 1. {Sub-question A}: Evidence needed: {description}
 2. {Sub-question B}: Evidence needed: {description}
 3. {Sub-question C}: Evidence needed: {description}
@@ -33,6 +33,6 @@ All sections are REQUIRED.
 
 ### Investigation Plan
 - Researcher (Opus): {what to research externally}
-- Feasibility Analyst (Codex): {what to analyze technically}
+- Feasibility Analyst: {what to analyze technically}
 - Prototype (if applicable): {what to build and test}
 ```

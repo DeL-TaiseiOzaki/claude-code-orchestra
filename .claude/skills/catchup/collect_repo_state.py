@@ -3,7 +3,7 @@
 
 Aggregates git state, project identity and current-work blocks, rules /
 skills / agents frontmatter, design decisions, research & library notes,
-environment commands, checkpoints, Agent Teams sessions, and CLI-log topics
+environment commands, checkpoints, and Agent Teams sessions
 into a single JSON document on stdout. Phase 2 synthesises ``GUIDE.md`` from
 this JSON alone, so the collector gathers **every** dataset
 ``references/guide-template.md`` asks for; anything it cannot gather is named
@@ -42,7 +42,6 @@ DEFAULT_SINCE = "30 days ago"
 DEFAULT_MAX_COMMITS = 100
 DEFAULT_CLAUDE_HOME = Path.home() / ".claude"
 CHECKPOINT_PREVIEW = 5
-CLI_LOG_TAIL = 50
 FIRST_LINE_LIMIT = 200
 GIT_TIMEOUT_SECONDS = 30
 MAX_KEY_DECISIONS = 10
@@ -698,37 +697,6 @@ def collect_agent_teams(root: Path, claude_home: Path) -> dict:
     return teams
 
 
-def collect_cli_tools(root: Path) -> dict:
-    """Recent CLI-consultation topics from the JSONL log, all tools included."""
-    log_file = root / ".claude" / "logs" / "cli-tools.jsonl"
-    if not log_file.exists():
-        return {"present": False, "items": [], "skipped_lines": 0, "error": None}
-    text, error = read_text(log_file)
-    if error is not None:
-        return {"present": True, "items": [], "skipped_lines": 0, "error": error}
-    assert text is not None
-
-    items: list[dict] = []
-    skipped = 0
-    for line in text.splitlines()[-CLI_LOG_TAIL:]:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            skipped += 1
-            continue
-        items.append(
-            {
-                "tool": record.get("tool", "unknown"),
-                "prompt": (record.get("prompt", "") or "")[:120],
-                "success": record.get("success"),
-            }
-        )
-    return {"present": True, "items": items, "skipped_lines": skipped, "error": None}
-
-
 # --- assembly ----------------------------------------------------------------
 
 
@@ -759,7 +727,6 @@ def build_state(
         "env": collect_env(root),
         "checkpoints": collect_checkpoints(root),
         "agent_teams": collect_agent_teams(root, claude_home),
-        "cli_tools": collect_cli_tools(root),
         "errors": errors,
         "artifacts": [],
     }

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-PostToolUse hook: Suggest Codex analysis after test/build failures.
+PostToolUse hook: Suggest root-cause analysis after test/build failures.
 
-Analyzes test and build output and suggests Codex consultation
+Analyzes test and build output and suggests the debugger subagent
 for debugging complex failures.
 """
 
@@ -61,7 +61,7 @@ FAILURE_PATTERNS = [
 # Failure count at which the output is reported as a multi-failure run.
 MIN_FAILURES_FOR_MULTIPLE = 3
 
-# Simple errors that don't need Codex
+# Simple errors that don't need the debugger
 SIMPLE_ERRORS = [
     "ModuleNotFoundError",  # Usually just need to install
     "command not found",
@@ -91,7 +91,7 @@ def has_complex_failure(output: str) -> tuple[bool, str]:
             failure_count += len(matches)
             matched_patterns.append(pattern)
 
-    # Any failure in a test or build command is worth a Codex look: a red
+    # Any failure in a test or build command is worth a debugger look: a red
     # suite is the cheapest possible moment to find the root cause, and a
     # single failure is not evidence that the cause is simple.
     if failure_count >= MIN_FAILURES_FOR_MULTIPLE:
@@ -139,10 +139,10 @@ def build_context(data: dict) -> str | None:
         return None
 
     return (
-        f"[Codex Debug Suggestion] {reason}. "
-        "Use the `codex-debugger` subagent before attempting a manual fix — "
+        f"[Debug Suggestion] {reason}. "
+        "Use the `debugger` subagent before attempting a manual fix — "
         "deep reasoning finds root causes that surface-level fixes miss. "
-        "**Recommended**: Task(subagent_type='codex-debugger') with the full "
+        "**Recommended**: Agent(subagent_type='debugger') with the full "
         "command and test output, which also preserves main context."
     )
 

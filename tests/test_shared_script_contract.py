@@ -18,7 +18,7 @@ mistake this file for full coverage:
 * **Verified success path** — "the script re-read what it wrote and validated
   it" cannot be distinguished from the outside from "the script wrote it and
   reported success". Each writer's own test file asserts it (for example
-  ``tests/test_codex_consult.py::test_success_reports_artifacts_and_a_verified_response``).
+  ``tests/test_update_design.py`` and ``tests/test_append_state_block.py``).
 * **Re-run safety** — needs typed, script-specific input to apply twice; it
   lives in ``tests/test_update_design.py`` and the other writer test files.
 * **Graceful degradation** — whether a particular absent optional path *should*
@@ -66,11 +66,6 @@ FORBIDDEN_SUBSTRINGS = ("shell=True",)
 # true`) where the missing result is an explicitly handled state on the same
 # line, not a discarded error.
 PYTHON_ONLY_FORBIDDEN = ("2>/dev/null",)
-
-# The Codex CLI is reached only through the shared wrapper, which closes stdin,
-# captures stderr, and enforces a timeout. A direct `codex exec` anywhere in a
-# bundled script would reintroduce all three failure modes.
-CODEX_WRAPPER = SKILLS_DIR / "_shared" / "codex_consult.py"
 
 
 def _script_id(script: Path) -> str:
@@ -177,17 +172,6 @@ def test_no_swallowed_errors(script: Path) -> None:
         assert not BARE_EXCEPT_RE.match(line), (
             f"{_script_id(script)}:{lineno} has a bare 'except:' clause"
         )
-
-
-@pytest.mark.parametrize("script", ALL_SCRIPTS, ids=_script_id)
-def test_codex_is_reached_only_through_the_wrapper(script: Path) -> None:
-    if script == CODEX_WRAPPER:
-        return
-    text = script.read_text(encoding="utf-8")
-    assert "codex exec" not in text, (
-        f"{_script_id(script)} invokes `codex exec` directly; call "
-        f"{_script_id(CODEX_WRAPPER)} instead"
-    )
 
 
 # --- 6. shell helpers answer the same --help / JSON / exit contract ----------
@@ -326,9 +310,6 @@ SUCCESS_CASES: dict[Path, tuple[Callable[[Path], None], list[str]]] = {
 }
 
 SUCCESS_EXEMPT: dict[Path, str] = {
-    # Needs a fake codex/claude/agy executable on PATH.
-    SKILLS_DIR / "_shared" / "codex_consult.py": "tests/test_codex_consult.py",
-    SKILLS_DIR / "_shared" / "cli_consult.py": "tests/test_cli_consult.py",
     # Needs typed JSON input built against the script's own schema.
     SKILLS_DIR
     / "_shared"

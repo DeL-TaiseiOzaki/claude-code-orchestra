@@ -2,7 +2,7 @@
 
 Template contract for the Phase 3 Spike Report artifact (saved to `.claude/docs/research/spike-{topic}.md`).
 All sections are REQUIRED unless marked OPTIONAL.
-`{placeholder}` tokens are filled by the orchestrator from Phase 2 teammate outputs and Codex final evaluation.
+`{placeholder}` tokens are filled by the orchestrator from Phase 2 teammate outputs and the Opus final evaluation.
 
 ---
 

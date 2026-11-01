@@ -420,19 +420,6 @@ def test_a_failed_collector_is_reported_not_rendered_as_no_activity(
     assert "FAILED" in checkpoint
 
 
-def test_a_malformed_cli_log_line_is_counted(project: Path) -> None:
-    (project / ".claude" / "logs" / "cli-tools.jsonl").write_text(
-        '{"tool": "codex", "prompt": "ok", "timestamp": "2026-07-25T09:00:00Z"}\n'
-        "not json at all\n",
-        encoding="utf-8",
-    )
-
-    result = run(project, *summary_flag(project), "--apply")
-
-    assert result.returncode == 0, result.stdout
-    assert json.loads(result.stdout)["skipped_records"]["cli_log_lines"] == 1
-
-
 # --- checkpoint discovery ----------------------------------------------------
 
 
@@ -720,12 +707,20 @@ def test_tags_name_the_commit_types_and_directories_touched() -> None:
             "modified": ["tests/test_checkpoint.py"],
             "deleted": [],
         },
-        cli_entries=[{"tool": "codex"}],
+        teams_data=[{"name": "auth"}],
     )
 
     tags = cp.derive_tags(collected)
 
-    assert {"feature", "bugfix", "tests", "testing", "skills", "codex"} <= set(tags)
+    assert {
+        "feature",
+        "bugfix",
+        "tests",
+        "testing",
+        "skills",
+        "agent-teams",
+        "team-auth",
+    } <= set(tags)
     assert tags == sorted(tags)
 
 

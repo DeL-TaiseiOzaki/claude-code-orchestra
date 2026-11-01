@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-PostToolUse hook: Suggest Codex review after Plan tasks.
+PostToolUse hook: Suggest plan validation after planning tasks.
 
-This hook runs after Task tool execution and suggests Codex consultation
-for reviewing plans and implementation strategies.
+This hook runs after a subagent (Task/Agent tool) completes and suggests an
+independent validation of the resulting plan or implementation strategy by the
+general-purpose-opus subagent.
 """
 
 import json
@@ -24,14 +25,27 @@ PLAN_INDICATORS = [
     "optimize",
 ]
 
+# Subagent tool names: the tool was renamed from Task to Agent; accept both.
+SUBAGENT_TOOL_NAMES = {"Task", "Agent"}
 
-def should_suggest_codex_review(
+# A task that already *is* a review or validation must not ask for another
+# one, or every review would trigger a review of itself.
+REVIEW_INDICATORS = ("review", "validat", "verif")
+REVIEWER_SUBAGENTS = {"fable-advisor"}
+
+
+def should_suggest_plan_validation(
     tool_input: dict, tool_output: str | None = None
 ) -> tuple[bool, str]:
-    """Determine if Codex review should be suggested after task completion."""
+    """Determine if plan validation should be suggested after task completion."""
     subagent_type = tool_input.get("subagent_type", "").lower()
     description = tool_input.get("description", "").lower()
     prompt = tool_input.get("prompt", "").lower()
+
+    if subagent_type in REVIEWER_SUBAGENTS:
+        return False, ""
+    if any(indicator in description for indicator in REVIEW_INDICATORS):
+        return False, ""
 
     # Check if this is a Plan agent
     if subagent_type == "plan":
@@ -51,24 +65,25 @@ def main():
         data = json.load(sys.stdin)
         tool_name = data.get("tool_name", "")
 
-        # Only process Task tool
-        if tool_name != "Task":
+        # Only process subagent completions
+        if tool_name not in SUBAGENT_TOOL_NAMES:
             sys.exit(0)
 
         tool_input = data.get("tool_input", {})
         tool_output = data.get("tool_output", "")
 
-        should_suggest, reason = should_suggest_codex_review(tool_input, tool_output)
+        should_suggest, reason = should_suggest_plan_validation(tool_input, tool_output)
 
         if should_suggest:
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "PostToolUse",
                     "additionalContext": (
-                        f"[Codex Review Suggestion] {reason}. "
-                        "Consider having Codex review this plan for potential improvements. "
-                        "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
-                        "to consult Codex and preserve main context."
+                        f"[Plan Validation Suggestion] {reason}. "
+                        "Consider an independent validation of this plan before "
+                        "implementing it. **Recommended**: Agent tool with "
+                        "subagent_type='general-purpose-opus', asking it to challenge "
+                        "the plan's assumptions, ordering, and risks."
                     ),
                 }
             }

@@ -37,7 +37,7 @@ reference this file instead of inlining the template.
 2. **Reviewer roles** (e.g. in `/team-execute` Phase 2 REVIEW) replace `## Tasks Completed`
    with `## Review Scope` (files reviewed + focus areas) and `## Findings`
    (`- [{severity}] {file}:{line} — {issue summary}`).
-3. Role-specific extra sections (e.g. `## Codex Consultations`,
+3. Role-specific extra sections (e.g. `## Subagent Consultations`,
    `## Files Modified`, `## Key Decisions`, `## Sources Consulted`) are listed
    inline in each skill's teammate prompt — keep them in the stated order.
 4. Sections with nothing to report say `None`; never omit a core section.

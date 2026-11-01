@@ -109,7 +109,7 @@ pending → in_progress → completed
 
 ## Complexity Estimation
 
-From Codex analysis, tag tasks with complexity:
+From the Opus plan consult, tag tasks with complexity:
 
 | Complexity | Time Estimate | Characteristics |
 |------------|---------------|-----------------|
@@ -119,7 +119,7 @@ From Codex analysis, tag tasks with complexity:
 
 ## When to Re-plan
 
-Create new tasks or consult Codex again when:
+Create new tasks or run another Opus consult when:
 
 1. **Unexpected complexity** — Task taking 2x+ estimated time
 2. **Blocker discovered** — Dependency on unfinished work

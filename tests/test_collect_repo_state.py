@@ -300,37 +300,6 @@ def test_a_malformed_team_config_is_reported(project: Path) -> None:
     assert teams_payload["errors"]
 
 
-def test_cli_tools_includes_every_tool_and_counts_bad_lines(project: Path) -> None:
-    logs = project / ".claude" / "logs"
-    logs.mkdir(parents=True)
-    (logs / "cli-tools.jsonl").write_text(
-        json.dumps({"tool": "codex", "prompt": "design"})
-        + "\n"
-        + json.dumps({"tool": "antigravity", "prompt": "research"})
-        + "\nnot json\n",
-        encoding="utf-8",
-    )
-
-    cli = json.loads(run(project).stdout)["cli_tools"]
-
-    assert [item["tool"] for item in cli["items"]] == ["codex", "antigravity"]
-    assert cli["skipped_lines"] == 1
-    assert cli["error"] is None
-
-
-def test_an_absent_cli_log_is_distinct_from_an_unreadable_one(project: Path) -> None:
-    absent = json.loads(run(project).stdout)["cli_tools"]
-    assert absent == {"present": False, "items": [], "skipped_lines": 0, "error": None}
-
-    logs = project / ".claude" / "logs"
-    logs.mkdir(parents=True)
-    (logs / "cli-tools.jsonl").write_bytes(b"\xff\xfe not utf-8\n")
-
-    broken = json.loads(run(project).stdout)["cli_tools"]
-    assert broken["present"] is True
-    assert broken["error"] is not None
-
-
 def test_only_timestamp_named_checkpoints_are_listed(project: Path) -> None:
     checkpoints = project / ".claude" / "checkpoints"
     checkpoints.mkdir(parents=True)

@@ -1,41 +1,44 @@
 # Agent Tier Definitions
 
-Three stable tiers for multi-agent orchestration. Tier IDs are permanent
-and referenced by skills, rules, and configuration.
+Three stable tiers for multi-agent orchestration. Tier IDs are stable and
+referenced by skills, rules, and configuration. In this Claude Code-only
+edition every tier runs on Claude; Tier 2 is `deep` (an Opus executor) rather
+than the multi-CLI flavour's externally hosted tier.
 
 ## Tier 1 -- `default` (Main Agent and Default Executors)
 
-- **Scope**: User interaction and integration by the active main agent, plus
-  routine direct or delegated work.
+- **Scope**: User interaction and integration by the Claude Code main agent,
+  plus routine direct or delegated work.
 - **Selection criteria**: Default for all tasks unless escalation is needed.
-- **Permission boundary**: The active runtime's native permissions; changing
-  the main agent must follow `.claude/docs/change_main.md`.
-- **Inputs**: User prompt, `AGENTS.md`, tier definitions, and relevant
-  product-native rules.
+- **Permission boundary**: Claude Code's native permissions
+  (`.claude/settings.json`).
+- **Inputs**: User prompt, `AGENTS.md`, tier definitions, and relevant rules.
 - **Outputs**: Direct edits, user-facing responses, delegation calls to other tiers.
-- **Default runtime**: Claude Code. The active runtime is recorded in
-  `.claude/STATE.md`.
+- **Runtime**: Claude Code (the only supported runtime in this edition).
 - **Default executor models**: Claude models configured through
-  `.claude/settings.json`.
-- **Tier-1 norm**: Implementation-work subagents run on Sonnet; research and
-  large-scale analysis subagents stay on Opus (1M context window).
+  `.claude/settings.json`; unspecified subagents default to
+  `CLAUDE_CODE_SUBAGENT_MODEL` (Sonnet).
+- **Tier-1 norm**: Implementation-work subagents run on Sonnet
+  (`general-purpose-sonnet`).
 
-## Tier 2 -- `sol` (Long-Duration Executor)
+## Tier 2 -- `deep` (Deep Reasoning Executor)
 
-- **Scope**: Design, planning, complex implementation, long-running tasks.
-- **Selection criteria**: Multi-file changes with behavior impact, architecture
-  decisions, complex algorithms, root-cause-unknown debugging.
-- **Permission boundary**: Full filesystem and network access by default (no
-  sandbox) (`sandbox_mode = "danger-full-access"` in `.codex/config.toml`);
-  `approval_policy` stays `"never"`. Callers doing planning/review/analysis
-  should still pass an explicit `--sandbox read-only`.
-- **Inputs**: Shared orchestration context plus a structured prompt following
-  the Prompt Contract
-  (`.claude/rules/codex-delegation.md` section "Prompt Contract").
+- **Scope**: Design, planning, code review, complex implementation,
+  root-cause debugging, research, and large-context analysis.
+- **Selection criteria**: Multi-file changes with behavior impact,
+  architecture decisions, complex algorithms, root-cause-unknown debugging,
+  and any of the deep-reasoning triggers in `.claude/rules/delegation.md`.
+- **Agents**: `general-purpose-opus` (planning, design, review, difficult
+  implementation, research), `debugger` (root-cause analysis), and Claude
+  Code's built-in `Plan` agent when a read-only plan is all that is wanted.
+- **Permission boundary**: Claude Code's native permissions; a planning or
+  review request is read-only by instruction, and the caller verifies every
+  diff it produces.
+- **Inputs**: A structured prompt following the Subagent Prompt Contract
+  (`.claude/rules/delegation.md`).
 - **Outputs**: Structured response (TL;DR / Analysis / Plan / Patch Strategy /
   Validation / Risks); file patches; validation commands.
-- **Model**: Codex CLI model (`CODEX_MODEL` env in `.claude/settings.json`,
-  mirrored in `.codex/config.toml`).
+- **Model**: Claude Opus (`model: opus` in the agent frontmatter, 1M context).
 - **Guardrails**: See root `AGENTS.md` section "Guardrails (Completion Verification)".
 
 ## Tier 3 -- `fable` (Rare Escalation / Final Authority)
@@ -70,5 +73,5 @@ Multiple review mechanisms exist. Their scopes are distinct:
 | Mechanism                        | Scope                                          | Trigger                          |
 |----------------------------------|-------------------------------------------------|----------------------------------|
 | team-execute Phase 2 reviewers   | Per-change ship gate (security, quality, tests) | Every team-execute change        |
-| `/codex:adversarial-review`      | Code-level design challenge (external plugin)   | On-demand via codex-plugin-cc    |
+| `general-purpose-opus` review    | Code-level design challenge and code review     | On-demand, or hook-suggested     |
 | **Fable (Tier 3)**               | RARE escalation: arbitration, unblocking, large-change final judgment, and landing the resolution | Manual escalation when stuck or high-stakes |

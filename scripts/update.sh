@@ -3,11 +3,15 @@
 # scripts/update.sh — Claude Code Orchestra Template Updater
 #
 # Fetches the latest version of the claude-code-orchestra template and safely
-# updates local files. Template-owned content is centralized under .agents/;
+# updates local files. Template-owned content is centralized under .claude/;
 # mutable project context is preserved in .claude/STATE.md and .claude/docs/.
 #
+# This is the Claude Code-only edition: it tracks the template's
+# `claude-only` branch by default (override with ORCHESTRA_TEMPLATE_REF, or
+# pass a ref), so an update never pulls the multi-CLI flavour from main.
+#
 # Usage:
-#   ./scripts/update.sh            # Update to latest main
+#   ./scripts/update.sh            # Update to the latest claude-only branch
 #   ./scripts/update.sh v0.2.0     # Update to a specific tag/ref
 #   ./scripts/update.sh --yes      # Skip confirmation prompts
 # ==============================================================================
@@ -17,6 +21,9 @@ set -euo pipefail
 # Constants
 # =============================================================================
 TEMPLATE_REPO="${ORCHESTRA_TEMPLATE_REPO:-https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git}"
+# Default ref of this edition. `-` (not `:-`) on purpose: an explicitly empty
+# ORCHESTRA_TEMPLATE_REF means "the template repository's default branch".
+DEFAULT_TEMPLATE_REF="${ORCHESTRA_TEMPLATE_REF-claude-only}"
 LOCAL_VERSION_FILE=".claude/orchestra-version"
 TEMPLATE_BOUNDARY="@orchestra:template-boundary"
 REPO_BOUNDARY="@orchestra:repo-boundary"
@@ -36,11 +43,7 @@ SAFE_DIRS=(
 # above are replaced wholesale, so their contents must not be repeated here.
 SAFE_FILES=(
     "AGENTS.md"
-    ".agents/AGENTS.md"
-    ".codex/AGENTS.md"
     ".claude/docs/INDEX.md"
-    ".claude/docs/change_main.md"
-    ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"
     ".claude/docs/libraries/.gitkeep"
     ".claude/docs/plans/.gitkeep"
     ".claude/docs/reviews/.gitkeep"
@@ -65,6 +68,13 @@ DEPRECATED_PATHS=(
     ".agents/agents"
     ".agents/hooks"
     ".codex/skills"
+    # Removed by the Claude Code-only edition: peer-CLI adapters and docs.
+    # Only template-owned files are listed; a project's own
+    # .codex/config.toml is never touched.
+    ".agents/AGENTS.md"
+    ".codex/AGENTS.md"
+    ".claude/docs/change_main.md"
+    ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"
 )
 
 # Project-owned data that pre-2.0 installations kept under .agents/. It is
@@ -80,7 +90,6 @@ LEGACY_PROJECT_DIRS=(
 # A downstream project edits its model, approval policy, and hooks here.
 SETTINGS_FILES=(
     ".claude/settings.json"
-    ".codex/config.toml"
 )
 
 # =============================================================================
@@ -111,7 +120,7 @@ header()  { echo ""; echo "${BOLD}━━━ $* ━━━${RESET}"; }
 TMPDIR_UPDATE=""
 UPDATED_FILES=()
 AUTO_YES=false
-TARGET_REF=""
+TARGET_REF="${DEFAULT_TEMPLATE_REF}"
 SELF_UPDATED=false
 
 # In-flight stage-and-swap tracking (see sync_safe_dirs). At most one
@@ -166,7 +175,7 @@ parse_args() {
                 echo "  -h, --help   Show this help message"
                 echo ""
                 echo "Arguments:"
-                echo "  VERSION_REF  Git ref to checkout (tag, branch, commit). Default: main"
+                echo "  VERSION_REF  Git ref to checkout (tag, branch, commit). Default: claude-only"
                 exit 0
                 ;;
             -*)

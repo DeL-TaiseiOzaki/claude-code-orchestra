@@ -25,12 +25,11 @@ only through the runtime's own description-based skill selection.
 - **Explicit request** — "record this", "add to design", "update DESIGN",
   "記録して", `/design-tracker`. This is the reliable path.
 - **Model invocation** from the description, at the runtime's discretion.
-  Claude Code discovers the skill through `.claude/skills` → `.claude/skills`;
-  Codex through `.codex/config.toml`'s `path = ".claude/skills/design-tracker"`.
+  Claude Code discovers the skill natively under `.claude/skills/`.
 - **No hook mechanism.** `.claude/hooks/` contains no design-tracker branch, and
   the words a design conversation actually uses (設計 / design / architecture)
-  are claimed by `CODEX_TRIGGERS` in `agent-router.py`, which injects a *Codex*
-  consultation nudge instead. `check-codex-before-write.py` also nudges when
+  are claimed by `DEEP_REASONING_TRIGGERS` in `agent-router.py`, which injects a
+  deep-reasoning routing nudge instead. `check-design-before-write.py` also nudges when
   `DESIGN.md` is edited, but it blocks nothing — a freehand edit still lands.
 
 So an agent in a design conversation must decide to record the decision; no

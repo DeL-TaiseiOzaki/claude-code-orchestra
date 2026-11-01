@@ -33,7 +33,7 @@ The split is fixed:
 | Requirement clarification, test-case list, boundary values | Lead (judgment, Self-Handle List item 5) |
 | Writing the tests and the production code, cycle by cycle | `general-purpose-sonnet` |
 | Cycles with ambiguous design, cross-cutting invariants, or security / concurrency / data-integrity risk | `general-purpose-opus` |
-| A Red that is red for the wrong reason, or a Green that will not go green after one retry | `codex-debugger` |
+| A Red that is red for the wrong reason, or a Green that will not go green after one retry | `debugger` |
 | Every `run_tests.py` / `verify.sh` gate and the final report | Lead — verification never delegates |
 
 Only a *single trivial cycle* on a file already open in context stays with the
@@ -143,7 +143,7 @@ Task tool:
 Then verify rather than trust: re-run `run_tests.py --expect pass` yourself and
 read the diff. A reported cycle with no matching `run_tests.py` exit `0` did not
 happen. If a cycle came back unfinished, escalate it (`general-purpose-opus` or
-`codex-debugger`) instead of re-sending the same prompt to the same tier.
+`debugger`) instead of re-sending the same prompt to the same tier.
 
 The steps below are the contract the delegate follows — and what the lead runs
 directly in the single-trivial-cycle case.

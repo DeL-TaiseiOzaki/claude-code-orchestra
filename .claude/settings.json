@@ -23,7 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-codex-before-write.py\"",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-design-before-write.py\"",
             "timeout": 10
           }
         ]
@@ -39,35 +39,24 @@
         ]
       }
     ],
-    "TaskCompleted": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/log-cli-tools.py\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
     "PreCompact": [
       {
         "matcher": "auto",
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\": {\"additionalContext\": \"Context compaction triggered. Key context: AGENTS.md is the single root contract -- it contains the shared mission, routing, agent and skill catalogs, and quality gates, plus the CLI-agent contract for cross-CLI invocation and completion guardrails; .claude/STATE.md contains the active main agent and working state; .claude/rules/ contains detailed policy; .claude/docs/DESIGN.md contains project design.\"}}'"
+            "command": "echo '{\"hookSpecificOutput\": {\"additionalContext\": \"Context compaction triggered. Key context: AGENTS.md is the single root contract -- it contains the mission, routing policy, agent and skill catalogs, quality gates, and the completion-verification guardrails for subagent work; .claude/STATE.md contains the active main agent and working state; .claude/rules/ contains detailed policy; .claude/docs/DESIGN.md contains project design.\"}}'"
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Task",
+        "matcher": "Task|Agent",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-codex-after-plan.py\"",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-plan-after-task.py\"",
             "timeout": 10
           }
         ]
@@ -166,7 +155,6 @@
       "Bash(source:*)",
       "Bash(docker:*)",
       "Bash(docker-compose:*)",
-      "Bash(codex:*)",
       "Bash(pkill:*)",
       "Bash(for:*)",
       "Bash(do)",
@@ -193,7 +181,6 @@
   "env": {
     "EDITOR": "code --wait",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
-    "CODEX_MODEL": "gpt-5.6-sol"
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
   }
 }

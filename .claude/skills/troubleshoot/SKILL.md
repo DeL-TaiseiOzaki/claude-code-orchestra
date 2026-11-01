@@ -1,25 +1,23 @@
 ---
 name: troubleshoot
 description: |
-  Diagnose and plan fixes for errors/bugs with Codex-first multi-agent collaboration (Codex + Opus 4.6 + Agent Teams).
-  Codex CLI is consulted in EVERY phase for deep code reasoning, hypothesis evaluation, and fix validation.
-  Phase 1: Error reproduction & context gathering (Opus subagent 1M context + Codex initial analysis + Claude user interaction).
-  Phase 2: Parallel diagnosis (Agent Teams: Root Cause Analyst [Codex-driven] + Impact Investigator [Opus + Codex risk analysis]).
-  Phase 3: Fix plan synthesis, Codex validation & user approval.
+  Diagnose and plan fixes for errors/bugs with deep-reasoning multi-agent collaboration (debugger + Opus + Agent Teams).
+  A deep-reasoning pass runs in EVERY phase for code reasoning, hypothesis evaluation, and fix validation.
+  Phase 1: Error reproduction & context gathering (Opus subagent 1M context + debugger initial hypotheses + Claude user interaction).
+  Phase 2: Parallel diagnosis (Agent Teams: Root Cause Analyst + Impact Investigator, each following a mandatory analysis protocol).
+  Phase 3: Fix plan synthesis, independent Opus validation & user approval.
   Fix implementation is handled separately by /team-execute.
 metadata:
-  short-description: Codex-first error/bug diagnosis with Agent Teams (Diagnosis phase)
+  short-description: Deep-reasoning error/bug diagnosis with Agent Teams (Diagnosis phase)
 ---
 
 # Troubleshoot
 
-**Codex-first error/bug diagnosis skill leveraging Codex deep reasoning, Opus 1M context, and Agent Teams.**
-
-> Preflight: ensure codex CLI is current (see codex-system skill).
+**Deep-reasoning error/bug diagnosis skill leveraging the `debugger` subagent, Opus 1M context, and Agent Teams.**
 
 ## Overview
 
-This skill handles the diagnosis phases (Phase 1-3) with a **Codex-first approach**: Codex CLI is consulted proactively in every phase for pattern recognition, hypothesis evaluation, root cause reasoning, and fix validation. Fix implementation and review are done via `/team-execute`.
+This skill handles the diagnosis phases (Phase 1-3) with a **deep-reasoning-first approach**: every phase includes an explicit, structured reasoning pass (by the `debugger` subagent, the teammates' mandatory analysis protocols, or a fresh `general-purpose-opus` validator) for pattern recognition, hypothesis evaluation, root cause reasoning, and fix validation. Fix implementation and review are done via `/team-execute`.
 
 ```
 /troubleshoot <error description>   <- This skill (diagnosis & fix planning)
@@ -32,26 +30,26 @@ This skill handles the diagnosis phases (Phase 1-3) with a **Codex-first approac
 ## Workflow
 
 ```
-Phase 1: REPRODUCE & UNDERSTAND (Opus 1M context + Codex Initial Analysis + Claude Lead)
-  Opus subagent analyzes the error context, Codex generates initial hypotheses,
+Phase 1: REPRODUCE & UNDERSTAND (Opus 1M context + debugger Initial Analysis + Claude Lead)
+  Opus subagent analyzes the error context, the debugger generates initial hypotheses,
   Claude gathers details from the user
     |
-Phase 2: DIAGNOSE (Agent Teams -- Parallel, Codex-driven)
-  Root Cause Analyst (Codex mandatory) <-> Impact Investigator (Opus + Codex) communicate bidirectionally
-  Both teammates consult Codex for deep reasoning throughout analysis
+Phase 2: DIAGNOSE (Agent Teams -- Parallel)
+  Root Cause Analyst <-> Impact Investigator communicate bidirectionally
+  Both teammates follow a mandatory structured analysis protocol
     |
-Phase 3: FIX PLAN & APPROVE (Codex Validation + Claude Lead + User)
-  Integrate diagnosis results, validate fix plan with Codex, get user approval
+Phase 3: FIX PLAN & APPROVE (Opus Validation + Claude Lead + User)
+  Integrate diagnosis results, validate fix plan with a fresh Opus subagent, get user approval
 ```
 
 ---
 
-## Phase 1: REPRODUCE & UNDERSTAND (Opus Subagent + Codex + Claude Lead)
+## Phase 1: REPRODUCE & UNDERSTAND (Opus Subagent + debugger + Claude Lead)
 
-**Reproduce the error and gather full context with Opus subagent's 1M context, then consult Codex for initial hypothesis generation, while Claude interacts with the user.**
+**Reproduce the error and gather full context with Opus subagent's 1M context, then ask the `debugger` subagent for initial hypothesis generation, while Claude interacts with the user.**
 
 > Main orchestrator context is precious. Large-scale error context analysis is delegated to Opus subagent (1M context).
-> Codex is consulted early for pattern recognition and hypothesis generation.
+> The `debugger` is consulted early for pattern recognition and hypothesis generation.
 
 ### Step 0: Resolve Workspace
 
@@ -139,9 +137,9 @@ Task tool:
     Return concise summary (5-7 key findings).
 ```
 
-### Step 2.5: Codex Initial Error Pattern Analysis
+### Step 2.5: Initial Error Pattern Analysis (debugger)
 
-Consult Codex for initial hypothesis generation before creating the Bug Report. Write the prompt to a file, then invoke the wrapper:
+Ask the `debugger` subagent for initial hypotheses before creating the Bug Report. Delegate through the Agent tool (`subagent_type: "debugger"`) with the prompt below, plus: "Diagnosis only -- do not edit any file. Write your full answer to `.claude/logs/troubleshoot-{slug}-initial-analysis.md` and return a short summary plus that path." Pass `{paths.context}` and the repro log path rather than pasting their contents:
 
 ```text
 Objective: Analyze this error and generate initial hypotheses for root cause.
@@ -160,17 +158,13 @@ Output format:
 ## Known Similar Patterns
 ```
 
-```bash
-python3 .claude/skills/_shared/codex_consult.py --prompt-file .claude/logs/codex/prompt-troubleshoot-initial.md --label troubleshoot-initial
-```
+Read the full answer from the file, not from the summary; a run that wrote no file is a failed consult -- re-run it once with the gap named.
 
-`.claude/skills/_shared/codex_consult.py` exits 0 when Codex answered normally, 2 if the Codex CLI is not installed, 3 if Codex failed or timed out -- check the JSON `ok` field and read `response_file` for the answer (`error`/`stderr_file` explain a failure). Every later Codex consultation in this skill follows this same write-prompt-then-invoke pattern without repeating these exit codes.
-
-Use Codex's analysis to strengthen the Initial Hypotheses section of the Bug Report.
+Use the debugger's analysis to strengthen the Initial Hypotheses section of the Bug Report.
 
 ### Step 3: Create Bug Report
 
-Combine error details + codebase analysis + Codex initial hypotheses into a Bug Report following the template contract in `references/bug-report-template.md`. Save it to `{paths.bug_report}` (from Step 0), then validate it:
+Combine error details + codebase analysis + the debugger's initial hypotheses into a Bug Report following the template contract in `references/bug-report-template.md`. Save it to `{paths.bug_report}` (from Step 0), then validate it:
 
 ```bash
 python3 .claude/skills/_shared/validate_doc.py --contract bug-report --file {paths.bug_report}
@@ -190,7 +184,7 @@ it, so it must exist on disk -- not only in this conversation.
 
 ## Phase 2: DIAGNOSE (Agent Teams — Parallel)
 
-**Launch Root Cause Analyst and Impact Investigator in parallel via Agent Teams with bidirectional communication. Both teammates MUST consult Codex for deep reasoning tasks.**
+**Launch Root Cause Analyst and Impact Investigator in parallel via Agent Teams with bidirectional communication. Both teammates MUST follow their structured analysis protocol for deep reasoning tasks.**
 
 > Key difference from subagents: Teammates can communicate with each other.
 > Root Cause Analyst's findings change Impact Investigator's scope, and Impact Investigator's context informs root cause analysis.
@@ -202,11 +196,11 @@ Create an agent team named `{team_name}` for troubleshooting: {slug}
 
 Spawn two teammates:
 
-1. **Root Cause Analyst** — Uses Codex CLI as PRIMARY analysis engine for deep code reasoning
+1. **Root Cause Analyst** — Opus teammate; deep code reasoning through a mandatory analysis protocol
    Prompt: "You are the Root Cause Analyst for bug: {slug}.
 
    Your job: Identify the definitive root cause of this error through deep code analysis.
-   Codex CLI is your PRIMARY tool for reasoning about code behavior.
+   Reason from evidence you observed (code read, commands run), never from pattern matching alone.
 
    Bug Report: read `{paths.bug_report}` (written and validated in Phase 1 Step 3).
 
@@ -224,16 +218,15 @@ Spawn two teammates:
       - Approach B: {description, pros, cons}
       - Recommended approach with rationale
 
-   ## Codex Analysis Protocol (MANDATORY)
+   ## Analysis Protocol (MANDATORY)
 
-   You MUST consult Codex for EACH of the following analysis tasks.
-   Do NOT skip Codex consultation — it is the primary reasoning engine for this role.
-   Each consultation below follows the same shape: write the prompt to a file,
-   then run `python3 .claude/skills/_shared/codex_consult.py --prompt-file <path> --label <label>`
-   and read the JSON `response_file`.
+   You MUST work through EACH of the following analysis tasks explicitly.
+   Do NOT skip one — each is a separate reasoning pass with its own
+   Objective / Context / Constraints, and its answer is written under the
+   stated output headings in your output file.
 
    ### 1. Execution Flow Tracing
-   For complex control flow, write the prompt below to a file, then consult Codex:
+   For complex control flow, work through:
 
    Objective: Trace the execution flow from {entry point} to {error location}.
    Context:
@@ -249,10 +242,8 @@ Spawn two teammates:
    ## Assumption Violations
    ## Critical Decision Points
 
-   python3 .claude/skills/_shared/codex_consult.py --prompt-file .claude/logs/codex/prompt-troubleshoot-flow.md --label troubleshoot-flow
-
    ### 2. Hypothesis Evaluation
-   For each hypothesis, write the prompt below to a file, then consult Codex to evaluate evidence:
+   For each hypothesis, evaluate the evidence:
 
    Objective: Evaluate hypothesis "{hypothesis}" against collected evidence.
    Context:
@@ -268,10 +259,8 @@ Spawn two teammates:
    ## Reasoning
    ## Remaining Unknowns
 
-   python3 .claude/skills/_shared/codex_consult.py --prompt-file .claude/logs/codex/prompt-troubleshoot-hypothesis.md --label troubleshoot-hypothesis
-
    ### 3. Fix Approach Design
-   Write the prompt below to a file, then consult Codex for trade-off analysis of fix alternatives:
+   Analyze the trade-offs of the fix alternatives:
 
    Objective: Design and compare fix approaches for root cause: {root cause description}.
    Context:
@@ -289,10 +278,8 @@ Spawn two teammates:
    ## Comparison Matrix
    ## Recommendation with Rationale
 
-   python3 .claude/skills/_shared/codex_consult.py --prompt-file .claude/logs/codex/prompt-troubleshoot-fix-design.md --label troubleshoot-fix-design
-
    ### 4. Fix Correctness Verification
-   Before finalizing, write the prompt below to a file, then consult Codex to verify the proposed fix:
+   Before finalizing, verify the proposed fix:
 
    Objective: Verify that the proposed fix correctly resolves the root cause.
    Context:
@@ -308,8 +295,6 @@ Spawn two teammates:
    ## Edge Case Coverage
    ## New Failure Modes (if any)
    ## Confidence Level
-
-   python3 .claude/skills/_shared/codex_consult.py --prompt-file .claude/logs/codex/prompt-troubleshoot-fix-verify.md --label troubleshoot-fix-verify
 
    Save analysis to `{paths.root_cause}` (from Phase 1 Step 0).
 
@@ -337,15 +322,15 @@ Spawn two teammates:
    - Approach A: {description} — {pros/cons}
    - Approach B: {description} — {pros/cons}
    - Recommended: {which and why}
-   ## Codex Consultations
-   - {question asked to Codex}: {key insight from response}
+   ## Analysis Protocol Results
+   - {protocol step}: {verdict and key insight}
    "
 
-2. **Impact Investigator** — Uses Opus with Git history, codebase search, WebSearch, and Codex for risk analysis
+2. **Impact Investigator** — Opus teammate with Git history, codebase search, WebSearch, and a risk analysis protocol
    Prompt: "You are the Impact Investigator for bug: {slug}.
 
    Your job: Determine the full scope and impact of this bug, and gather context for the fix.
-   Consult Codex for regression risk reasoning and fix safety analysis.
+   Work through the risk analysis protocol for regression risk and fix safety.
 
    Bug Report: read `{paths.bug_report}` (written and validated in Phase 1 Step 3).
 
@@ -372,15 +357,14 @@ Spawn two teammates:
    - Use WebSearch for external known issues:
      WebSearch: '{library} {error message} issue fix'
 
-   ## Codex Risk Analysis Protocol (MANDATORY)
+   ## Risk Analysis Protocol (MANDATORY)
 
-   You MUST consult Codex for regression risk reasoning and fix safety analysis.
-   Each consultation below follows the same shape: write the prompt to a file,
-   then run `python3 .claude/skills/_shared/codex_consult.py --prompt-file <path> --label <label>`
-   and read the JSON `response_file`.
+   You MUST work through both analyses below explicitly, each as its own
+   reasoning pass, and write each answer under the stated output headings in
+   your output file.
 
    ### Regression Risk Reasoning
-   Write the prompt below to a file, then consult Codex to evaluate what could break if the proposed change is applied:
+   Evaluate what could break if the proposed change is applied:
 
    Objective: Evaluate regression risk if {proposed change} is applied to {file:line}.
    Context:
@@ -398,10 +382,8 @@ Spawn two teammates:
    ## Implicit Contracts at Risk
    ## Recommended Safeguards
 
-   python3 .claude/skills/_shared/codex_consult.py --prompt-file .claude/logs/codex/prompt-troubleshoot-regression.md --label troubleshoot-regression
-
    ### Fix Safety Analysis
-   Write the prompt below to a file, then consult Codex to verify the proposed fix does not introduce new issues:
+   Verify the proposed fix does not introduce new issues:
 
    Objective: Analyze whether the proposed fix introduces new issues or side effects.
    Context:
@@ -418,8 +400,6 @@ Spawn two teammates:
    ## New Issues Identified
    ## Side Effects
    ## Mitigation Recommendations
-
-   python3 .claude/skills/_shared/codex_consult.py --prompt-file .claude/logs/codex/prompt-troubleshoot-fix-safety.md --label troubleshoot-fix-safety
 
    Save findings to `{paths.impact}` (from Phase 1 Step 0).
 
@@ -448,9 +428,9 @@ Spawn two teammates:
    ## Regression Risk
    - Existing test coverage: {description}
    - Risk areas: {what could break}
-   ## Codex Risk Analysis
-   - Regression risk assessment: {Codex's verdict and reasoning}
-   - Fix safety assessment: {Codex's verdict and reasoning}
+   ## Risk Analysis
+   - Regression risk assessment: {verdict and reasoning}
+   - Fix safety assessment: {verdict and reasoning}
    "
 
 Wait for both teammates to complete their tasks.
@@ -465,18 +445,18 @@ Root Cause Analyst: "The error occurs because parse_config() returns None when k
     -> Impact Investigator: "Checking git blame -- this was changed in commit abc123"
     -> Impact Investigator: "Found 5 other callers of parse_config() that don't handle None"
     -> Root Cause Analyst: "Expanding fix scope -- need to either fix callers or fix parse_config()"
-    -> Root Cause Analyst: "Codex recommends: fix parse_config() to raise KeyError instead of returning None"
-    -> Impact Investigator: "Codex risk analysis confirms: all 5 callers already have try/except for KeyError"
-    -> Root Cause Analyst: "Root cause confirmed. Codex verified fix correctness. Fix approach: restore KeyError in parse_config()"
+    -> Root Cause Analyst: "Fix approach design favours: fix parse_config() to raise KeyError instead of returning None"
+    -> Impact Investigator: "Regression risk analysis confirms: all 5 callers already have try/except for KeyError"
+    -> Root Cause Analyst: "Root cause confirmed. Fix correctness verified. Fix approach: restore KeyError in parse_config()"
 ```
 
 Without Agent Teams, this discovery loop would require multiple sequential subagent rounds.
 
 ---
 
-## Phase 3: FIX PLAN & APPROVE (Codex Validation + Claude Lead)
+## Phase 3: FIX PLAN & APPROVE (Opus Validation + Claude Lead)
 
-**Integrate Agent Teams diagnosis results, validate the fix plan with Codex, and request user approval.**
+**Integrate Agent Teams diagnosis results, validate the fix plan with a fresh Opus subagent, and request user approval.**
 
 ### Step 1: Synthesize Diagnosis
 
@@ -495,9 +475,9 @@ Read outputs from Phase 2:
 - `{paths.root_cause}` -- Root cause analysis
 - `{paths.impact}` -- Impact assessment
 
-### Step 1.5: Codex Fix Plan Validation
+### Step 1.5: Opus Fix Plan Validation
 
-Before presenting to the user, validate the fix plan with Codex. Write the prompt to a file, then invoke the wrapper:
+Before presenting to the user, validate the fix plan with a **fresh** `general-purpose-opus` subagent (Agent tool) -- not a teammate, which would be reviewing its own work. Add to the prompt below: "Read-only validation -- do not edit any file. Write your full answer to `.claude/logs/troubleshoot-{slug}-plan-validation.md` and return a short summary plus that path." Pass `{paths.root_cause}` and `{paths.impact}` as paths:
 
 ```text
 Objective: Validate this fix plan for completeness and correctness.
@@ -519,11 +499,7 @@ Output format:
 ## Revised Task List (if needed)
 ```
 
-```bash
-python3 .claude/skills/_shared/codex_consult.py --prompt-file .claude/logs/codex/prompt-troubleshoot-plan-validation.md --label troubleshoot-plan-validation
-```
-
-If Codex returns NEEDS_REVISION, update the fix plan before presenting to user.
+If the validation returns NEEDS_REVISION, update the fix plan before presenting to user.
 
 ### Step 2: Create Fix Plan
 
@@ -572,8 +548,8 @@ shared writer script and `.claude/rules/agent-state.md`.
 
 - **Context**: Error summary, Root cause, Affected files
 - **Fix Approach**: Recommended approach from Root Cause Analyst
-- **Codex Validation**: Result + additional test cases
-- **Regression Risks**: Key risks from Impact Investigator + Codex assessment
+- **Plan Validation**: Result + additional test cases
+- **Regression Risks**: Key risks from Impact Investigator + the validation
 - **Decisions** with rationale
 
 **Write the input JSON** to `{paths.state_input}` (from Phase 1 Step 0):
@@ -623,7 +599,7 @@ means every required section is present; exit 2 means one is missing and
 `sections_missing` names it -- most often `Alternative Approaches Considered`,
 the section a rushed presentation drops. Then present the validated document to
 the user. Structure is all this gate checks: whether the diagnosis is *correct*
-remains the Codex validation in Step 1.5 plus the user's approval.
+remains the Opus validation in Step 1.5 plus the user's approval.
 
 ---
 
@@ -635,8 +611,8 @@ Paths resolved once in Phase 1 Step 0 (`.claude/skills/_shared/workspace.py --sk
 |------|--------|---------|
 | `{paths.bug_report}` | Lead | Bug Report (Phase 1 synthesis) |
 | `{paths.context}` | Opus Subagent | Initial error context analysis |
-| `{paths.root_cause}` | Root Cause Analyst | Root cause analysis (Codex-driven) |
-| `{paths.impact}` | Impact Investigator | Impact assessment (with Codex risk analysis) |
+| `{paths.root_cause}` | Root Cause Analyst | Root cause analysis (analysis protocol results) |
+| `{paths.impact}` | Impact Investigator | Impact assessment (with risk analysis) |
 | `.claude/STATE.md` (updated) | Lead | Cross-session bug fix context |
 | Task list (internal) | Lead | Fix implementation tracking |
 
@@ -655,11 +631,11 @@ because in Phases 1-2 it does not exist yet):
 
 ## Tips
 
-- **Codex-first**: Every phase consults Codex. This is intentional -- Codex excels at deep code reasoning and pattern recognition that complements Opus's broad context analysis
-- **Codex for hypothesis testing**: When hypotheses conflict, ask Codex to evaluate evidence for each. Codex is better at logical reasoning about code behavior than pattern matching
-- **Phase 1**: Opus subagent (1M context) reproduces the error and gathers full context, then Codex generates initial hypotheses, while Claude collects details from the user
-- **Phase 2**: Agent Teams bidirectional communication allows Root Cause Analyst (Codex-driven) and Impact Investigator (Opus + Codex) to converge on the true root cause
-- **Phase 3**: Codex validates the fix plan before presenting to user. After approval, proceed to implementation with `/team-execute`
+- **Deep-reasoning first**: Every phase has an explicit reasoning pass. This is intentional -- structured hypothesis evaluation catches what broad context scanning alone misses
+- **Hypothesis testing**: When hypotheses conflict, evaluate the evidence for each explicitly (protocol step 2), or hand the conflict to the `debugger` subagent; escalate to `fable-advisor` if it stays deadlocked
+- **Phase 1**: Opus subagent (1M context) reproduces the error and gathers full context, then the `debugger` generates initial hypotheses, while Claude collects details from the user
+- **Phase 2**: Agent Teams bidirectional communication allows Root Cause Analyst and Impact Investigator to converge on the true root cause
+- **Phase 3**: A fresh Opus subagent validates the fix plan before presenting to user. After approval, proceed to implementation with `/team-execute`
 - **Competing Hypotheses**: If Phase 2 yields inconclusive results, consider spawning additional teammates with adversarial hypotheses (see the `/team-execute` Phase 2 competing hypotheses pattern)
 - **Quick bugs**: For obvious single-file bugs, skip this skill and fix directly -- use this skill for non-trivial bugs where root cause is unclear
 - **Ctrl+T**: Toggle task list display

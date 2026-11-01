@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-PreToolUse hook: Check if Codex consultation is recommended before Write/Edit.
+PreToolUse hook: Suggest a design review before a structural Write/Edit.
 
-This hook analyzes the file being modified and suggests Codex consultation
-for design decisions, complex implementations, or architectural changes.
+This hook analyzes the file being modified and suggests a design review by the
+general-purpose-opus subagent (or the built-in Plan agent) for design
+decisions, complex implementations, or architectural changes.
 """
 
 import json
@@ -126,10 +127,10 @@ def path_role_tokens(file_path: str) -> set[str]:
     return tokens
 
 
-def should_suggest_codex(
+def should_suggest_design_review(
     file_path: str, content: str | None = None, is_new_file: bool = False
 ) -> tuple[bool, str]:
-    """Determine if Codex consultation should be suggested.
+    """Determine if a design review should be suggested.
 
     ``is_new_file`` must be True only for a Write (a whole-file creation or
     replacement); an Edit patches an existing file, however long the patch.
@@ -193,7 +194,9 @@ def main():
 
         # Only a Write creates or replaces a whole file; an Edit is a patch.
         is_new_file = data.get("tool_name") == "Write"
-        should_suggest, reason = should_suggest_codex(file_path, content, is_new_file)
+        should_suggest, reason = should_suggest_design_review(
+            file_path, content, is_new_file
+        )
 
         if should_suggest:
             # Return additional context to Claude
@@ -201,15 +204,13 @@ def main():
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
                     "additionalContext": (
-                        f"[Codex Consultation Reminder] {reason}. "
-                        "You SHOULD consult Codex before finalizing this change — it "
-                        "catches design problems, better patterns, and hidden coupling "
+                        f"[Design Review Reminder] {reason}. "
+                        "You SHOULD get a design review before finalizing this change — "
+                        "it catches design problems, better patterns, and hidden coupling "
                         "while they are still cheap to fix. "
-                        "**Recommended**: Use Task tool with subagent_type='general-purpose-opus' "
-                        "to preserve main context. "
-                        "(Direct call OK for quick questions: write the prompt to a file, then "
-                        "`python3 .claude/skills/_shared/codex_consult.py --prompt-file <path> "
-                        "--sandbox read-only`)"
+                        "**Recommended**: Agent tool with "
+                        "subagent_type='general-purpose-opus' (or the built-in Plan "
+                        "agent for a read-only plan) to preserve main context."
                     ),
                 }
             }

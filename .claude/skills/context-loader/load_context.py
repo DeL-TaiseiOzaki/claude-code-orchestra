@@ -52,8 +52,6 @@ PREFERRED_RULE_ORDER = [
     "security",
     "testing",
     "tiers",
-    "cli-execution",
-    "codex-delegation",
 ]
 
 # English parenthetical in the "## 背景・目的 (Background & Purpose)" heading --

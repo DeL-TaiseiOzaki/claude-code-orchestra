@@ -112,7 +112,7 @@ def matches(required: str, heading: str) -> bool:
     """Whether *heading* satisfies the *required* section name.
 
     Templates routinely carry a value or qualifier in the heading itself —
-    ``## Verdict: {GO / NO-GO}``, ``### Initial Hypotheses (informed by Codex
+    ``## Verdict: {GO / NO-GO}``, ``### Initial Hypotheses (informed by Opus
     analysis)``. Requiring an exact string would reject documents that follow
     the template verbatim, so a heading also matches when the required name is
     a whole-token prefix of it.

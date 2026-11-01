@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install Claude Code Orchestra into an existing Git repository.
+# Install Claude Code Orchestra (Claude Code-only edition) into an existing Git repository.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,17 +24,12 @@ LEGACY_RUNTIME_PATHS=(
     ".agents/logs"
     ".agents/checkpoints"
     ".agents/STATE.md"
-    ".codex/skills"
 )
 # Template-owned files that no template-owned directory already covers.
 # `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/hooks/`,
 # above are replaced wholesale, so their contents must not be repeated here.
 TEMPLATE_OWNED_FILES=(
-    ".agents/AGENTS.md"
-    ".codex/AGENTS.md"
     ".claude/docs/INDEX.md"
-    ".claude/docs/change_main.md"
-    ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md"
     ".claude/docs/libraries/.gitkeep"
     ".claude/docs/plans/.gitkeep"
     ".claude/docs/reviews/.gitkeep"
@@ -48,7 +43,6 @@ TEMPLATE_OWNED_FILES=(
 # beside them. Format: "<settings-path>:<candidate-path>".
 NATIVE_SETTINGS=(
     ".claude/settings.json:.claude/settings.orchestra.json"
-    ".codex/config.toml:.codex/config.orchestra.toml"
 )
 PROJECT_FILES_IF_MISSING=(
     ".claude/STATE.md"
@@ -58,7 +52,6 @@ PROJECT_FILES_IF_MISSING=(
 GITIGNORE_ENTRIES=(
     ".claude/settings.local.json"
     ".claude/settings.orchestra.json"
-    ".codex/config.orchestra.toml"
     "CLAUDE.local.md"
     ".claude/logs/"
     ".claude/checkpoints/"
@@ -81,7 +74,7 @@ usage() {
     cat <<'EOF'
 Usage: scripts/install.sh [OPTIONS] [TARGET_DIR]
 
-Install Claude Code Orchestra into an existing Git repository.
+Install Claude Code Orchestra (Claude Code-only edition) into an existing Git repository.
 
 Options:
   -y, --yes    Skip confirmation prompts
@@ -134,7 +127,7 @@ require_source_paths() {
     local path
     for path in "${TEMPLATE_OWNED_DIRS[@]}" \
         "${TEMPLATE_OWNED_FILES[@]}" "${PROJECT_FILES_IF_MISSING[@]}" \
-        "AGENTS.md" ".claude/settings.json" ".codex/config.toml" \
+        "AGENTS.md" ".claude/settings.json" \
         "VERSION"; do
         if [[ ! -e "${SOURCE_ROOT}/${path}" && ! -L "${SOURCE_ROOT}/${path}" ]]; then
             error "Template source is incomplete: ${path} is missing."
@@ -173,8 +166,6 @@ validate_destination_paths() {
         ".claude/settings.json"
         ".claude/settings.orchestra.json"
         ".claude/orchestra-version"
-        ".codex/config.toml"
-        ".codex/config.orchestra.toml"
         ".gitignore"
     )
     for path in "${paths[@]}"; do
@@ -204,7 +195,6 @@ validate_project_files() {
         "AGENTS.md"
         "CLAUDE.md"
         ".claude/settings.json"
-        ".codex/config.toml"
         ".claude/STATE.md"
         ".claude/docs/DESIGN.md"
         ".gitignore"

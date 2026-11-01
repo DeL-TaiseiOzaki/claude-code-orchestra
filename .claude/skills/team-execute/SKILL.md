@@ -8,7 +8,7 @@ description: |
   Phase 2 REVIEW (formerly /team-review): specialized reviewers (security, quality,
   test coverage) review the changes from different perspectives in parallel.
   Pass --review-only to skip Phase 1 and review existing changes
-  (after manual or Codex implementation).
+  (after manual or single-subagent implementation).
 metadata:
   short-description: Parallel implementation + parallel review with Agent Teams
 ---
@@ -17,13 +17,11 @@ metadata:
 
 **Parallel implementation followed by parallel review, both via Agent Teams. Executes the plan approved in `/feature`.**
 
-> Preflight: ensure codex CLI is current (see codex-system skill).
-
 ## Arguments
 
 - (no arguments) — run Phase 1 IMPLEMENT, then Phase 2 REVIEW.
 - `--review-only` — skip Phase 1 and go straight to Phase 2 REVIEW. Use after
-  manual implementation or a Codex direct/MODERATE implementation from `/feature`.
+  manual implementation or a single-subagent SIMPLE/MODERATE implementation from `/feature`.
 
 ## Prerequisites
 
@@ -299,7 +297,7 @@ Wait for all teammates to complete their tasks.
 | File conflict detected | Reassign file ownership |
 | Tests keep failing | Send message to the relevant Implementer |
 | Sonnet exposes ambiguous or high-risk complexity | Stop that workstream and reassign it to `general-purpose-opus` with the evidence collected so far |
-| Unexpected technical issue | Consult Codex via `general-purpose-opus` |
+| Unexpected technical issue | Root-cause it with the `debugger` subagent, or a design question with `general-purpose-opus` |
 
 ### Quality Gates — who actually runs them
 
@@ -441,7 +439,7 @@ Exit `0` pass · `1` bad arguments · **`2` a gate failed or no gate ran** ·
 `3` write failure. On `2` do **not** spawn reviewers: report `overall`, the
 failing tools and `log_file` to the user and stop, unless the user explicitly
 chooses to review a red tree. This is the only executable check on the
-`--review-only` path, where the implementer was a Codex run or a human and
+`--review-only` path, where the implementer was a single subagent or a human and
 "all tests pass" is otherwise an unverified claim.
 
 ### 2. Collect the Guardrail evidence for a delegated implementation
@@ -514,7 +512,7 @@ produce a clean review of nothing.
 
 Reviewers use `general-purpose-sonnet` by default. Use `general-purpose-opus` for a
 review whose dominant risk is subtle security, concurrency, data integrity,
-performance, or cross-system behavior; Quality Reviewer may also consult Codex as
+performance, or cross-system behavior; Quality Reviewer runs a deep-logic pass as
 specified below.
 
 ```
@@ -571,12 +569,11 @@ Spawn reviewers:
    - Function length (target < 20 lines)
    - Library constraint violations (.claude/docs/libraries/)
 
-   Use Codex CLI for deep analysis of complex logic. Write the question to
-   .claude/logs/codex/prompt-quality-review.md, then:
-   python3 .claude/skills/_shared/codex_consult.py --prompt-file .claude/logs/codex/prompt-quality-review.md --label quality-review --sandbox read-only
-   Read the answer from the JSON output's response_file. Exit codes: 0 ok
-   (read response_file); 1 bad args; 2 codex CLI missing; 3 codex failed or
-   timed out (inspect error/stderr_file).
+   For complex logic, run an explicit deep-logic pass per function: state its
+   contract (inputs, outputs, invariants), trace each branch against that
+   contract, and list the inputs that would violate it. If the logic is beyond
+   what one pass settles, tell the lead, who can delegate a read-only
+   `general-purpose-opus` review of that unit.
 
    Changed files: {list}
 
@@ -597,8 +594,8 @@ Spawn reviewers:
    format: .claude/skills/_shared/work-log-format.md (reviewer variant:
    Review Scope + Findings instead of Tasks Completed).
    Extra role-specific section after Findings:
-   ## Codex Consultations
-   - {question asked to Codex}: {key insight from response}
+   ## Deep-Logic Passes
+   - {function or unit}: {contract violated or confirmed, with evidence}
    "
 
 3. **Test Reviewer**
@@ -754,7 +751,7 @@ Clean up the team
 - **File conflict prevention**: Module-level ownership separation is the most important factor — and the one part of team design that is checked rather than trusted (`check_ownership.py`, preflight before spawning and reconcile after)
 - **Separate Tester**: Having a dedicated Tester separate from Implementers enables a TDD-like workflow
 - **Reviewer specialization**: Each reviewer focuses on a different perspective to prevent blind spots
-- **Codex utilization**: Quality Reviewer delegates complex logic analysis to Codex
+- **Deep-logic review**: Quality Reviewer runs an explicit contract-and-branch pass on complex logic, escalating to a `general-purpose-opus` review through the lead
 - **Model routing**: Sonnet is the default; use Opus only when ambiguity, risk, or failed attempts justify the additional capability
 - **Report persistence**: Save review results in `.claude/docs/research/` for reference during fixes
 - **Competing hypotheses mode**: Adversarial review pattern is effective for bug investigation

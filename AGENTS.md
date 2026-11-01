@@ -1,14 +1,15 @@
-# Claude Code Orchestra — Root Agent Contract
+# Claude Code Orchestra — Root Agent Contract (Claude Code-only edition)
 
-Every CLI agent loads this file automatically from the repository root, and
-Claude Code reads it directly **because no `CLAUDE.md` sits beside it**. It is
-the single root contract for both roles. The main-agent sections come first --
-mission, routing policy, skill catalog, quality gates -- followed by the
-contract for CLI executors such as Codex, Antigravity, Grok, and opencode:
-response structure, handoff rules, how to call another CLI as a subagent, and
-the completion-verification guardrails. Those cross-CLI invocation rules and
-completion guardrails bind the main agent as a caller too. Follow it as
-written -- nothing here depends on opening another file first.
+Claude Code loads this file automatically from the repository root **because
+no `CLAUDE.md` sits beside it**. It is the single root contract: mission,
+routing policy, agent and skill catalogs, quality gates, response structure,
+handoff rules, and the completion-verification guardrails that bind every
+delegation to a subagent. Follow it as written -- nothing here depends on
+opening another file first.
+
+This is the **Claude Code-only** edition: every agent is a Claude Code main
+agent or a Claude subagent invoked through the native Agent tool. No external
+CLI is part of the orchestration.
 
 **Do not add a `CLAUDE.md`, a `.claude/CLAUDE.md`, or a `CLAUDE.local.md` at or
 above the repository root.** Claude Code reads the first one it finds instead of
@@ -17,19 +18,14 @@ main agent operating without its contract.
 
 Where to go next, only as the task needs it:
 
-| You are | Read |
-|---------|------|
-| Any agent needing tier details | [`.claude/rules/tiers.md`](.claude/rules/tiers.md) |
-| Any agent needing shared standards | [`.claude/rules/`](.claude/rules/) -- coding, testing, security, delegation |
-| Codex | [`.codex/AGENTS.md`](.codex/AGENTS.md) -- model, sandbox, enabled skills |
-| Antigravity | [`.agents/AGENTS.md`](.agents/AGENTS.md) -- headless behaviour and limits |
+| You need | Read |
+|----------|------|
+| Tier details | [`.claude/rules/tiers.md`](.claude/rules/tiers.md) |
+| Shared standards | [`.claude/rules/`](.claude/rules/) -- coding, testing, security, delegation |
+| Full document registry | [`.claude/docs/INDEX.md`](.claude/docs/INDEX.md) |
 
-`.claude/` contains the canonical detailed rules and capabilities. Claude Code
-is the default main agent; the active main is recorded in
-[`.claude/STATE.md`](.claude/STATE.md).
-[`.claude/docs/INDEX.md`](.claude/docs/INDEX.md) is the full registry, and
-[`.claude/docs/change_main.md`](.claude/docs/change_main.md) changes the main
-agent -- read it only when the user asks to change it.
+`.claude/` contains the canonical detailed rules and capabilities. Working
+state lives in [`.claude/STATE.md`](.claude/STATE.md).
 
 ## Mission
 
@@ -47,20 +43,21 @@ logs. Delegate these unless the user explicitly requests otherwise.
 
 ## Agent Topology
 
-- Active main agent (default: Claude Code): owns user interaction, routing,
-  approvals, integration, and the final response.
-- `general-purpose-sonnet`: routine, well-scoped implementation.
-- `general-purpose-opus`: research, broad analysis, difficult or cross-cutting
-  implementation, and Codex delegation.
-- `codex-debugger`: root-cause analysis for errors and failed checks.
-- Codex CLI / Tier 2 `sol`: design, planning, complex implementation, and deep
-  debugging. Its work must be independently verified.
-- `fable-advisor` / Tier 3 `fable`: rare arbitration, unblocking, and final
+- Claude Code main agent: owns user interaction, routing, approvals,
+  integration, and the final response.
+- `general-purpose-sonnet` (Tier 1 `default`): routine, well-scoped
+  implementation.
+- `general-purpose-opus` (Tier 2 `deep`): planning, design, trade-offs, code
+  review, research, broad analysis, and difficult or cross-cutting
+  implementation. Claude Code's built-in `Plan` agent covers a read-only plan.
+- `debugger` (Tier 2 `deep`): root-cause analysis for errors and failed checks.
+- `fable-advisor` (Tier 3 `fable`): rare arbitration, unblocking, and final
   review of large changes; may land the resolution when handing it back down
   would repeat the failure that escalated to it.
 
-Full definitions live in `.claude/agents/`; stable role and permission details
-live in `.claude/rules/tiers.md`.
+Every delegated result must be independently verified (see `## Guardrails
+(Completion Verification)` below). Full definitions live in `.claude/agents/`;
+stable role and permission details live in `.claude/rules/tiers.md`.
 
 ## Routing Policy
 
@@ -71,11 +68,11 @@ fewer, named gates and skill-bundled lead scripts, and user-facing interaction.
 
 - Routine, clear implementation → `general-purpose-sonnet`.
 - Ambiguous, security-, concurrency-, data-integrity-, or migration-sensitive
-  implementation → `general-purpose-opus`, consulting Codex as needed.
-- Design, planning, trade-offs, and complex implementation → Codex through
-  `general-purpose-opus` or the `codex-system` skill.
+  implementation → `general-purpose-opus`.
+- Design, planning, trade-offs, code review, and complex implementation →
+  `general-purpose-opus` (or the built-in `Plan` agent for a read-only plan).
 - External research and large-context analysis → `general-purpose-opus`.
-- Unknown root cause → `codex-debugger`.
+- Unknown root cause → `debugger`.
 - Repeatedly stuck or high-stakes arbitration → `fable-advisor`.
 
 Delegate as soon as any trigger fires — do not investigate first and then
@@ -84,9 +81,8 @@ likely to exceed ~30 lines, locations are unknown, external information must be
 verified, or a root cause is unproven. Independent units are delegated in
 parallel in one message. Delegation moves the work, never the accountability:
 run the acceptance checks and inspect the diff before reporting done. The full
-policy, route table, and subagent prompt contract live in
-`.claude/rules/delegation.md`; Codex-specific triggers and handoff requirements
-in `.claude/rules/codex-delegation.md`.
+policy, route table, deep-reasoning triggers, and subagent prompt contract
+live in `.claude/rules/delegation.md`.
 
 ## Skill Catalog
 
@@ -96,7 +92,6 @@ Use the canonical workflows in `.claude/skills/`:
 - Project context: `init`, `design-tracker`, `checkpointing`, `catchup`.
 - Delivery: `feature`, `plan`, `tdd`, `team-execute`, `troubleshoot`, `simplify`.
 - Investigation: `spike`, `research-lib`, `update-lib-docs`.
-- Codex integration: `codex-system`.
 
 Each skill's `SKILL.md` is the executable contract. Use a skill when its name or
 trigger matches the request; do not copy its full procedure into this file.
@@ -114,13 +109,13 @@ For implementation, report changed files, commands run, test results, and risks.
 
 ## Context and Document Ownership
 
-- `.claude/STATE.md`: active main agent, repository identity, and working state.
+- `.claude/STATE.md`: repository identity and working state.
 - `.claude/docs/DESIGN.md`: macro requirements and architecture.
 - `PROGRESS.md` and `.claude/checkpoints/`: rolling and detailed progress.
-- `.claude/rules/`: coding, testing, security, routing, tier, and CLI rules.
+- `.claude/rules/`: coding, testing, security, routing, and tier rules.
 - `.claude/agents/`: complete specialist-agent definitions.
 - `.claude/skills/`: complete reusable workflow definitions and helpers.
-- `.claude/hooks/`: shared runtime hooks.
+- `.claude/hooks/`: runtime hooks.
 - `.claude/docs/{research,libraries,plans,reviews}/`: durable findings and reviews.
 - `.claude/logs/`: generated local execution logs.
 
@@ -142,41 +137,28 @@ task before acting.
 - Think and reason in English.
 - Write code, identifiers, comments, commands, and technical documents in English.
 - Communicate with the user in Japanese.
+- Subagent prompts and subagent returns are in English.
 - Response style (natural Japanese, concise but complete): `.claude/rules/language.md`.
 
 ## Native Runtime Boundary
 
-- `.claude/` is the **physical source** for the main agent runtime: `agents/`,
-  `skills/`, `rules/`, `hooks/`, `docs/`, `checkpoints/`, `logs/`, `STATE.md`,
-  and `settings.json`. `.claude/agents` and `.claude/skills` are real
-  directories, never symlinks, so Claude Code's native auto-discovery works
-  without an indirection layer.
-- `AGENTS.md` at the repository root is the single contract every runtime
-  auto-loads, Claude Code included: mission, routing policy, skill catalog and
-  quality gates, plus response structure, handoff, cross-CLI subagent
-  invocation, and the completion-verification guardrails. It is self-contained
-  — nothing in it requires opening another file first — and it is a real file,
-  never a symlink. No `CLAUDE.md` may sit beside it, because Claude Code would
-  load that instead and never read this contract.
-- `.agents/` holds the tool-neutral subagent schema — `AGENTS.md` (the CLI
-  subagent contract), `tiers.md`, `INDEX.md`, `change_main.md`, `check.sh`, and
-  the `workflows/` adapters for non-Claude CLIs.
-- `.codex/` holds Codex's own schema — `AGENTS.md` and `config.toml`, whose
-  `skills.config` `path=` entries point directly at `.claude/skills/`.
-- Shared content is referenced by path, never copied: no rules, hooks, docs,
-  logs, or checkpoints are mirrored into `.agents/` or `.codex/`.
-  `scripts/check.sh` verifies the boundary.
-- Cross-CLI subagent calls go through the shared wrappers
-  (`.claude/skills/_shared/cli_consult.py` for Claude Code and Antigravity,
-  `codex_consult.py` for Codex), never a raw headless shell-out. The wrappers
-  grant unrestricted access by default — matching the CLIs' own configuration
-  rather than quietly differing from it — and record what each run edited, so
-  a change can be traced back to the subagent that made it. See
-  `## Cross-CLI Subagent Invocation` below.
+- `.claude/` is the **only physical runtime**: `agents/`, `skills/`, `rules/`,
+  `hooks/`, `docs/`, `checkpoints/`, `logs/`, `STATE.md`, and `settings.json`.
+  `.claude/agents` and `.claude/skills` are real directories, never symlinks,
+  so Claude Code's native auto-discovery works without an indirection layer.
+- `AGENTS.md` at the repository root is the single contract Claude Code
+  auto-loads. It is self-contained and a real file, never a symlink. No
+  `CLAUDE.md` may sit beside it, because Claude Code would load that instead
+  and never read this contract.
+- Subagents are invoked only through Claude Code's native Agent tool, with the
+  agent name as `subagent_type`. There are no peer-CLI adapter directories and
+  no headless shell-outs to another agent CLI; `scripts/check.sh` verifies the
+  boundary.
 
 ## Required Response Structure
 
-Always respond in the following order.
+Subagents doing planning, design, review, or analysis respond in the following
+order.
 
 ```markdown
 ## TL;DR
@@ -208,86 +190,6 @@ Always respond in the following order.
 - Prefer incremental, minimal diffs for large changes
 - Include a migration plan whenever compatibility may break
 
-## Cross-CLI Subagent Invocation
-
-Any CLI agent can drive any other as a subagent through its non-interactive
-(headless) mode. Every runtime resolves to the same canonical capabilities
-under `.claude/`, so a delegated call inherits the same mission, routing,
-and guardrails regardless of which CLI runs it.
-
-**Always call a peer CLI through its shared wrapper — never shell out to the
-CLI directly.** A hand-written invocation reintroduces four failure modes the
-wrappers exist to remove: an open stdin blocks on EOF (observed as multi-minute
-hangs in background shells), redirected-away stderr makes a crashed CLI look
-like an empty answer, a prompt containing quotes breaks the shell command, and
-a stalled call has no deadline.
-
-| Callee | Invocation | Notes |
-|--------|-----------|-------|
-| Claude Code | `python3 .claude/skills/_shared/cli_consult.py --cli claude --prompt-file <path>` | Wraps `claude -p --output-format json`; returns the envelope's `result` as the response and its `session_id` for chaining via `--resume` |
-| Codex | `python3 .claude/skills/_shared/codex_consult.py --prompt-file <path>` | Wraps `codex exec`; sandbox modes and `--config` overrides are validated there. Flags and exit codes: `.claude/skills/codex-system/SKILL.md` |
-| Antigravity | `python3 .claude/skills/_shared/cli_consult.py --cli antigravity --prompt-file <path>` | Wraps `agy -p`; text output is captured verbatim and the exit code is the success signal. Its headless mode auto-approves every tool call, so it cannot be confined from the caller and refuses `--read-only` |
-
-Both wrappers share one contract: prompt via `--prompt-file`/`--prompt-stdin`
-as a single argv element (no shell), stdin closed, a timeout, stdout and stderr
-captured under `.claude/logs/<cli>/`, and exactly one JSON object on stdout
-(`ok`, `exit_code`, `response_file`, `response_head`, `error`, …) with exit
-codes `0` ok / `1` bad args / `2` CLI not on PATH / `3` failed or timed out.
-
-Rules:
-
-- **Access is unrestricted by default, stated explicitly, and restricted by
-  opt-in.** The wrapper default matches what the callee's own configuration
-  already grants — `.codex/config.toml` sets `sandbox_mode =
-  "danger-full-access"` — so the access an agent has no longer depends on
-  which of the two paths reached it. A wrapper that substituted something
-  stricter than the CLI a caller would have run by hand made the two disagree,
-  and the disagreement was invisible from the call site.
-
-  The flag is still always sent explicitly, so what was granted is readable in
-  the command rather than inherited from a config file, and it can never be
-  widened *or narrowed* by a passthrough argument:
-
-  | Callee | Default (unrestricted) | Read-only opt-in |
-  |--------|------------------------|------------------|
-  | Claude Code | `--permission-mode bypassPermissions` | `cli_consult.py --read-only` → `--permission-mode plan` |
-  | Codex | `codex_consult.py` default `--sandbox danger-full-access` | `--sandbox read-only` (or `workspace-write` for a middle ground) |
-  | Antigravity | headless auto-approves every tool call; nothing to pass | **not supported** — `--read-only` is refused rather than accepted and ignored |
-
-  Planning, design, and review consultations should still pass the read-only
-  opt-in where the callee supports it. Unrestricted is the default because it
-  is the truth about the environment, not because every call needs it.
-
-- **Every run records what it edited.** Because the default is unrestricted,
-  the question that matters is no longer "what was it allowed to touch?" but
-  "what did it touch?". Both wrappers bracket the call with
-  `.claude/skills/_shared/edit_provenance.py` and report an `edits` object
-  naming the files the callee created, changed, or deleted — including files
-  it committed — alongside `caller` and `label`. Pass `--caller <your agent
-  name>` (or export `ORCHESTRA_CALLER`) so the log answers *which subagent*
-  made a change, not only *which CLI*. Work already uncommitted in the tree
-  when the call starts is excluded, so it is never misattributed to the
-  callee.
-
-- Pin the model with `--model` when the tier matters (Codex reads `CODEX_MODEL`;
-  omitting `--model` for a peer CLI keeps that CLI's own default).
-- Bound the call: keep the wrapper's timeout, and cap agentic turns for
-  long-running peers where the callee supports it (e.g.
-  `--cli-arg --max-turns --cli-arg 8` for Claude Code). With no sandbox in the
-  way, the turn cap and the timeout are what bound a run that goes wrong.
-- The caller MUST independently verify the callee's result per the Guardrails
-  below — a delegated CLI is never trusted on its self-report. This applies in
-  both directions: a Codex main agent verifies a `claude -p` result exactly as a
-  Claude main agent verifies a `codex exec` result.
-- Every wrapper call is appended to `.claude/logs/cli-tools.jsonl` by the
-  `log-cli-tools.py` hook, so any runtime can read what was delegated, what
-  came back, and which files it changed (`caller`, `label`, `access`, `edits`).
-  A direct `codex exec` is logged too, but with all four of those fields
-  `null` — the missing provenance is the reason the wrapper is mandated.
-- Prefer the project's own delegation skills (`codex-system`,
-  `general-purpose-opus`) over an ad-hoc wrapper call when one already covers
-  the task.
-
 ## Internal Context References
 
 Refer to the following as needed:
@@ -296,16 +198,15 @@ Refer to the following as needed:
 - `.claude/docs/research/`
 - `.claude/rules/`
 - `.claude/skills/`
-- `.claude/logs/cli-tools.jsonl`
+- `.claude/logs/delegation/`
 
 ## Guardrails (Completion Verification)
 
-Applies to any long-duration executor (Tier 2 `sol` and above). Because
-`approval_policy` is `"never"` and the wrappers default to unrestricted
-access, verification is the *only* control on a delegated run — nothing stops
-the edit, so everything depends on catching it afterwards. The `edits` object
-in the wrapper's own payload tells you which files to look at; the guardrails
-below tell you what to look for in them.
+Applies to every delegated subagent run, and most strictly to Tier 2 `deep`
+and above. A subagent's completion report is its own claim about its own work:
+it is never trusted on its self-report. Implementation subagents have write
+access, so verification is the control on a delegated run — nothing stops the
+edit, so everything depends on catching it afterwards.
 
 ### (a) Independent Verification of Completion Reports
 
@@ -319,7 +220,10 @@ the delegated run's diff for:
 
 Collecting that evidence is mechanical, so it is scripted — reading these three
 paragraphs and doing it by hand is exactly what gets skipped when the run looks
-successful:
+successful. To know exactly which files a subagent touched, bracket the
+delegation with `.claude/skills/_shared/edit_provenance.py` (`--snapshot`
+before, `--compare <snapshot>` after; pre-existing uncommitted work is
+excluded), then collect the diff evidence:
 
 ```bash
 python3 .claude/skills/_shared/verify_delegation.py \

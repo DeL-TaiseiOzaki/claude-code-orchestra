@@ -11,8 +11,6 @@ AGENTS_DIR = REPO_ROOT / ".claude/agents"
 ROUTING_FILES = (
     REPO_ROOT / "AGENTS.md",
     REPO_ROOT / "README.md",
-    *sorted((REPO_ROOT / ".agents").rglob("*.md")),
-    *sorted((REPO_ROOT / ".codex").glob("*.md")),
     *sorted((REPO_ROOT / ".claude/rules").glob("*.md")),
     *sorted((REPO_ROOT / ".claude/hooks").glob("*.py")),
 )
@@ -68,6 +66,16 @@ def test_routing_docs_do_not_reference_removed_general_purpose_agent() -> None:
                 stale_references.append(f"{path.relative_to(REPO_ROOT)}:{line_number}")
 
     assert stale_references == []
+
+
+def test_debugger_agent_is_a_claude_opus_subagent() -> None:
+    """The root-cause agent replaced its CLI-backed predecessor; it must be a
+    plain Claude subagent under the new name."""
+    frontmatter = read_frontmatter(AGENTS_DIR / "debugger.md")
+
+    assert frontmatter["name"] == "debugger"
+    assert frontmatter["model"] == "opus"
+    assert not (AGENTS_DIR / "codex-debugger.md").exists()
 
 
 def test_team_execution_defaults_to_sonnet_with_opus_escalation() -> None:

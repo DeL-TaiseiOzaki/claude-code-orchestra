@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate a session checkpoint and rebuild the rolling PROGRESS.md.
 
-Collects git history, CLI logs, Agent Teams activity, and design changes,
+Collects git history, Agent Teams activity, and design changes,
 embeds the agent-written five-part Japanese summary, then rewrites root
 ``PROGRESS.md`` and the ``## Progress Tracker`` link in ``.claude/STATE.md``.
 
@@ -219,7 +219,6 @@ class Collected:
         default_factory=lambda: {"created": [], "modified": [], "deleted": []}
     )
     file_stats: dict[str, tuple[int, int]] = field(default_factory=dict)
-    cli_entries: list[dict] = field(default_factory=list)
     teams_data: list[dict] = field(default_factory=list)
     work_logs: dict[str, list[dict]] = field(default_factory=dict)
     design_diff: str | None = None
@@ -249,43 +248,6 @@ def run_git_command(args: list[str], project_root: Path) -> GitResult:
             f"{detail[0] if detail else 'no stderr'}",
         )
     return GitResult(True, output=result.stdout.strip())
-
-
-def parse_cli_logs(
-    project_root: Path, collected: Collected, since: str | None = None
-) -> list[dict]:
-    """Parse the CLI-tools JSONL log, counting the records it had to skip."""
-    log_file = project_root / ".claude" / "logs" / "cli-tools.jsonl"
-    if not log_file.exists():
-        return []
-
-    since_dt = datetime.fromisoformat(since).replace(tzinfo=UTC) if since else None
-    try:
-        raw = log_file.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        collected.collector_errors.append(f"cannot read cli-tools.jsonl: {exc}")
-        return []
-
-    entries: list[dict] = []
-    skipped = 0
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            entry = json.loads(line)
-            if since_dt:
-                entry_dt = datetime.fromisoformat(
-                    entry["timestamp"].replace("Z", "+00:00")
-                )
-                if entry_dt < since_dt:
-                    continue
-            entries.append(entry)
-        except (json.JSONDecodeError, KeyError, ValueError):
-            skipped += 1
-    if skipped:
-        collected.skipped_records["cli_log_lines"] = skipped
-    return entries
 
 
 def get_git_commits(
@@ -498,7 +460,6 @@ def collect_everything(
     collected.commits = get_git_commits(project_root, collected, since)
     collected.file_changes = get_file_changes(project_root, collected, since)
     collected.file_stats = get_file_stats(project_root, collected, since)
-    collected.cli_entries = parse_cli_logs(project_root, collected, since)
     collected.teams_data = collect_agent_teams_data(claude_home, collected)
     collected.work_logs = collect_work_logs(project_root, collected)
     collected.design_diff = get_design_decisions_diff(project_root, collected, since)
@@ -657,8 +618,6 @@ def derive_tags(collected: Collected) -> list[str]:
         if "/rules/" in f"/{path}":
             tags.add("rules")
 
-    if any(entry.get("tool") == "codex" for entry in collected.cli_entries):
-        tags.add("codex")
     if collected.teams_data:
         tags.add("agent-teams")
         for team in collected.teams_data:
@@ -698,7 +657,6 @@ def build_frontmatter(
     Reading these first ~14 lines is enough to decide whether the rest of the
     document is worth opening, which is the whole point of the block.
     """
-    codex_count = sum(1 for e in collected.cli_entries if e.get("tool") == "codex")
     total_files = sum(len(v) for v in collected.file_changes.values())
     lines = [
         FRONTMATTER_FENCE,
@@ -710,7 +668,6 @@ def build_frontmatter(
         f"tags: [{', '.join(tags)}]",
         f"commits: {len(collected.commits)}",
         f"files_changed: {total_files}",
-        f"codex_consultations: {codex_count}",
         f"agent_teams: {len(collected.teams_data)}",
     ]
     if since:
@@ -771,8 +728,6 @@ def _index_row(stem: str, fields: dict[str, str]) -> str:
         f"{fields.get('commits', '0')}c",
         f"{fields.get('files_changed', '0')}f",
     ]
-    if fields.get("codex_consultations", "0") not in ("0", ""):
-        stats_parts.append(f"{fields['codex_consultations']}cx")
     if fields.get("agent_teams", "0") not in ("0", ""):
         stats_parts.append(f"{fields['agent_teams']}tm")
     summary = fields.get("summary", "")
@@ -820,7 +775,7 @@ def compose_index_md(project_root: Path, pending: dict[str, str] | None = None) 
         "`.claude/checkpoints/`, newest first.",
         "> Scan the tags and summary columns, then open only the checkpoint you need.",
         "",
-        "Stats format: `{commits}c/{files}f[/{codex}cx][/{teams}tm]`.",
+        "Stats format: `{commits}c/{files}f[/{teams}tm]`.",
         "",
         "| Timestamp | Checkpoint | Branch | Tags | Stats | Summary |",
         "|---|---|---|---|---|---|",
@@ -842,7 +797,6 @@ def build_summary_block(summary_body: str) -> str:
 
 
 def _append_summary_section(lines: list[str], collected: Collected) -> None:
-    codex_count = sum(1 for e in collected.cli_entries if e.get("tool") == "codex")
     total_files = sum(len(v) for v in collected.file_changes.values())
     total_tasks = sum(len(t.get("tasks", [])) for t in collected.teams_data)
     completed_tasks = sum(
@@ -862,7 +816,6 @@ def _append_summary_section(lines: list[str], collected: Collected) -> None:
         f"{len(collected.file_changes['created'])} created, "
         f"{len(collected.file_changes['deleted'])} deleted)"
     )
-    lines.append(f"- **Codex consultations**: {codex_count}")
     if collected.teams_data:
         total_members = sum(len(t.get("members", [])) for t in collected.teams_data)
         lines.append(
@@ -931,25 +884,6 @@ def _append_git_activity(lines: list[str], collected: Collected) -> None:
 
     if not any(collected.file_changes.values()):
         lines.append("No file changes detected.")
-        lines.append("")
-
-
-def _append_cli_consultations(lines: list[str], collected: Collected) -> None:
-    lines.append("## CLI Consultations")
-    lines.append("")
-    codex_entries = [e for e in collected.cli_entries if e.get("tool") == "codex"]
-    if codex_entries:
-        lines.append(f"### Codex ({len(codex_entries)} consultations)")
-        lines.append("")
-        for entry in codex_entries[:15]:
-            status = "✓" if entry.get("success", False) else "✗"
-            prompt = entry.get("prompt", "")[:100].replace("\n", " ")
-            lines.append(f"- {status} {prompt}...")
-        if len(codex_entries) > 15:
-            lines.append(f"- ... and {len(codex_entries) - 15} more")
-        lines.append("")
-    if not collected.cli_entries:
-        lines.append("No CLI consultations recorded.")
         lines.append("")
 
 
@@ -1044,7 +978,6 @@ def generate_checkpoint(
         lines.append("")
     _append_collector_status(lines, collected)
     _append_git_activity(lines, collected)
-    _append_cli_consultations(lines, collected)
     _append_agent_teams(lines, collected)
     _append_work_logs(lines, collected)
     _append_design_decisions(lines, collected)
@@ -1203,7 +1136,7 @@ A "skill" is a repeatable workflow pattern that can be triggered by specific phr
 1. **Identify Patterns** in:
    - Sequences of commits forming logical workflows
    - File change patterns (e.g., test + implementation together)
-   - CLI consultation sequences (research → design → implement)
+   - Subagent delegation sequences (research → design → implement)
    - Agent Teams coordination patterns (team composition, task sizing, communication)
    - Multi-step operations that could be templated
 
@@ -1217,7 +1150,7 @@ A "skill" is a repeatable workflow pattern that can be triggered by specific phr
 
 3. **Check against existing skills** in `.claude/skills/`:
    - feature, team-execute, spike, plan, tdd
-   - simplify, codex-system, design-tracker, checkpointing
+   - simplify, design-tracker, checkpointing
    - research-lib, update-lib-docs, catchup, init, troubleshoot
    - If pattern matches an existing skill, note it but still report
 
@@ -1518,7 +1451,6 @@ def _human_report(payload: dict) -> str:
         f"  STATE.md:     {payload['state_path']} "
         f"(tracker {'inserted' if payload['state_updated'] else 'already present'})",
         f"  Git:          {payload['commits']} commits, {payload['files_changed']} files",
-        f"  CLI:          {payload['cli_consultations']} consultations",
         f"  Agent Teams:  {payload['agent_teams']} teams, {payload['work_logs']} work logs",
     ]
     for error in payload["collector_errors"]:
@@ -1637,7 +1569,6 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         "summary_consumed": False,
         "commits": len(collected.commits),
         "files_changed": sum(len(v) for v in collected.file_changes.values()),
-        "cli_consultations": len(collected.cli_entries),
         "agent_teams": len(collected.teams_data),
         "work_logs": sum(len(logs) for logs in collected.work_logs.values()),
         "collector_errors": collected.collector_errors,

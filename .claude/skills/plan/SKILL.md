@@ -9,7 +9,8 @@ disable-model-invocation: true
 Create an implementation plan for $ARGUMENTS.
 
 **A plan is a file, not a transcript.** The plan produced here is written to a
-resolved path, validated against a document contract, reviewed by Codex, and
+resolved path, validated against a document contract, reviewed by an
+independent Opus subagent, and
 approved by the user — in that order, and all four. A plan that lives only in
 the conversation cannot be handed to `/team-execute`, cannot survive a
 `/checkpointing` compaction, and cannot be re-read next session.
@@ -77,21 +78,16 @@ rather than proceeding.
 
 ### 3. Break Down Implementation Steps
 
-`.claude/rules/codex-delegation.md` names "you need a step-by-step
-implementation plan" and "design/architecture decisions are involved" as
-explicit Codex triggers, so step decomposition is a **MANDATORY** Codex
+`.claude/rules/delegation.md` (Deep-Reasoning Triggers) names "a step-by-step
+implementation plan is needed" and "design/architecture decisions are
+involved" as explicit triggers, so step decomposition is a **MANDATORY** Opus
 consult — the same rule `/feature` follows for the same artifact class.
 
-Write the prompt body to a file, then invoke the shared wrapper (the directory
-is not created by the wrapper before it reads the prompt, so create it first):
-
-```bash
-mkdir -p .claude/logs/codex
-# write the prompt body to .claude/logs/codex/prompt-plan-{slug}-steps.md, then:
-python3 .claude/skills/_shared/codex_consult.py \
-  --prompt-file .claude/logs/codex/prompt-plan-{slug}-steps.md \
-  --label plan-{slug}-steps --sandbox read-only
-```
+Delegate it to a `general-purpose-opus` subagent through the Agent tool (or
+Claude Code's built-in `Plan` agent, which is read-only by construction), with
+the prompt body below plus: "Read-only consult — do not edit any file. Write
+your full answer to `.claude/logs/plan-{slug}-steps.md` and return a short
+summary plus that path."
 
 Prompt body:
 
@@ -114,11 +110,10 @@ Output format:
 ## Open Questions
 ```
 
-Read the answer from the JSON output's `response_file`. Exit codes: `0` the call
-succeeded — read `response_file`; `1` bad args; `2` codex CLI not on PATH; `3`
-codex exited non-zero or timed out — inspect `error` and `stderr_file` before
-retrying or escalating. Codex proposes the decomposition; deciding which steps
-are the right steps stays yours.
+Read the full answer from `.claude/logs/plan-{slug}-steps.md`, not from the
+summary; a consult that wrote no file failed — re-run it once with the gap
+named, then escalate. The consult proposes the decomposition; deciding which
+steps are the right steps stays yours.
 
 ### 4. Output Format
 
@@ -181,10 +176,12 @@ python3 .claude/skills/_shared/workspace.py --skill plan --slug {slug} --verify
 Exit `0` the plan document exists and is non-empty; exit `2` it is missing or
 effectively empty — the plan was never written, so do not report a plan.
 
-**Gate 3 — adequacy (MANDATORY Codex validation).** Same rigour `/feature`
-applies to its implementation plan. Write the body below to
-`.claude/logs/codex/prompt-plan-{slug}-validate.md` and consult with
-`--sandbox read-only`:
+**Gate 3 — adequacy (MANDATORY Opus validation).** Same rigour `/feature`
+applies to its implementation plan. Delegate the body below to a **fresh**
+`general-purpose-opus` subagent — not the one that proposed the steps, which
+would be reviewing its own work — with: "Read-only validation — do not edit any
+file. Write your full answer to `.claude/logs/plan-{slug}-validate.md` and
+return a short summary plus that path."
 
 ```
 Objective: Validate this implementation plan for completeness, correctness, and risk.
@@ -217,7 +214,7 @@ implementation starts. No script can decide that a plan is good enough to build.
 Report the resolved path so the next skill can consume it:
 
 ```text
-Plan written to .claude/docs/plans/{slug}.md (slug: {slug}) — Codex: PASS
+Plan written to .claude/docs/plans/{slug}.md (slug: {slug}) — Opus validation: PASS
 Next: /team-execute with slug {slug}
 ```
 

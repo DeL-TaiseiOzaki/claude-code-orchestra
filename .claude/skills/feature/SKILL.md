@@ -4,12 +4,12 @@ description: |
   Unified feature planning & implementation skill — replaces the old /add-feature and
   /start-feature skills (both trigger phrases still apply here).
   MODE=existing (formerly /add-feature): add a feature to an established codebase with
-  Codex-first collaboration — Codex is consulted in every phase for scope analysis,
-  architecture design, implementation planning, and validation.
+  Opus-first collaboration — a general-purpose-opus subagent is consulted in every phase
+  for scope analysis, architecture design, implementation planning, and validation.
   MODE=greenfield (formerly /start-feature): start a large or new feature that requires
   external research — Agent Teams (Researcher + Architect) do parallel research & design.
-  Both modes share Phase 3 complexity routing (SIMPLE: Codex direct, MODERATE: Codex +
-  /team-execute --review-only, COMPLEX: /team-execute).
+  Both modes share Phase 3 complexity routing (SIMPLE: single implementation subagent,
+  MODERATE: implementation subagent + /team-execute --review-only, COMPLEX: /team-execute).
 metadata:
   short-description: Feature planning with existing/greenfield modes and complexity routing
 ---
@@ -18,21 +18,19 @@ metadata:
 
 **One entry point for feature work, two modes:**
 
-- **MODE=existing** (old `/add-feature` path): the feature goes into an **established** codebase whose conventions are already known. No external research needed → Codex-direct scope → design → plan.
+- **MODE=existing** (old `/add-feature` path): the feature goes into an **established** codebase whose conventions are already known. No external research needed → Opus-consulted scope → design → plan.
 - **MODE=greenfield** (old `/start-feature` path): a **large or new** feature that needs external research and parallel design → Agent Teams (Researcher + Architect) with bidirectional communication.
 
 Both modes converge on a shared Phase 3: user approval + complexity-routed implementation.
 
-> Preflight: ensure codex CLI is current (see codex-system skill).
-
 ```
 /feature <feature description>
     | MODE determination (AskUserQuestion when ambiguous)
-    ├─ MODE=existing   : Phase 1E SCOPE  -> Phase 2E DESIGN (Codex direct)
+    ├─ MODE=existing   : Phase 1E SCOPE  -> Phase 2E DESIGN (Opus consults)
     └─ MODE=greenfield : Phase 1G UNDERSTAND -> Phase 2G RESEARCH & DESIGN (Agent Teams)
     | Phase 3 (shared): PLAN, APPROVE & IMPLEMENT
-    SIMPLE   (1-3 files, <50 LOC) -> Codex danger-full-access direct
-    MODERATE (3-5 files)          -> Codex danger-full-access + /team-execute --review-only
+    SIMPLE   (1-3 files, <50 LOC) -> general-purpose-sonnet implements directly
+    MODERATE (3-5 files)          -> implementation subagent + /team-execute --review-only
     COMPLEX  (5+ files)           -> /team-execute (implement + review)
 ```
 
@@ -45,9 +43,9 @@ Decide the MODE before anything else. Signals:
 | Signal | MODE=existing | MODE=greenfield |
 |--------|---------------|-----------------|
 | Codebase state | Established, conventions known | New area, or conventions absent |
-| External research needed | No — Codex reasons about existing patterns directly | Yes — libraries/tools/reference architectures must be researched |
+| External research needed | No — an Opus consult reasons about existing patterns directly | Yes — libraries/tools/reference architectures must be researched |
 | Feature size | Localized addition | Large, multi-module, or project kickoff |
-| Design source | Codex (read-only consults) | Agent Teams (Researcher + Architect) |
+| Design source | `general-purpose-opus` (read-only consults) | Agent Teams (Researcher + Architect) |
 
 If the signals are mixed or unclear, ask via `AskUserQuestion` — do NOT guess:
 
@@ -152,38 +150,36 @@ Task tool:
 
 Claude may supplement the subagent's analysis with targeted Glob/Grep/Read on specific files.
 
-### Codex Consult Protocol
+### Opus Consult Protocol
 
-Every Codex consultation in this skill goes through the shared wrapper instead
-of a raw `codex exec` call, so a crashed CLI is never silently mistaken for an
-empty answer. Write the prompt body to a file under the workspace
-(`.claude/logs/codex/prompt-{label}.md`, beside where the wrapper writes
-the response), then invoke. The wrapper creates its log directory only *after*
-it reads the prompt file, so create the directory first — otherwise the heredoc
-write fails in a fresh clone and the consult reads nothing (or a stale prompt
-from a previous label):
+Every design consultation in this skill is a `general-purpose-opus` subagent
+call through the Agent tool, so the deep reasoning runs outside the main
+context and its long answer lands in a file rather than in the conversation:
 
-```bash
-mkdir -p .claude/logs/codex
-# write the prompt body to .claude/logs/codex/prompt-{label}.md, then:
-python3 .claude/skills/_shared/codex_consult.py \
-  --prompt-file .claude/logs/codex/prompt-{label}.md --label {label} --sandbox read-only
+```
+Agent tool:
+  subagent_type: "general-purpose-opus"
+  prompt: |
+    {prompt body from the step below}
+
+    This is a read-only consult: do not edit any file except the output file.
+    Write your full answer to .claude/docs/research/feature-{slug}-{label}.md
+    and return a 5-10 line summary plus that path.
 ```
 
-Read the answer from the JSON output's `response_file` path. Exit codes: `0`
-the call succeeded — read `response_file`; `1` bad args; `2` codex CLI not on
-PATH; `3` codex exited non-zero or timed out — inspect `error` and
-`stderr_file` before retrying or escalating.
+Read the full answer from the file, not from the summary. A consult that
+returns no file, or a file missing the requested output sections, is a failed
+consult — re-run it once with the gap named, then escalate.
 
-Sandbox: `read-only` for every analysis/design/validation consult below;
-Phase 3 implementation (Route A/B) uses `--sandbox danger-full-access`
-instead — called out again at that call site.
+Analysis/design/validation consults below are **read-only** by instruction;
+Phase 3 implementation (Route A/B) is a separate delegation with write access —
+called out again at that call site.
 
 Prompts below show only the prompt body (Objective / Context / Constraints /
-Output format) — that is the file content for `--prompt-file`. MODE=existing
-consultations are **MANDATORY** — do not skip them. The most important input to
-every Codex prompt is the existing codebase patterns from the Opus subagent
-scan — always include them.
+Output format). MODE=existing consultations are **MANDATORY** — do not skip
+them. The most important input to every consult prompt is the existing codebase
+patterns from the Opus subagent scan — always include them (pass the
+`codebase_scan` path rather than pasting its contents).
 
 ### DESIGN.md Update
 
@@ -250,8 +246,8 @@ deterministic, atomic update; never edit root `AGENTS.md`.
 **Gather these fields** from the planning phases:
 
 - **Context**: Goal (1-2 sentences), Key files (new/modified), Dependencies, Complexity (SIMPLE / MODERATE / COMPLEX)
-- **Architecture**: Key decisions from Codex / Architect
-- **Library Constraints** (greenfield) or **Codex Validation** (existing)
+- **Architecture**: Key decisions from the Opus consults / Architect
+- **Library Constraints** (greenfield) or **Plan Validation** (existing)
 - **Integration Points** and **Decisions** with rationale
 
 **Write the input JSON** to the `state_input` path from Step 0-b
@@ -292,13 +288,13 @@ All teammates spawned in MODE=greenfield write their work log to
 
 ---
 
-## MODE=existing — Phase 1E: SCOPE (Opus Subagent + Codex + Claude Lead)
+## MODE=existing — Phase 1E: SCOPE (Opus Subagent Scan + Opus Consult + Claude Lead)
 
-**Understand the feature's scope and impact on the existing codebase: run the Opus subagent scan (common protocol, existing task list) and consult Codex for scope and impact analysis, while Claude clarifies requirements with the user (common protocol).**
+**Understand the feature's scope and impact on the existing codebase: run the Opus subagent scan (common protocol, existing task list) and an Opus consult for scope and impact analysis, while Claude clarifies requirements with the user (common protocol).**
 
-### Codex Scope & Impact Analysis (MANDATORY)
+### Opus Scope & Impact Analysis (MANDATORY)
 
-Via the Codex consult protocol:
+Via the Opus consult protocol (label `scope`):
 
 ```
 Objective: Analyze the scope and impact of adding this feature to the existing codebase.
@@ -321,19 +317,20 @@ Output format:
 ## Recommended Approach
 ```
 
-Use Codex's complexity classification to determine the implementation route in Phase 3.
+Use the consult's complexity classification to determine the implementation route in Phase 3.
 
 ### Create Feature Brief
 
-Combine user requirements + codebase analysis + Codex scope assessment into a
+Combine user requirements + codebase analysis + Opus scope assessment into a
 Feature Brief following the MODE=existing template in
 `references/brief-templates.md`, and **write it to the `brief` path from Step 0-b**
 (`.claude/docs/research/feature-{slug}-brief.md`).
 
-The brief is the primary cross-phase artifact: it feeds all three Phase 2E Codex
-prompts, Phase 3, the Route A implementation prompt, and the `/team-execute`
-handoff. Interpolating it from conversation context is how a half-filled brief
-reaches three Codex prompts undetected — every downstream step reads the file.
+The brief is the primary cross-phase artifact: it feeds all three Phase 2E
+consult prompts, Phase 3, the Route A implementation prompt, and the
+`/team-execute` handoff. Interpolating it from conversation context is how a
+half-filled brief reaches three consult prompts undetected — every downstream
+step reads the file.
 
 Validate it before leaving this phase:
 
@@ -347,29 +344,29 @@ variant is auto-detected from the headings); `1` bad args or the file is
 unreadable — most often it was never written; `2` a required section is missing,
 listed in `sections_missing`. Do not continue to Phase 2E on a non-zero exit.
 
-The `### Complexity Classification (from Codex)` section is where the decided
+The `### Complexity Classification (from Opus)` section is where the decided
 classification is **recorded once**. Phase 3's presentation and route selection
 read it from this file rather than re-typing it, so a MODERATE assessment cannot
-be presented and then routed as SIMPLE. Codex decides the classification; only
-its propagation is mechanical.
+be presented and then routed as SIMPLE. The Opus consult decides the
+classification; only its propagation is mechanical.
 
 ---
 
-## MODE=existing — Phase 2E: DESIGN (Codex Architecture + Plan + Validation)
+## MODE=existing — Phase 2E: DESIGN (Opus Architecture + Plan + Validation)
 
-**Codex designs the architecture, creates an implementation plan, and validates completeness. All three consultations are MANDATORY.**
+**Opus consults design the architecture, create an implementation plan, and validate completeness. All three consultations are MANDATORY.**
 
 > Unlike MODE=greenfield which uses Agent Teams (Researcher + Architect) for design,
-> MODE=existing uses Codex directly because the patterns and conventions are already established.
+> MODE=existing uses direct Opus consults because the patterns and conventions are already established.
 
-### Step 1: Codex Architecture Design (MANDATORY)
+### Step 1: Opus Architecture Design (MANDATORY, label `architecture`)
 
 ```
 Objective: Design the architecture for adding this feature to the existing codebase.
 Context:
 - Feature Brief: contents of .claude/docs/research/feature-{slug}-brief.md (from Phase 1E)
 - Existing patterns: {conventions from codebase scan}
-- Integration points: {from Codex scope analysis}
+- Integration points: {from the Opus scope analysis}
 Constraints:
 - Follow existing codebase conventions exactly (naming, structure, patterns)
 - Minimize changes to existing code (prefer extension over modification)
@@ -384,7 +381,7 @@ Output format:
 ## Test Strategy
 ```
 
-### Step 2: Codex Implementation Plan (MANDATORY)
+### Step 2: Opus Implementation Plan (MANDATORY, label `plan`)
 
 ```
 Objective: Create a step-by-step implementation plan for this feature.
@@ -405,7 +402,11 @@ Output format:
 ## Estimated Effort per Step
 ```
 
-### Step 3: Codex Validation (MANDATORY)
+### Step 3: Opus Validation (MANDATORY, label `validation`)
+
+Run validation in a **fresh** `general-purpose-opus` call, not as a follow-up to
+Steps 1-2: an agent validating its own plan reviews what it meant, not what it
+wrote.
 
 ```
 Objective: Validate this implementation plan for completeness, correctness, and risk.
@@ -430,7 +431,7 @@ Output format:
 ## Revised Steps (if NEEDS_REVISION)
 ```
 
-If Codex returns NEEDS_REVISION, update the plan and re-validate before proceeding.
+If the validation returns NEEDS_REVISION, update the plan and re-validate before proceeding.
 
 Then update DESIGN.md (common protocol) and continue to Phase 3.
 
@@ -514,10 +515,10 @@ Spawn two teammates:
    - {finding}: {relevance to project}
    "
 
-2. **Architect** — Uses Codex CLI for design and planning
+2. **Architect** — Opus teammate for design and planning
    Prompt: "You are the Architect for project: {feature}.
 
-   Your job: Use Codex CLI to design the architecture and create implementation plan.
+   Your job: Design the architecture and create the implementation plan.
 
    Project Brief: read .claude/docs/research/feature-{slug}-brief.md
 
@@ -527,10 +528,10 @@ Spawn two teammates:
    3. Create step-by-step implementation plan with dependencies
    4. Identify risks and mitigation strategies
 
-   How to consult Codex:
-   Write the question to .claude/logs/codex/prompt-<topic>.md, then:
-   python3 .claude/skills/_shared/codex_consult.py --prompt-file .claude/logs/codex/prompt-<topic>.md --label <topic> --sandbox read-only
-   Read the answer from the JSON output's response_file.
+   How to design: reason from the brief, the codebase scan
+   (.claude/docs/research/feature-{slug}-codebase.md), and the Researcher's
+   findings. For each major decision, write down at least one rejected
+   alternative and why — the lead records it in DESIGN.md.
 
    Record architecture decisions in .claude/docs/DESIGN.md through the shared
    writer — never by editing the file. The lead writes the same document in
@@ -557,8 +558,8 @@ Spawn two teammates:
    Role-specific sections (between Tasks Completed and Communication):
    ## Design Decisions
    - {decision}: {rationale}
-   ## Codex Consultations
-   - {question asked to Codex}: {key insight from response}
+   ## Alternatives Considered
+   - {option}: {why rejected}
    "
 
 Wait for both teammates to complete their tasks.
@@ -596,9 +597,9 @@ Researcher: "httpx has a connection pool limit of 100 by default"
 
 Without Agent Teams (old subagent approach), this would require:
 1. Researcher subagent finishes → returns summary
-2. Claude reads summary → creates new Codex subagent prompt
-3. Codex subagent finishes → returns summary
-4. If Codex needs more info → another researcher subagent round
+2. Claude reads summary → creates new design subagent prompt
+3. Design subagent finishes → returns summary
+4. If the design needs more info → another researcher subagent round
 
 Agent Teams collapses this into a single parallel session with real-time interaction.
 
@@ -611,8 +612,8 @@ Agent Teams collapses this into a single parallel session with real-time interac
 ### Step 1: Synthesize Results
 
 - MODE=existing: the Feature Brief at `.claude/docs/research/feature-{slug}-brief.md`
-  (including its recorded Complexity Classification) + Codex architecture / plan /
-  validation outputs.
+  (including its recorded Complexity Classification) + the Opus architecture / plan /
+  validation output files.
 - MODE=greenfield: read `.claude/docs/research/{slug}.md` (Researcher findings),
   `.claude/docs/libraries/{library}.md` (library docs), `.claude/docs/DESIGN.md`
   (Architect decisions).
@@ -691,13 +692,13 @@ that was never written.
 
 ### Complexity
 - Classification: {SIMPLE / MODERATE / COMPLEX}
-- Implementation route: {Codex direct / Codex + review / team-execute}
+- Implementation route: {single subagent / subagent + review / team-execute}
 
-### Architecture Design (Codex / Architect)
+### Architecture Design (Opus consult / Architect)
 {Architecture overview}
 {Key design decisions with rationale}
 
-### Implementation Plan ({N} steps) — Codex Validated: {PASS} (existing mode)
+### Implementation Plan ({N} steps) — Opus Validated: {PASS} (existing mode)
 1. {Step 1}: {description}
 2. {Step 2}: {description}
 ...
@@ -759,7 +760,7 @@ python3 .claude/skills/_shared/verify_delegation.py \
 
 `--expect-files` and `--forbid-outside` each take a **repo-relative path** and
 are repeatable: name the files the approved plan named, and the directories it
-scoped the change to. `--base` defaults to `HEAD`, which is what a Codex run
+scoped the change to. `--base` defaults to `HEAD`, which is what a subagent run
 that left the tree dirty needs.
 
 Read `deletions`, `placeholders`, `weakened_tests`, and `out_of_scope_files`.
@@ -776,16 +777,13 @@ Use `.claude/skills/_shared/gather_diff.py --base {ref}` when you want the full
 patch to read: `scope_empty: true` with exit `2` means the delegated run changed
 nothing at all — a failed implementation, not a clean one.
 
-#### Route A: SIMPLE (1-3 files, <50 LOC) — Codex Direct
+#### Route A: SIMPLE (1-3 files, <50 LOC) — Single Implementation Subagent
 
-Codex implements directly. Write the prompt body below to
-`.claude/logs/codex/prompt-route-a-implement.md`, then invoke with write access:
-
-```bash
-python3 .claude/skills/_shared/codex_consult.py \
-  --prompt-file .claude/logs/codex/prompt-route-a-implement.md \
-  --label route-a-implement --sandbox danger-full-access
-```
+One subagent implements directly, with write access: `general-purpose-sonnet`
+for a well-scoped plan, `general-purpose-opus` when the brief flags a security,
+concurrency, data-integrity, or migration risk. Record the base ref first
+(`git rev-parse HEAD`) for the diff check, then delegate through the Agent tool
+with the prompt body below:
 
 ```
 Objective: Implement this feature following the approved plan.
@@ -812,15 +810,15 @@ Output format:
 ## Remaining Risks
 ```
 
-Read the implementation summary from the JSON output's `response_file` — as
-input to the verification, never as its result.
+Read the subagent's returned summary as input to the verification, never as
+its result.
 
 Then run **Completion Verification** above (both checks).
 
-#### Route B: MODERATE (3-5 files) — Codex + Review
+#### Route B: MODERATE (3-5 files) — Implementation Subagent + Review
 
-1. **Implement with Codex** (same prompt and `--sandbox danger-full-access` as
-   Route A, with more files)
+1. **Implement with a subagent** (same prompt and agent choice as Route A,
+   with more files)
 2. **Run Completion Verification** above — both checks, same exit-code reading.
    Route B changes more files than Route A, so it gets no weaker a gate: record
    `verify.sh`'s `overall` and the `verify_delegation.py` payload before moving on
@@ -828,7 +826,7 @@ Then run **Completion Verification** above (both checks).
    quality, test coverage), passing the `slug` from Step 0-b
 
 ```
-After Codex implementation and Completion Verification:
+After subagent implementation and Completion Verification:
 /team-execute --review-only   <- Parallel review from multiple perspectives
 ```
 
@@ -869,23 +867,24 @@ its JSON) rather than hardcoded here.
 | `.claude/docs/research/feature-{slug}-codebase.md` | Opus Subagent | Codebase scan |
 | `.claude/docs/research/{slug}.md` (greenfield) | Researcher | External research findings |
 | `.claude/docs/libraries/{lib}.md` (greenfield) | Researcher | Library documentation |
-| `.claude/docs/DESIGN.md` (updated) | Lead / Architect (Codex-informed) | Architecture decisions |
+| `.claude/docs/research/feature-{slug}-{label}.md` (existing) | Opus consults | Scope, architecture, plan, and validation answers |
+| `.claude/docs/DESIGN.md` (updated) | Lead / Architect | Architecture decisions |
 | `.claude/STATE.md` (updated) | Lead | Cross-session feature context |
 | `.claude/logs/agent-teams/feature-{slug}/*.md` (greenfield) | Researcher / Architect | Work logs — validated with `--contract work-log --expect-files 2` |
 | Task list (internal) | Lead | Implementation tracking |
-| Implementation files | Codex / Agent Teams | The feature itself |
-| Test files | Codex / Agent Teams | Tests for the feature |
+| Implementation files | Implementation subagent / Agent Teams | The feature itself |
+| Test files | Implementation subagent / Agent Teams | Tests for the feature |
 
 ---
 
 ## Tips
 
 - **Mode first**: The biggest failure mode is picking the wrong path. When ambiguous, always AskUserQuestion — never guess
-- **Codex-first (existing mode)**: Every phase consults Codex. Codex excels at understanding how new code fits into existing patterns and identifying integration risks; early scope classification picks the right implementation route from the start; validation catches missing edge cases and convention violations before implementation begins
-- **Existing patterns**: The most important input to Codex is the existing codebase patterns from the Opus subagent scan — include them in every Codex prompt
-- **Agent Teams (greenfield mode)**: Bidirectional communication lets Researcher (Opus) and Architect (Codex) influence each other in real time
-- **Complexity routing**: Do not over-engineer simple features. 1-3 file changes should use Codex direct implementation, not Agent Teams
-- **Quality gates**: Every route ends with Completion Verification — `verify.sh` (gate failure or no gate at all is exit `2`) plus `verify_delegation.py` diff evidence. A Codex or teammate summary is input to that check, never a substitute for it
+- **Opus-first (existing mode)**: Every phase runs an Opus consult. A deep-reasoning pass excels at understanding how new code fits into existing patterns and identifying integration risks; early scope classification picks the right implementation route from the start; validation catches missing edge cases and convention violations before implementation begins
+- **Existing patterns**: The most important input to every consult is the existing codebase patterns from the Opus subagent scan — pass the scan path in every consult prompt
+- **Agent Teams (greenfield mode)**: Bidirectional communication lets Researcher and Architect influence each other in real time
+- **Complexity routing**: Do not over-engineer simple features. 1-3 file changes should use a single implementation subagent, not Agent Teams
+- **Quality gates**: Every route ends with Completion Verification — `verify.sh` (gate failure or no gate at all is exit `2`) plus `verify_delegation.py` diff evidence. A subagent or teammate summary is input to that check, never a substitute for it
 - **Artifacts, not transcripts**: the brief, the scan, the research file and the work logs are files with contracts. If a phase cannot point at a validated file, the phase did not happen
 - **Ctrl+T**: Toggle task list display
 - **Shift+Up/Down**: Navigate between teammates (when using Agent Teams)

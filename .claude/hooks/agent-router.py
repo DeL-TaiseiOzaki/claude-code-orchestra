@@ -4,8 +4,8 @@ UserPromptSubmit hook: Route to appropriate agent based on user intent.
 
 Routing rules (checked in order, most specific first):
 - Design arbitration / stuck problems / final review → Fable advisor (rare)
-- Explicit review/rescue/delegation phrases → Codex Plugin commands
-- Planning, design, complex code → Codex CLI
+- Explicit code-review phrases → general-purpose-opus review
+- Planning, design, debugging, complex code → general-purpose-opus / Plan / debugger
 - Codebase understanding / large analysis / external research → Opus subagent
 
 Multimodal files (PDF/video/audio/image) are handled directly by Claude (Opus 4.7+).
@@ -48,8 +48,10 @@ FABLE_TRIGGERS = {
     ],
 }
 
-# Triggers for Codex (planning, design, debugging, complex implementation)
-CODEX_TRIGGERS = {
+# Triggers for deep reasoning (planning, design, debugging, complex
+# implementation): routed to general-purpose-opus, the built-in Plan agent, or
+# the debugger subagent.
+DEEP_REASONING_TRIGGERS = {
     "ja": [
         "設計",
         "どう設計",
@@ -73,7 +75,7 @@ CODEX_TRIGGERS = {
         "深く",
         "最適化",
         # Proactive triggers: uncertainty and quality questions are exactly
-        # where a Codex consult is cheaper than the rework it prevents.
+        # where a deep-reasoning consult is cheaper than the rework it prevents.
         # Single words that name a topic rather than a request for judgement
         # ("パターン", "改善", "セキュリティ", "依存関係", "相談", "意見",
         # "複雑") are deliberately absent: they fired on ordinary asks such as
@@ -177,19 +179,14 @@ OPUS_RESEARCH_TRIGGERS = {
     ],
 }
 
-# Triggers for Codex Plugin commands (review, rescue, delegation)
-CODEX_PLUGIN_TRIGGERS = {
+# Triggers for an explicit code review request
+REVIEW_TRIGGERS = {
     "ja": [
         "レビューして",
         "コードレビュー",
         "レビューお願い",
         "チェックして",
         "出荷前",
-        "codexに任せ",
-        "codexに渡",
-        "codexに委",
-        "バグ調査",
-        "調査して",
     ],
     "en": [
         "review this",
@@ -197,11 +194,6 @@ CODEX_PLUGIN_TRIGGERS = {
         "review my",
         "before shipping",
         "pre-ship",
-        "delegate to codex",
-        "hand to codex",
-        "ask codex to",
-        "codex rescue",
-        "codex review",
     ],
 }
 
@@ -229,27 +221,26 @@ def detect_agent(prompt: str) -> tuple[str | None, str]:
 
     # Fable triggers (rare escalation: arbitration, stuck, final review)
     # Checked FIRST — narrow, high-specificity triggers that must not be
-    # swallowed by the broader Codex keywords.
+    # swallowed by the broader deep-reasoning keywords.
     for lang, triggers in FABLE_TRIGGERS.items():
         for trigger in triggers:
             if matches_trigger(trigger, prompt_lower, lang):
                 return "fable", trigger
 
-    # Codex Plugin triggers (review, rescue, delegation)
-    # Checked BEFORE the broad Codex triggers: these are more specific
-    # phrases (e.g. "コードレビュー", "review this") that the bare
-    # CODEX_TRIGGERS substrings (e.g. "レビュー", "review") would
-    # otherwise shadow.
-    for lang, triggers in CODEX_PLUGIN_TRIGGERS.items():
+    # Review triggers. Checked BEFORE the broad deep-reasoning triggers:
+    # these are more specific phrases (e.g. "コードレビュー", "review this")
+    # that the bare DEEP_REASONING_TRIGGERS substrings (e.g. "レビュー",
+    # "review") would otherwise shadow.
+    for lang, triggers in REVIEW_TRIGGERS.items():
         for trigger in triggers:
             if matches_trigger(trigger, prompt_lower, lang):
-                return "codex-plugin", trigger
+                return "review", trigger
 
-    # Codex triggers (planning, design, debug, complex code)
-    for lang, triggers in CODEX_TRIGGERS.items():
+    # Deep-reasoning triggers (planning, design, debug, complex code)
+    for lang, triggers in DEEP_REASONING_TRIGGERS.items():
         for trigger in triggers:
             if matches_trigger(trigger, prompt_lower, lang):
-                return "codex", trigger
+                return "deep", trigger
 
     # Opus research triggers (codebase analysis + external research)
     for lang, triggers in OPUS_RESEARCH_TRIGGERS.items():
@@ -278,42 +269,40 @@ def main():
                     "additionalContext": (
                         f"[Fable Advisor] Detected '{trigger}' — this may warrant the "
                         "fable-advisor subagent (rare escalation: design arbitration / "
-                        "stuck problems / final review of large changes; read-only, never "
-                        "implements; notes saved to .claude/docs/reviews/). For routine "
-                        "review or implementation, use the normal Codex/team-execute "
-                        "routes instead."
+                        "stuck problems / final review of large changes; notes saved to "
+                        ".claude/docs/reviews/). For routine review or implementation, "
+                        "use the normal general-purpose-opus/team-execute routes instead."
                     ),
                 }
             }
             print(json.dumps(output))
 
-        elif agent == "codex":
+        elif agent == "deep":
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "UserPromptSubmit",
                     "additionalContext": (
-                        f"[Agent Routing] Detected '{trigger}' — consult Codex before "
-                        "committing to an approach. Planning, design, trade-offs and "
-                        "complex implementation MUST go through Codex unless the whole "
-                        "task is on the Self-Handle List in .claude/rules/delegation.md. "
-                        "Write the prompt to a file, then `python3 .claude/skills/_shared/"
-                        "codex_consult.py --prompt-file <path> --sandbox read-only`, or "
-                        "delegate via general-purpose-opus to preserve main context."
+                        f"[Agent Routing] Detected '{trigger}' — get a deep-reasoning "
+                        "pass before committing to an approach. Planning, design, "
+                        "trade-offs and complex implementation go to the "
+                        "general-purpose-opus subagent (or the built-in Plan agent for "
+                        "a read-only plan) unless the whole task is on the Self-Handle "
+                        "List in .claude/rules/delegation.md. An error or failure with "
+                        "an unproven root cause goes to the debugger subagent."
                     ),
                 }
             }
             print(json.dumps(output))
 
-        elif agent == "codex-plugin":
+        elif agent == "review":
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "UserPromptSubmit",
                     "additionalContext": (
-                        f"[Codex Plugin] Detected '{trigger}' — consider using Codex Plugin commands. "
-                        "Available: `/codex:review` (code review), "
-                        "`/codex:adversarial-review` (design challenge), "
-                        "`/codex:rescue` (task delegation). "
-                        "Add `--background` for async execution, check with `/codex:status`."
+                        f"[Code Review] Detected '{trigger}' — delegate the review to "
+                        "the general-purpose-opus subagent with the diff range and the "
+                        "review dimensions (correctness, security, tests). For a "
+                        "multi-dimension ship gate, use the team-execute review phase."
                     ),
                 }
             }

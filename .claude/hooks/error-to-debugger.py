@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-PostToolUse hook: Detect errors from Bash commands and suggest codex-debugger.
+PostToolUse hook: Detect errors from Bash commands and suggest the debugger.
 
 Broader than post-test-analysis.py — catches ANY Bash error,
-not just test/build commands. Directs to the codex-debugger subagent.
+not just test/build commands. Directs to the debugger subagent.
 """
 
 import json
@@ -86,11 +86,6 @@ IGNORE_OUTPUTS = [
     "Everything up-to-date",
 ]
 
-# Skip if the command itself is a Codex call (avoid recursive suggestions)
-SKIP_COMMANDS = [
-    "codex ",
-]
-
 # Terse failures ("Error: failed") are still failures, so the floor only has
 # to exclude effectively empty output.
 MIN_OUTPUT_LENGTH = 5
@@ -101,9 +96,6 @@ def should_ignore_command(command: str) -> bool:
     command_stripped = command.strip()
     for ignore in IGNORE_COMMANDS:
         if command_stripped.startswith(ignore):
-            return True
-    for skip in SKIP_COMMANDS:
-        if skip in command_stripped:
             return True
     return False
 
@@ -178,10 +170,11 @@ def build_context(data: dict) -> str | None:
 
     return (
         f"[Error Detected] {reason}. "
-        "**Action**: You MUST use the `codex-debugger` subagent to analyze this "
+        "**Action**: You MUST use the `debugger` subagent to analyze this "
         "error rather than guessing at a fix. "
-        "Pass the full command and error output to the subagent for Codex-powered diagnosis. "
-        "Example: Task(subagent_type='codex-debugger', prompt='Analyze this error: ...')"
+        "Pass the full command and error output to the subagent for root-cause "
+        "diagnosis. "
+        "Example: Agent(subagent_type='debugger', prompt='Analyze this error: ...')"
     )
 
 

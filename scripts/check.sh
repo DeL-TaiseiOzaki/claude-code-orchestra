@@ -53,7 +53,7 @@ check_index_links() {
 check "INDEX.md links resolve" check_index_links
 
 # --------------------------------------------------------------------------
-# 2) Tier IDs default/sol/fable all appear in tiers.md
+# 2) Tier IDs default/deep/fable all appear in tiers.md
 # --------------------------------------------------------------------------
 check_tier_ids() {
     local tiers="${ROOT}/.claude/rules/tiers.md"
@@ -62,7 +62,7 @@ check_tier_ids() {
         return 1
     fi
     local ok=true
-    for id in default sol fable; do
+    for id in default deep fable; do
         if ! grep -q "\`${id}\`" "${tiers}"; then
             echo "  Missing tier ID: ${id}"
             ok=false
@@ -73,73 +73,50 @@ check_tier_ids() {
 check "Tier IDs present in tiers.md" check_tier_ids
 
 # --------------------------------------------------------------------------
-# 3) Model coherence: CODEX_MODEL in settings.json == model in config.toml
-#    == fallback values in ${CODEX_MODEL:-...} across .claude/ and .codex/
-#    (gpt-5.5-mini is excluded from comparison)
+# 3) Model coherence: every bundled agent pins a Claude model in its
+#    frontmatter, unspecified subagents default to a model in settings.json,
+#    and no peer-CLI model setting survives (Claude Code-only edition).
 # --------------------------------------------------------------------------
 check_model_coherence() {
     local settings="${ROOT}/.claude/settings.json"
-    local config="${ROOT}/.codex/config.toml"
     local ok=true
 
-    # Extract CODEX_MODEL from settings.json
-    local settings_model
-    settings_model=$(python3 -c "
-import json, sys
+    local default_model
+    default_model=$(python3 -c "
+import json
 with open('${settings}') as f:
     d = json.load(f)
-print(d.get('env', {}).get('CODEX_MODEL', ''))
-" 2>/dev/null)
-
-    if [[ -z "${settings_model}" ]]; then
-        echo "  Could not read CODEX_MODEL from ${settings}"
-        return 1
-    fi
-
-    # Extract model from config.toml (simple grep; avoids toml parser dep)
-    local config_model
-    config_model=$(grep -E '^model\s*=' "${config}" | head -1 | sed 's/.*=\s*"\(.*\)"/\1/')
-
-    if [[ -z "${config_model}" ]]; then
-        echo "  Could not read model from ${config}"
-        return 1
-    fi
-
-    # Compare settings vs config
-    if [[ "${settings_model}" != "${config_model}" ]]; then
-        echo "  Mismatch: settings.json CODEX_MODEL=${settings_model} vs config.toml model=${config_model}"
+print(d.get('env', {}).get('CLAUDE_CODE_SUBAGENT_MODEL', ''))
+" 2>/dev/null || true)
+    if [[ -z "${default_model}" ]]; then
+        echo "  Could not read env.CLAUDE_CODE_SUBAGENT_MODEL from ${settings}"
         ok=false
     fi
 
-    # Extract distinct fallback values from ${CODEX_MODEL:-...} patterns
-    local fallbacks
-    fallbacks=$(grep -rhoE '\$\{CODEX_MODEL:-[^}]+\}' "${ROOT}/.claude/" "${ROOT}/.codex/" 2>/dev/null \
-        | sed 's/.*:-\(.*\)}/\1/' \
-        | sort -u \
-        | grep -v 'gpt-5.5-mini' || true)
+    local definition model
+    for definition in "${ROOT}"/.claude/agents/*.md; do
+        model=$(sed -n '2,/^---$/p' "${definition}" | grep -E '^model:' | head -1 \
+            | sed 's/^model:[[:space:]]*//' || true)
+        case "${model}" in
+            opus|sonnet|haiku|fable|inherit|claude-*) ;;
+            *)
+                echo "  Agent without a Claude model in frontmatter: ${definition#"${ROOT}/"} (model='${model}')"
+                ok=false
+                ;;
+        esac
+    done
 
-    while IFS= read -r fb; do
-        [[ -z "${fb}" ]] && continue
-        if [[ "${fb}" != "${settings_model}" ]]; then
-            echo "  Mismatch: fallback ${fb} != CODEX_MODEL ${settings_model}"
-            ok=false
-        fi
-    done <<< "${fallbacks}"
-
-    # The shared Codex wrapper carries the same fallback in Python, so it has
-    # to move with the single centralized model value too.
-    local consult="${ROOT}/.claude/skills/_shared/codex_consult.py"
-    if [[ -f "${consult}" ]]; then
-        local consult_model
-        consult_model=$(grep -E '^DEFAULT_MODEL\s*=' "${consult}" \
-            | head -1 | sed 's/.*=\s*"\(.*\)"/\1/')
-        if [[ -z "${consult_model}" ]]; then
-            echo "  Could not read DEFAULT_MODEL from codex_consult.py"
-            ok=false
-        elif [[ "${consult_model}" != "${settings_model}" ]]; then
-            echo "  Mismatch: codex_consult.py DEFAULT_MODEL=${consult_model} != CODEX_MODEL ${settings_model}"
-            ok=false
-        fi
+    # A leftover peer-CLI model variable means a half-removed integration.
+    if grep -Eq '"[A-Z]+_MODEL"' "${settings}" &&
+        ! python3 -c "
+import json, sys
+with open('${settings}') as f:
+    env = json.load(f).get('env', {})
+extra = [k for k in env if k.endswith('_MODEL') and not k.startswith('CLAUDE_')]
+sys.exit(1 if extra else 0)
+" 2>/dev/null; then
+        echo "  settings.json env carries a non-Claude *_MODEL variable"
+        ok=false
     fi
 
     ${ok}
@@ -167,8 +144,8 @@ check "Template runtime paths in SAFE_DIRS" check_safe_dirs
 
 # --------------------------------------------------------------------------
 # 5) Root AGENTS.md is the complete contract: the main-agent orchestration
-#    policy and the CLI-executor contract now live in the one file every
-#    runtime auto-loads.
+#    policy and the subagent completion guardrails live in the one file
+#    Claude Code auto-loads.
 # --------------------------------------------------------------------------
 check_root_contract() {
     local contract="${ROOT}/AGENTS.md"
@@ -178,9 +155,8 @@ check_root_contract() {
     fi
 
     local ok=true
-    # Both halves of the merged contract. The main-agent policy sections come
-    # first, the CLI-executor sections after; a delegated run loads this file
-    # and nothing else, so every section has to be in it.
+    # The main-agent policy sections come first, the response, handoff, and
+    # guardrail sections after; every section has to be in this one file.
     local headings=(
         "## Mission"
         "## Non-Goals"
@@ -194,7 +170,6 @@ check_root_contract() {
         "## Native Runtime Boundary"
         "## Required Response Structure"
         "## Handoff Rules"
-        "## Cross-CLI Subagent Invocation"
         "## Internal Context References"
         "## Guardrails (Completion Verification)"
     )
@@ -224,10 +199,9 @@ check_root_contract() {
         }
     done
 
-    # Runtime adapters stay reachable from the one contract every CLI loads.
+    # Tier definitions stay reachable from the root contract.
     local reference
-    for reference in ".agents/AGENTS.md" ".codex/AGENTS.md" \
-        ".claude/rules/tiers.md"; do
+    for reference in ".claude/rules/tiers.md"; do
         grep -Fq "${reference}" "${contract}" || {
             echo "  Missing route in root AGENTS.md: ${reference}"
             ok=false
@@ -307,7 +281,7 @@ check_bootstrap_references() {
     fi
     local reference
     for reference in ".claude/rules/" ".claude/skills/" ".claude/agents/" \
-        ".claude/STATE.md" ".claude/docs/DESIGN.md" ".claude/docs/change_main.md"; do
+        ".claude/STATE.md" ".claude/docs/DESIGN.md"; do
         grep -Fq "${reference}" "${root_agents}" || {
             echo "  Missing essential root instruction: ${reference}"
             ok=false
@@ -325,8 +299,9 @@ check_bootstrap_references() {
 check "Bootstrap references" check_bootstrap_references
 
 # --------------------------------------------------------------------------
-# 7) Runtime layout: .claude/ is the physical source, .agents/ and .codex/
-#    carry subagent schema only
+# 7) Runtime layout: .claude/ is the one physical runtime. The Claude
+#    Code-only edition ships no peer-CLI adapter directories, so .agents/ and
+#    .codex/ must be absent from the template.
 # --------------------------------------------------------------------------
 check_native_boundaries() {
     local ok=true
@@ -342,24 +317,19 @@ check_native_boundaries() {
     # The layout is symlink-free: every contract file is a real file so the
     # checkout survives filesystems and CI runners that do not honour symlinks.
     local real_file
-    for real_file in AGENTS.md .agents/AGENTS.md .codex/AGENTS.md \
-        .claude/STATE.md .claude/rules/tiers.md .claude/docs/INDEX.md \
-        .claude/docs/change_main.md; do
+    for real_file in AGENTS.md .claude/STATE.md .claude/rules/tiers.md \
+        .claude/docs/INDEX.md; do
         if [[ ! -f "${ROOT}/${real_file}" || -L "${ROOT}/${real_file}" ]]; then
             echo "  Must be a real file, not a symlink or missing: ${real_file}"
             ok=false
         fi
     done
 
-    # Shared runtime content must not be duplicated back into the subagent
-    # schema directories.
-    local forbidden_path
-    for forbidden_path in \
-        .agents/rules .agents/skills .agents/agents .agents/hooks \
-        .agents/docs .agents/logs .agents/checkpoints .agents/STATE.md \
-        .codex/skills; do
-        if [[ -e "${ROOT}/${forbidden_path}" || -L "${ROOT}/${forbidden_path}" ]]; then
-            echo "  Runtime content duplicated into a subagent schema directory: ${forbidden_path}"
+    # Peer-CLI adapter directories belong to the multi-CLI flavour on main.
+    local peer_dir
+    for peer_dir in .agents .codex; do
+        if [[ -e "${ROOT}/${peer_dir}" || -L "${ROOT}/${peer_dir}" ]]; then
+            echo "  Peer-CLI adapter directory present in the Claude Code-only edition: ${peer_dir}"
             ok=false
         fi
     done
@@ -372,21 +342,6 @@ check_native_boundaries() {
             *) echo "  Unexpected .claude entry: ${native_entry}"; ok=false ;;
         esac
     done < <(find "${ROOT}/.claude" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
-    while IFS= read -r native_entry; do
-        case "${native_entry}" in
-            config.toml|config.orchestra.toml|AGENTS.md) ;;
-            *) echo "  Unexpected .codex entry: ${native_entry}"; ok=false ;;
-        esac
-    done < <(find "${ROOT}/.codex" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
-    # .agents/ is Antigravity's native directory and holds exactly one thing:
-    # the CLI-subagent contract it loads. Shared policy lives under .claude/
-    # and is referenced by path.
-    while IFS= read -r native_entry; do
-        if [[ "${native_entry}" != "AGENTS.md" ]]; then
-            echo "  Unexpected .agents entry: ${native_entry}"
-            ok=false
-        fi
-    done < <(find "${ROOT}/.agents" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
 
     if [[ ! -f "${ROOT}/.claude/settings.json" ]] ||
         ! grep -Fq '.claude/hooks/' "${ROOT}/.claude/settings.json" ||
@@ -394,13 +349,17 @@ check_native_boundaries() {
         echo "  Claude settings must reference .claude/hooks directly"
         ok=false
     fi
-    if [[ ! -f "${ROOT}/.codex/config.toml" ]] ||
-        ! grep -Fq '.claude/skills/context-loader' "${ROOT}/.codex/config.toml" ||
-        ! grep -Fq '.claude/skills/design-tracker' "${ROOT}/.codex/config.toml" ||
-        grep -Fq '.codex/skills/' "${ROOT}/.codex/config.toml"; then
-        echo "  Codex config must reference canonical .claude skills directly"
-        ok=false
-    fi
+
+    # Every hook wired in settings.json must exist, so a renamed or deleted
+    # hook cannot leave a dangling command behind.
+    local hook
+    while IFS= read -r hook; do
+        [[ -z "${hook}" ]] && continue
+        if [[ ! -f "${ROOT}/${hook}" ]]; then
+            echo "  settings.json wires a missing hook: ${hook}"
+            ok=false
+        fi
+    done < <(grep -oE '\.claude/hooks/[A-Za-z0-9_.-]+\.py' "${ROOT}/.claude/settings.json" | sort -u)
 
     ${ok}
 }
@@ -428,7 +387,7 @@ check_skill_scripts() {
     # 8a) Every .claude/skills/**.py|.sh path mentioned in shared markdown resolves.
     local referenced
     referenced=$(grep -rhoE "${doc_scope[@]}" '\.claude/skills/[A-Za-z0-9_/-]+\.(py|sh)' \
-        "${ROOT}/.claude" "${ROOT}/.agents" "${ROOT}/.codex" 2>/dev/null | sort -u || true)
+        "${ROOT}/.claude" 2>/dev/null | sort -u || true)
     referenced+=$'\n'
     referenced+=$(grep -rhoE '\.claude/skills/[A-Za-z0-9_/-]+\.(py|sh)' \
         "${ROOT}/AGENTS.md" "${ROOT}/README.md" 2>/dev/null | sort -u || true)
@@ -449,7 +408,7 @@ check_skill_scripts() {
         [[ -z "${script}" ]] && continue
         local rel="${script#"${ROOT}/"}"
         if ! grep -rqF "${doc_scope[@]}" "$(basename "${rel}")" \
-            "${ROOT}/.claude" "${ROOT}/.agents" "${ROOT}/README.md" 2>/dev/null; then
+            "${ROOT}/.claude" "${ROOT}/README.md" 2>/dev/null; then
             echo "  Bundled script is not documented in any markdown: ${rel}"
             ok=false
         fi

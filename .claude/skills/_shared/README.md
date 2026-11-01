@@ -30,9 +30,7 @@ swallowed. Both failure modes are worse than the split.
 |------|-------------|
 | `work-log-format.md` | Canonical work-log template for Agent Teams teammates (format doc, not a script). |
 | `workspace.py` | Resolve, create, and verify a skill's slug, team name, and artifact paths. Single source of truth for cross-phase naming. |
-| `codex_consult.py` | Invoke the Codex CLI safely: prompt from `--prompt-file`, stdin, or the label's default path; stdin closed; prompt, stdout, and stderr captured to `.claude/logs/codex/` under a collision-free stem; `--sandbox` defaults to the project's own `danger-full-access` and is always sent explicitly; full diagnostics as JSON. |
-| `cli_consult.py` | Invoke a peer CLI agent (Claude Code, Antigravity) as a subagent under the same contract, unrestricted unless `--read-only`. Cross-CLI rules: root `AGENTS.md`. |
-| `edit_provenance.py` | Snapshot the repository's dirty set before a delegated run and diff it afterwards, so the consult wrappers can report the files the callee actually created, changed, or deleted — committed work included, pre-existing dirt excluded. |
+| `edit_provenance.py` | Snapshot the repository's dirty set before delegating to a subagent (`--snapshot`) and diff it afterwards (`--compare`), so the caller can name the files the subagent actually created, changed, or deleted — committed work included, pre-existing dirt excluded. |
 | `validate_doc.py` | Validate a markdown document (work log, lib doc, plan, brief, diagnosis, guide, checkpoint summary, PROGRESS, spike/bug report) against a named `## ` section contract; `--expect-files N` makes "nobody wrote one" a failure. |
 | `append_state_block.py` | Typed writers for `.claude/STATE.md`: `--type feature\|bug-fix\|project` appends a `## Current …` work block, `--type repository-identity` replaces the `## Repository Identity` body `/init` owns. Writer Safety Contract. |
 | `update_design.py` | Typed writers for `.claude/docs/DESIGN.md`: rows for Key Decisions, requirements, NFRs, tech choices, and agent roles, plus named section appends. Idempotent; `--require-change` makes a `no-op` exit `2`. Writer Safety Contract. |
@@ -83,7 +81,7 @@ follow them too, so callers can handle all of them identically:
   payload says so (`response_verified`, or the named validation the writers
   run). Otherwise a structurally broken document is reported as a success and
   discovered a phase later, after other artifacts were derived from it —
-  "Codex answered" and "we saved the answer" are two different claims.
+  "the command succeeded" and "we saved the result" are two different claims.
 - **Re-run safety.** Running a script twice with the same input must not
   duplicate content; the payload reports `result: applied | no-op | preview`,
   and a log-file name that already exists is never overwritten. Without this,
@@ -127,8 +125,8 @@ follow them too, so callers can handle all of them identically:
   `python3` does. A sibling module inside `_shared/` is not a third-party
   dependency and is allowed: Python puts a script's own directory on
   `sys.path`, so the portability this clause protects is unaffected, and the
-  alternative — copying a helper into both consult wrappers — is exactly the
-  drift the bundled runtime exists to prevent. The sibling must still satisfy
+  alternative — copying a helper into every script that needs it — is exactly
+  the drift the bundled runtime exists to prevent. The sibling must still satisfy
   every other clause here, so it cannot become a back door for an unchecked
   helper.
 
@@ -161,7 +159,7 @@ boolean `ok` that agrees with the exit code on a real invocation, no traceback,
 documented exit codes inside the shared vocabulary, `artifacts` present in any
 script that creates files, `--now` on any script that reads the clock (exactly
 one reading), stdlib-only imports, no bare `except:` / `shell=True` /
-`2>/dev/null`, and `codex exec` only through the wrapper. Every script must
+and `2>/dev/null`. Every script must
 also register a success invocation there or name the test file that covers its
 success path.
 

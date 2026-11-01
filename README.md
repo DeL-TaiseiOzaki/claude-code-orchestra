@@ -1,26 +1,34 @@
-# claude-code-orchestra
+# claude-code-orchestra (Claude Code-only edition)
 
 ![Claude Code Orchestra](./summary.png)
 
-Multi-Agent AI Development Environment
+Multi-Agent AI Development Environment — **Claude Code-only edition** (`claude-only` branch)
 
 ```
 Claude Code (Orchestrator) ─┬─ Sonnet Subagents (Routine Implementation)
-                             ├─ Opus Subagents (Research, Analysis, Difficult Implementation)
-                             └─ Codex CLI (Planning & Complex Code)
+                             ├─ Opus Subagents (Planning, Design, Review, Research, Difficult Implementation)
+                             ├─ debugger (Root-Cause Analysis, Opus)
+                             └─ fable-advisor (Rare Escalation)
 ```
+
+This branch is a separately maintained flavour of the template in which every
+agent is Claude: the main agent is Claude Code and every subagent is invoked
+through Claude Code's native Agent tool. No other AI CLI is required, installed,
+or called. The multi-CLI flavour lives on `main`.
 
 ## Quick Start
 
-Confirm that both AI CLIs are installed and authenticated first:
+Confirm that Claude Code is installed and authenticated first:
 
 ```bash
-claude --version && codex --version
+claude --version
 ```
 
 ### New Project
 
-Create a repository with GitHub's **Use this template** button, clone it, then run:
+Create a repository from this template's `claude-only` branch (GitHub's **Use
+this template** button with *Include all branches*, then make `claude-only` the
+default branch), clone it, then run:
 
 ```bash
 claude
@@ -35,7 +43,7 @@ Run this from the root of an existing Git repository:
 
 ```bash
 template_dir="$(mktemp -d)"
-git clone --depth 1 https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git "$template_dir"
+git clone --depth 1 --branch claude-only https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git "$template_dir"
 bash "$template_dir/scripts/install.sh" . && rm -rf "$template_dir"
 ```
 
@@ -67,73 +75,33 @@ npm install -g @anthropic-ai/claude-code
 claude login
 ```
 
-### Codex CLI
-
-```bash
-npm install -g @openai/codex
-codex login
-```
-
 ### System Tools
 
 The installer and updater require `git` and standard Unix shell tools. Template
 updates additionally require `rsync`.
 
-### Codex Plugin for Claude Code (Optional)
+### Keeping Claude Code Up to Date
 
-A plugin that lets you use Codex directly from Claude Code. Simplifies code review and task delegation.
-
-```bash
-# Run inside Claude Code
-/plugin marketplace add openai/codex-plugin-cc
-/plugin install codex@openai-codex
-/reload-plugins
-/codex:setup
-```
-
-**Available commands:**
-- `/codex:review` — Code review
-- `/codex:adversarial-review` — Design challenge review
-- `/codex:rescue` — Task delegation
-- `/codex:status` / `/codex:result` / `/codex:cancel` — Job management
-
-### Keeping AI CLIs Up to Date
-
-Claude Code and Codex CLI both release frequently — model names, flags, and sandbox semantics drift between minor versions. **Update both before each working session.**
+Claude Code releases frequently — model names, flags, and hook semantics drift
+between minor versions. **Update before each working session.**
 
 ```bash
-# Claude Code (built-in self-update)
 claude update
-
-# Codex CLI
-npm install -g @openai/codex@latest
+claude --version
 ```
 
-Confirm versions afterward:
-
-```bash
-claude --version && codex --version
-```
-
-The Codex model is centralized in `.claude/settings.json` (`env.CODEX_MODEL`), which every `${CODEX_MODEL:-...}` reference resolves to. `.codex/config.toml` (`model` + `model_reasoning_effort = "xhigh"`) must be kept in sync — `scripts/check.sh` verifies coherence between the two. To always use the latest model, bump that single value (currently `gpt-5.6-sol`) — no need to edit individual skill files. The `${CODEX_MODEL:-...}` fallback is just a default for when the env var is unset. Note: `update.sh` never auto-merges `.claude/settings.json` — downstream users must bump `env.CODEX_MODEL` manually after reviewing the Phase 5 diff.
-
-Claude subagent routing is explicit in `.claude/agents/`: `general-purpose-sonnet`
-and `general-purpose-opus` pin their own model aliases in frontmatter. Unspecified
-subagents default to Sonnet through `.claude/settings.json`
-(`env.CLAUDE_CODE_SUBAGENT_MODEL`).
-
-Peer CLI agents are reached through `.claude/skills/_shared/cli_consult.py`,
-which supports Claude Code (`--cli claude`) and Antigravity (`--cli
-antigravity`, headless `agy -p`). Gemini CLI support was removed.
+Subagent model routing is explicit in `.claude/agents/`: every agent pins its
+model alias in frontmatter (`general-purpose-sonnet` → `sonnet`;
+`general-purpose-opus` and `debugger` → `opus`). Unspecified subagents default
+to Sonnet through `.claude/settings.json` (`env.CLAUDE_CODE_SUBAGENT_MODEL`).
+`scripts/check.sh` verifies that every agent pins a Claude model.
 
 ## Architecture
 
 The normative orchestration policy, the complete agent/skill overview, and the
-CLI-agent contract every runtime auto-loads all live in root `AGENTS.md`;
-`.claude/rules/tiers.md` carries the stable tier details.
-Claude Code is the initial main agent. If the user asks to promote Codex,
-Antigravity, or another runtime, follow `.claude/docs/change_main.md`. The diagram
-below is a non-normative overview of the default setup.
+completion-verification guardrails all live in root `AGENTS.md`;
+`.claude/rules/tiers.md` carries the stable tier details. The diagram below is a
+non-normative overview.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -145,14 +113,14 @@ below is a non-normative overview of the default setup.
 │  │  Tier 1 — Default     │                              │   │
 │  │  ┌────────────────────┴─────────────────────────┐    │   │
 │  │  │ general-purpose-sonnet: routine impl.        │    │   │
-│  │  │ general-purpose-opus: research / hard impl.  │    │   │
-│  │  │ codex-debugger: error analysis               │    │   │
 │  │  └──────────────────────────────────────────────┘    │   │
 │  │                       │                              │   │
 │  │  ┌────────────────────┴─────────────────────────┐    │   │
-│  │  │ Tier 2 — Sol                                 │    │   │
-│  │  │ Codex CLI  (gpt-5.6-sol, effort xhigh)      │    │   │
-│  │  │ → Design, planning, complex code, debugging  │    │   │
+│  │  │ Tier 2 — Deep  (Claude Opus)                 │    │   │
+│  │  │ general-purpose-opus: design, planning,      │    │   │
+│  │  │   review, research, difficult impl.          │    │   │
+│  │  │ debugger: root-cause analysis                │    │   │
+│  │  │ built-in Plan agent: read-only plans         │    │   │
 │  │  └──────────────────────────────────────────────┘    │   │
 │  │                       │                              │   │
 │  │  ┌────────────────────┴─────────────────────────┐    │   │
@@ -167,27 +135,25 @@ below is a non-normative overview of the default setup.
 ### Context Management (Important)
 
 Use the routing policy and execution patterns in `AGENTS.md`.
-Product-specific delegation mechanics remain in `.claude/rules/` and the
-corresponding canonical agent or skill definitions.
+Delegation mechanics remain in `.claude/rules/` and the corresponding canonical
+agent or skill definitions.
 
 The posture is **delegation-first**: `.claude/rules/delegation.md` makes direct
 execution by the main agent the exception, limited to a closed Self-Handle List,
-and names the triggers, route table, and subagent prompt contract that every
-skill follows. Delegating moves the work, not the accountability — the caller
-still runs the acceptance checks and inspects the diff.
+and names the triggers (including the deep-reasoning triggers that route work to
+Tier 2), route table, and subagent prompt contract that every skill follows.
+Delegating moves the work, not the accountability — the caller still runs the
+acceptance checks and inspects the diff.
 
 ## Directory Structure
 
-`.claude/` is the physical source for the agent runtime: rules, skills, agent
-definitions, hooks, project documents, and state. `.agents/` (Antigravity) and
-`.codex/` (Codex) are each a runtime's native directory and hold exactly one
-thing — that runtime's entry contract. Every shared document lives under
-`.claude/` and is referenced by path, never copied. Nothing in the layout is
-reached through a symlink.
+`.claude/` is the one physical runtime: rules, skills, agent definitions, hooks,
+project documents, and state. There are no peer-CLI adapter directories.
+Nothing in the layout is reached through a symlink.
 
 ```
 .
-├── AGENTS.md                    # Single root contract, auto-loaded by every runtime: main-agent mission, routing, catalogs, gates, and the CLI-executor rules
+├── AGENTS.md                    # Single root contract, auto-loaded by Claude Code: mission, routing, catalogs, gates, guardrails
 ├── README.md
 ├── PROGRESS.md                  # Generated by the first /checkpointing run; latest 5 summaries
 ├── LICENSE
@@ -195,7 +161,7 @@ reached through a symlink.
 ├── uv.lock                      # Dependency lock file
 ├── VERSION                      # Version of this template repository; downstream projects may replace it
 │
-├── .claude/                     # Main agent runtime (physical source)
+├── .claude/                     # Runtime (physical source)
 │   ├── settings.json            # Claude Code settings; hooks point to .claude/hooks/
 │   ├── orchestra-version        # Installed Orchestra version in downstream projects
 │   ├── STATE.md                 # Main agent, repository identity, and working state
@@ -203,40 +169,33 @@ reached through a symlink.
 │   ├── skills/                  # Workflow skills and deterministic helpers
 │   │   └── _shared/             # Bundled runtime: helpers every skill may depend on
 │   ├── hooks/                   # Hook implementations
-│   ├── rules/                   # Policy: delegation, tiers, CLI, coding, testing, security, state
-│   ├── docs/                    # INDEX.md registry, change_main.md runbook, design, research, reviews
+│   ├── rules/                   # Policy: delegation, tiers, coding, testing, security, state
+│   ├── docs/                    # INDEX.md registry, design, research, reviews
 │   ├── logs/                    # Runtime logs (git-ignored)
 │   └── checkpoints/             # Session checkpoints (git-ignored)
-│
-├── .agents/                     # Antigravity's native directory
-│   └── AGENTS.md                # Antigravity adapter: headless behaviour and limits
-│
-├── .codex/                      # Codex's native directory
-│   ├── AGENTS.md                # Codex adapter: model config, sandbox discipline, enabled skills
-│   └── config.toml              # Native configuration (never overwritten); skills point to .claude/skills/
 │
 ├── tests/                      # Contract tests for the template's own scripts and docs
 │
 └── scripts/
     ├── check.sh                # Contract, bootstrap, model, and tier coherence checker
     ├── install.sh              # Conflict-aware installer for existing projects
-    └── update.sh               # Template update script
+    └── update.sh               # Template update script (tracks the claude-only branch)
 ```
 
-Every CLI runtime auto-loads root `AGENTS.md`, which is self-contained: response
-structure, handoff rules, how to call another CLI as a subagent, and the
-completion-verification guardrails are all in the file that gets loaded. From
-there each runtime reads its own short adapter (`.codex/AGENTS.md`,
-`.agents/AGENTS.md`) only for what is specific to it. No `CLAUDE.md` exists:
-Claude Code loads `AGENTS.md` only when none is found. Nothing a delegated run depends on sits behind a pointer.
+Claude Code auto-loads root `AGENTS.md`, which is self-contained: response
+structure, handoff rules, and the completion-verification guardrails are all in
+the file that gets loaded. No `CLAUDE.md` exists: Claude Code loads `AGENTS.md`
+only when none is found.
 
-### Stabilizing Codex Integration
+### Verifying Subagent Work
 
-- Use templates from `@.claude/docs/CODEX_HANDOFF_PLAYBOOK.md` to standardize requests to Codex
-- `.claude/rules/codex-delegation.md` defines the "Codex-first delegation" policy and exception conditions
-- `.codex/config.toml` uses `approval_policy = "never"` to prevent blocking in non-interactive flows, and `sandbox_mode = "danger-full-access"` for unrestricted execution
-- The shared wrappers default to the same unrestricted access rather than being quietly stricter than the CLI they wrap, so what an agent may touch does not depend on which path reached it. `--sandbox read-only` (Codex) and `--read-only` (`cli_consult.py`) remain explicit opt-ins for planning and review calls
-- Since nothing confines a delegated run, every wrapper call is bracketed by `.claude/skills/_shared/edit_provenance.py` and records the files it created, changed, or deleted — with `caller` and `label` — to `.claude/logs/cli-tools.jsonl`. That log is how you answer "which subagent changed this?"
+- Subagents are called only through Claude Code's native Agent tool; planning,
+  design, and review delegations are read-only by instruction.
+- A subagent's completion report is never trusted on its own. Bracket a
+  delegation with `.claude/skills/_shared/edit_provenance.py` (`--snapshot`
+  before, `--compare` after) to name exactly the files it touched, then run
+  `.claude/skills/_shared/verify_delegation.py` for deletions, placeholders,
+  weakened tests, and out-of-scope edits (root `AGENTS.md`, "Guardrails").
 
 ## Workflow
 
@@ -248,9 +207,9 @@ The main workflow executes two skills in sequence.
 /team-execute        Phase 1: Parallel implementation → Phase 2: Parallel review (Agent Teams)
 ```
 
-1. **Mode determination**: existing (Codex-direct design) or greenfield (Agent Teams research & design)
+1. **Mode determination**: existing (Opus-consulted design) or greenfield (Agent Teams research & design)
 2. **Opus subagent** analyzes the codebase (1M context) + **Claude** conducts requirements gathering with the user
-3. Existing mode: **Codex** designs, plans, and validates. Greenfield mode: **Agent Teams** — Researcher (Opus) and Architect (Codex) work in parallel
+3. Existing mode: **`general-purpose-opus` consults** design, plan, and validate. Greenfield mode: **Agent Teams** — Researcher and Architect work in parallel
 4. **Claude** integrates research and design, then presents the plan to the user
 5. After approval, `/team-execute` runs parallel implementation by module, then parallel review for security, quality, and testing (`--review-only` skips implementation)
 
@@ -258,7 +217,7 @@ The main workflow executes two skills in sequence.
 
 Each skill is a `SKILL.md` procedure that an agent follows. Steps with exactly
 one correct output for a given input — deriving artifact paths, validating
-document structure, invoking the Codex CLI, running quality gates — are
+document structure, capturing reproductions, running quality gates — are
 delegated to bundled scripts instead of being described in prose, so they cannot
 drift between phases or fail silently. Judgment steps stay in markdown. The
 boundary and the shared script contract (one JSON object on stdout, a common
@@ -276,12 +235,12 @@ One entry point for feature work, with two modes (merger of the old `/add-featur
 ```
 
 **Modes:**
-- **existing** (formerly `/add-feature`) — Codex-first addition to an established codebase: Opus subagent + Codex scope & impact analysis, then Codex architecture design, implementation plan, and validation
-- **greenfield** (formerly `/start-feature`) — large/new feature requiring external research: Opus subagent codebase analysis, then Agent Teams (Researcher [Opus] + Architect [Codex]) perform parallel research & design
+- **existing** (formerly `/add-feature`) — Opus-first addition to an established codebase: Opus subagent scan + Opus scope & impact analysis, then Opus architecture design, implementation plan, and an independent validation
+- **greenfield** (formerly `/start-feature`) — large/new feature requiring external research: Opus subagent codebase analysis, then Agent Teams (Researcher + Architect) perform parallel research & design
 
 **Shared complexity-based routing:**
-- SIMPLE (1-3 files, <50 LOC) → Direct Codex implementation
-- MODERATE (3-5 files) → Codex implementation + `/team-execute --review-only`
+- SIMPLE (1-3 files, <50 LOC) → One implementation subagent (`general-purpose-sonnet`, or `general-purpose-opus` for risky changes)
+- MODERATE (3-5 files) → Implementation subagent + `/team-execute --review-only`
 - COMPLEX (5+ files) → `/team-execute`
 
 #### `/team-execute` — Parallel Implementation + Review (unified)
@@ -300,21 +259,21 @@ Two-phase Agent Teams execution (merger of the old `/team-implement` and `/team-
 
 **Phase 2 REVIEW (reviewer composition):**
 - **Security Reviewer** — Detects security vulnerabilities
-- **Quality Reviewer** — Checks code quality & pattern compliance (leveraging Codex)
+- **Quality Reviewer** — Checks code quality & pattern compliance (with an explicit deep-logic pass)
 - **Test Reviewer** — Validates test coverage & quality
 
 #### `/spike` — Technical Investigation & Feasibility Study
 
-A Codex-first, time-boxed technical investigation. Produces a **decision document** (with go/no-go recommendation). Provides decision-making material, not an implementation plan.
+A deep-reasoning-first, time-boxed technical investigation. Produces a **decision document** (with go/no-go recommendation). Provides decision-making material, not an implementation plan.
 
 ```
 /spike Should we adopt WebSocket or SSE?
 ```
 
 **Workflow:**
-1. **Claude + Codex** → Frame investigation questions & define constraints
-2. **Agent Teams** → Researcher (Opus external research) and Feasibility Analyst (Codex deep analysis) investigate in parallel
-3. **Codex** → Synthesize into go/no-go recommendation & produce research report
+1. **Claude + Opus consult** → Frame investigation questions & define constraints
+2. **Agent Teams** → Researcher (external research) and Feasibility Analyst (structured feasibility analysis) investigate in parallel
+3. **Fresh Opus subagent** → Synthesize into go/no-go recommendation & produce research report
 
 > After a GO decision, proceed to implementation with `/feature`
 
@@ -353,27 +312,27 @@ Simplifies code and improves readability.
 
 #### `/troubleshoot` — Error Diagnosis & Fix Planning
 
-Diagnoses errors and creates fix plans through multi-agent coordination centered on Codex.
+Diagnoses errors and creates fix plans through multi-agent coordination centered on the `debugger` subagent and structured analysis protocols.
 
 ```
 /troubleshoot TypeError: cannot unpack non-iterable NoneType object
 ```
 
 **Workflow:**
-1. **Opus subagent + Codex** → Error reproduction & context collection
-2. **Agent Teams** → Root Cause Analyst (Codex-driven) and Impact Investigator (Opus + Codex) diagnose in parallel
-3. **Claude + Codex** → Fix plan integration & user approval
+1. **Opus subagent + `debugger`** → Error reproduction, context collection & initial hypotheses
+2. **Agent Teams** → Root Cause Analyst and Impact Investigator diagnose in parallel
+3. **Claude + fresh Opus validator** → Fix plan integration & user approval
 
 ### Agent Delegation
 
-#### `/codex-system` — Codex CLI Integration
-
-Used for design decisions, debugging, and trade-off analysis.
+Design decisions, planning, code review, and trade-off analysis go to the
+`general-purpose-opus` subagent; errors with an unproven root cause go to the
+`debugger` subagent. The `agent-router.py` hook suggests the route.
 
 **Trigger examples:**
-- "How should this be designed?" "How should I implement this?"
-- "Why isn't this working?" "I'm getting an error"
-- "Which is better?" "Compare these options"
+- "How should this be designed?" "How should I implement this?" → `general-purpose-opus`
+- "Why isn't this working?" "I'm getting an error" → `debugger`
+- "Which is better?" "Compare these options" → `general-purpose-opus`
 
 ### Documentation
 
@@ -428,7 +387,7 @@ Scans the repository (git history, AGENTS.md, project rules, skill catalog, DESI
 Safely applies template updates to your local project.
 
 ```bash
-# Update to the latest version
+# Update to the latest claude-only version (the updater's default ref)
 ./scripts/update.sh
 
 # Update to a specific version
@@ -444,7 +403,7 @@ writing its template version to a project-owned root `VERSION`:
 
 ```bash
 template_dir="$(mktemp -d)"
-git clone --depth 1 https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git "$template_dir"
+git clone --depth 1 --branch claude-only https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git "$template_dir"
 cp "$template_dir/scripts/install.sh" "$template_dir/scripts/update.sh" scripts/
 chmod +x scripts/install.sh scripts/update.sh
 rm -rf "$template_dir"
@@ -459,13 +418,17 @@ rm -rf "$template_dir"
   preserved. Legacy 2/3-zone `AGENTS.md` or `CLAUDE.md` state is migrated into
   `.claude/STATE.md` before the bootstrap is replaced.
 - Only template-owned runtime subdirectories are atomically synced. Legacy
-  runtime paths under `.agents/` and `.codex/` are removed.
+  runtime paths under `.agents/` are removed, and so are the peer-CLI adapter
+  files the multi-CLI flavour installed (a project's own CLI configuration is
+  left untouched).
+- The updater tracks the `claude-only` branch by default; pass a ref, or set
+  `ORCHESTRA_TEMPLATE_REF`, to update from somewhere else.
 - Real legacy `.agents/{docs,logs,checkpoints}` data and `.agents/STATE.md` are
   moved to `.claude/`; collisions are backed up before missing files are merged.
 - Known legacy `.agents/hooks/` and `.agents/logs/` references in Claude
   settings are migrated to `.claude/`; other settings differences still require
   manual review.
-- `.claude/settings.json` and `.codex/config.toml` are never overwritten; both only show a diff (manual merge required)
+- `.claude/settings.json` is never overwritten; it only shows a diff (manual merge required)
 - The installed template version is stored in `.claude/orchestra-version`; a downstream project's root `VERSION` is never modified
 - If the update modifies `scripts/update.sh` itself (e.g. a new version adds
   template directories such as `.claude/rules/`), **run `./scripts/update.sh` a second
@@ -508,15 +471,14 @@ Automation hooks execute agent coordination and quality checks at the appropriat
 
 | Hook | Trigger | Action |
 |--------|----------|------|
-| `agent-router.py` | User input | Suggests routing to Codex / Opus subagent |
+| `agent-router.py` | User input | Suggests routing to `general-purpose-opus` / `debugger` / `fable-advisor` |
 | `lint-on-save.py` | File save | Auto-runs lint |
-| `check-codex-before-write.py` | Before file write | Suggests consulting Codex |
-| `check-codex-after-plan.py` | After Task execution | Suggests Codex review after planning/design tasks |
-| `post-bash-check.py` | Any Bash tool call | Dispatcher: runs error detection, test-failure analysis, and Codex I/O logging in one process (deduped) |
-| `error-to-codex.py` | Bash error detected | Suggests codex-debugger subagent (invoked in-process by `post-bash-check.py`) |
-| `post-test-analysis.py` | Test/build failure | Suggests debug analysis via Codex (invoked in-process by `post-bash-check.py`) |
-| `post-implementation-review.py` | After large implementation | Suggests code review via Codex |
-| `log-cli-tools.py` | Codex execution | Records I/O logs (invoked in-process by `post-bash-check.py`; also runs standalone on `TaskCompleted`) |
+| `check-design-before-write.py` | Before file write | Suggests a `general-purpose-opus` design review for structural changes |
+| `check-plan-after-task.py` | After a subagent (Task/Agent) completes | Suggests independent validation of planning/design results |
+| `post-bash-check.py` | Any Bash tool call | Dispatcher: runs error detection and test-failure analysis in one process (deduped) |
+| `error-to-debugger.py` | Bash error detected | Suggests the `debugger` subagent (invoked in-process by `post-bash-check.py`) |
+| `post-test-analysis.py` | Test/build failure | Suggests root-cause analysis via the `debugger` subagent (invoked in-process by `post-bash-check.py`) |
+| `post-implementation-review.py` | After large implementation | Suggests a `general-purpose-opus` code review |
 
 ## Language Rules
 

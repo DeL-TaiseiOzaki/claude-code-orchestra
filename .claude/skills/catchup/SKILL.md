@@ -83,8 +83,6 @@ Top-level JSON keys:
   else its `slug`, else the first non-empty body line — never the `---` fence).
 - `agent_teams` — `sessions[{name, members, tasks_total, tasks_completed}]`
   and in-repo `work_logs`.
-- `cli_tools` — recent consultations for **every** tool, each tagged with
-  `tool`, plus `skipped_lines`.
 
 Feed the emitted JSON to Phase 2 as its sole input. For very large repos hand it
 to `general-purpose-opus` for the thematic grouping.

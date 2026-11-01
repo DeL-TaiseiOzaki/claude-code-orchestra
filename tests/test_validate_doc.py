@@ -358,7 +358,7 @@ FEATURE_BRIEF_EXISTING = """\
 g
 ### Scope
 - Include: i
-### Complexity Classification (from Codex)
+### Complexity Classification (from Opus)
 - Classification: SIMPLE
 ### Integration Points
 - a: b
@@ -1083,7 +1083,7 @@ def test_contract_accepts_a_document_rendered_from_its_template(
     agent submits the rendered result, so a required heading that only matches
     while its placeholder is intact (`## Fix Plan ({N} tasks) -- ...`) would
     pass the skeleton test and fail in production. Full prose adequacy is not
-    checkable here — that stays a Codex/user gate."""
+    checkable here — that stays a reviewer/user gate."""
     body = PLACEHOLDER_RE.sub("filled", _template_body(contract, index))
     doc = _write(tmp_path / f"{contract}-{index}-rendered.md", body)
 
@@ -1164,7 +1164,7 @@ def test_deeper_heading_level_still_satisfies_the_contract(tmp_path: Path) -> No
     body = (
         "## Bug Report: x\n### Error\ne\n### Reproduction\nr\n"
         "### Immediate Context\nc\n### Affected Area\na\n"
-        "### Initial Hypotheses (informed by Codex analysis)\nh\n"
+        "### Initial Hypotheses (informed by Opus analysis)\nh\n"
     )
     doc = _write(tmp_path / "bug.md", body)
 
@@ -1197,7 +1197,7 @@ def test_state_doc_accepts_a_minimal_pre_init_state_file(tmp_path: Path) -> None
 def test_state_doc_accepts_working_blocks_appended_by_a_skill(tmp_path: Path) -> None:
     """Working blocks come and go; their presence must not change the verdict."""
     body = (
-        "# Agent State\n\n## Main Agent\n\nCodex\n\n"
+        "# Agent State\n\n## Main Agent\n\nClaude Code\n\n"
         "## Repository Identity\n\nA thing.\n\n"
         "## Progress Tracker\n\n[PROGRESS.md](../PROGRESS.md)\n\n"
         "## Current Feature: auth\n\n### Goal\n\nShip it.\n"

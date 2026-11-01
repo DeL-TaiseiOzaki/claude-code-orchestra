@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Record which files a delegated CLI run actually edited.
+"""Record which files a delegated subagent run actually edited.
 
-The wrappers grant unrestricted write access by default, so "what was this
-subagent allowed to touch?" is no longer an interesting question — "what did
-it touch?" is the only one left, and nothing used to answer it. The consult
-log recorded the prompt, the model, and the response; the ``artifacts`` field
-named the wrapper's *own* log files, never the source files the callee
-rewrote. A delegated run could rewrite the repository and leave no
-machine-readable trace of having done so.
+Implementation subagents run with write access, so "what was this subagent
+allowed to touch?" is not an interesting question — "what did it touch?" is
+the only one left. A subagent's self-report names the files it *meant* to
+change; nothing in it is machine-checked, and a delegated run could rewrite
+the repository and leave no machine-readable trace of having done so.
 
-This module closes that gap. A snapshot is taken immediately before the
-callee starts and another immediately after it exits; the difference is the
-run's edit set. Only the *dirty set* is hashed — the files ``git status``
+This module closes that gap. The caller takes a snapshot immediately before
+the subagent (the callee) starts and compares immediately after it returns;
+the difference is the run's edit set, which is what the caller then reviews
+with ``verify_delegation.py``. Only the *dirty set* is hashed — the files ``git status``
 already considers changed, plus any path carried over from the earlier
 snapshot — so the cost is proportional to the work in flight, not to the size
 of the repository.
@@ -32,7 +31,7 @@ alone, which is why file ownership stays part of the Agent Teams contract.
 
 Outside a git repository the snapshot degrades to ``tracked: false`` and the
 comparison reports empty sets rather than failing: provenance is evidence,
-and its absence must not break the consult that produced it.
+and its absence must not break the delegation that produced it.
 
 Usage:
     python3 edit_provenance.py --snapshot
@@ -64,7 +63,7 @@ EXIT_FAILED = 3
 GIT_TIMEOUT = 60
 
 # Hashing a multi-gigabyte build artifact that happens to be untracked would
-# stall the consult it is supposed to annotate. Past this size the fingerprint
+# stall the delegation it is supposed to annotate. Past this size the fingerprint
 # degrades to the file's length, which still detects the appends and rewrites
 # an agent produces while costing nothing to compute.
 MAX_HASH_BYTES = 8 * 1024 * 1024
@@ -319,8 +318,8 @@ def compare_snapshots(
 def edits_since(project_root: Path, before: dict) -> dict:
     """Take the closing snapshot and return this run's edit set.
 
-    This is the entry point the consult wrappers call: one function so the two
-    of them cannot drift into disagreeing about what "the callee edited this"
+    This is the single entry point behind ``--compare``: one function so no
+    two callers can drift into disagreeing about what "the callee edited this"
     means.
     """
     after, error = take_snapshot(project_root, (before.get("entries") or {}).keys())

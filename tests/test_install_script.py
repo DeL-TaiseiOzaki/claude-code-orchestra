@@ -65,7 +65,13 @@ def run_update(
     *options: str,
     extra_path: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    env = {**os.environ, "ORCHESTRA_TEMPLATE_REPO": str(template)}
+    # The local template repo has only its default branch, so the edition's
+    # default ref (`claude-only`) is overridden with "use the default branch".
+    env = {
+        **os.environ,
+        "ORCHESTRA_TEMPLATE_REPO": str(template),
+        "ORCHESTRA_TEMPLATE_REF": "",
+    }
     if extra_path is not None:
         env["PATH"] = f"{extra_path}{os.pathsep}{env['PATH']}"
     return subprocess.run(
@@ -105,10 +111,11 @@ def test_install_adds_complete_template_without_overwriting_project_version(
         REPO_ROOT / "VERSION"
     ).read_text(encoding="utf-8")
     assert (target / ".claude/docs/INDEX.md").is_file()
-    assert (target / ".claude/docs/change_main.md").is_file()
-    assert (target / ".agents/AGENTS.md").is_file()
     assert (target / ".claude/rules/tiers.md").is_file()
-    assert (target / ".codex/AGENTS.md").is_file()
+    # Claude Code-only edition: no peer-CLI adapter directories are installed.
+    assert not (target / ".agents").exists()
+    assert not (target / ".codex").exists()
+    assert not (target / ".claude/docs/change_main.md").exists()
     assert "## Skill Catalog" in (target / "AGENTS.md").read_text(encoding="utf-8")
     assert not (target / ".claude/rules/orchestration.md").exists()
     assert (target / ".claude/rules").is_dir()
@@ -135,10 +142,6 @@ def test_install_adds_complete_template_without_overwriting_project_version(
         "checkpoints",
     }
     assert not any(path.is_symlink() for path in (target / ".claude").iterdir())
-    assert {path.name for path in (target / ".codex").iterdir()} == {
-        "config.toml",
-        "AGENTS.md",
-    }
     assert (target / "scripts/install.sh").is_file()
     assert (target / "scripts/update.sh").is_file()
     assert (target / ".claude/settings.json").is_file()
@@ -337,53 +340,63 @@ def test_install_preserves_existing_settings_and_writes_merge_candidate(
     assert "settings.orchestra.json" in result.stdout
 
 
-def test_install_preserves_existing_codex_config_and_writes_merge_candidate(
-    tmp_path: Path,
-) -> None:
-    """`.codex/config.toml` is a settings file, not template content.
-
-    It used to sit inside the wholesale-replaced `.codex/` directory, so an
-    install or update silently overwrote a downstream project's model choice,
-    approval policy, and sandbox mode — while `.claude/settings.json`, the same
-    kind of file, was carefully preserved.
-    """
+def test_install_leaves_a_project_codex_config_untouched(tmp_path: Path) -> None:
+    """The Claude Code-only edition no longer manages `.codex/`, but a project
+    may still use that CLI on its own: its config must survive untouched and
+    no merge candidate may be written beside it."""
     target = tmp_path / "project"
     init_git_repo(target)
     config = target / ".codex/config.toml"
     config.parent.mkdir(parents=True)
-    custom_config = 'model = "gpt-5.6-sol-mini"\n'
+    custom_config = 'model = "custom"\n'
     config.write_text(custom_config, encoding="utf-8")
 
     result = run_install(target)
 
     assert result.returncode == 0, result.stderr
     assert config.read_text(encoding="utf-8") == custom_config
-    candidate = target / ".codex/config.orchestra.toml"
-    assert candidate.read_text(encoding="utf-8") == (
-        REPO_ROOT / ".codex/config.toml"
-    ).read_text(encoding="utf-8")
-    assert "config.orchestra.toml" in result.stdout
-    # The adapter beside it is template content and is still installed.
-    assert (target / ".codex/AGENTS.md").is_file()
+    assert {path.name for path in (target / ".codex").iterdir()} == {"config.toml"}
 
 
-def test_update_never_overwrites_codex_config(tmp_path: Path) -> None:
+def test_update_removes_peer_cli_adapters_but_keeps_project_config(
+    tmp_path: Path,
+) -> None:
+    """Upgrading a multi-CLI installation to this edition deletes the
+    template-owned adapter files it no longer ships, and nothing else."""
     template = build_template_repo(tmp_path)
     target = tmp_path / "project"
     init_git_repo(target)
     assert run_install(target, script=template / "scripts/install.sh").returncode == 0
 
-    config = target / ".codex/config.toml"
-    edited = config.read_text(encoding="utf-8").replace(
-        'model_reasoning_effort = "xhigh"', 'model_reasoning_effort = "medium"'
+    stale_template_files = (
+        ".agents/AGENTS.md",
+        ".codex/AGENTS.md",
+        ".claude/docs/change_main.md",
+        ".claude/docs/CODEX_HANDOFF_PLAYBOOK.md",
     )
-    assert edited != config.read_text(encoding="utf-8")
-    config.write_text(edited, encoding="utf-8")
+    for relative_path in stale_template_files:
+        stale = target / relative_path
+        stale.parent.mkdir(parents=True, exist_ok=True)
+        stale.write_text("stale\n", encoding="utf-8")
+    config = target / ".codex/config.toml"
+    config.write_text('model = "custom"\n', encoding="utf-8")
 
     update_result = run_update(target, template)
 
     assert update_result.returncode == 0, update_result.stderr
-    assert config.read_text(encoding="utf-8") == edited
+    for relative_path in stale_template_files:
+        assert not (target / relative_path).exists(), relative_path
+    assert config.read_text(encoding="utf-8") == 'model = "custom"\n'
+
+
+def test_update_defaults_to_the_claude_only_branch() -> None:
+    """Updating from main would reinstall the multi-CLI flavour, so this
+    edition's updater must track its own branch unless told otherwise."""
+    script = (REPO_ROOT / "scripts/update.sh").read_text(encoding="utf-8")
+
+    assert 'DEFAULT_TEMPLATE_REF="${ORCHESTRA_TEMPLATE_REF-claude-only}"' in script
+    assert 'TARGET_REF="${DEFAULT_TEMPLATE_REF}"' in script
+    assert "Default: claude-only" in script
 
 
 def test_install_refuses_parent_symlink_that_escapes_target(tmp_path: Path) -> None:
@@ -465,14 +478,12 @@ def test_install_creates_real_runtime_directories(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     # The runtime is physically owned by .claude/: nothing here is reached
-    # through a link, and nothing is duplicated into .agents/ or .codex/.
-    for directory in (".claude", ".agents", ".codex"):
-        assert not any(path.is_symlink() for path in (target / directory).iterdir())
-    for legacy in ("rules", "skills", "agents", "hooks", "docs"):
-        assert not (target / ".agents" / legacy).exists()
+    # through a link, and no peer-CLI directory is created.
+    assert not any(path.is_symlink() for path in (target / ".claude").iterdir())
+    assert not (target / ".agents").exists()
+    assert not (target / ".codex").exists()
     assert (target / ".claude/agents/general-purpose-opus.md").is_file()
     assert (target / ".claude/skills/context-loader/SKILL.md").is_file()
-    assert not any(path.is_symlink() for path in (target / ".codex").iterdir())
     assert ".claude/hooks/" in (target / ".claude/settings.json").read_text(
         encoding="utf-8"
     )
@@ -503,7 +514,7 @@ def test_update_removes_legacy_agents_runtime_paths(tmp_path: Path) -> None:
     legacy_runtime.mkdir(parents=True)
     (legacy_runtime / "coding-principles.md").write_text("stale\n", encoding="utf-8")
     codex_skills = target / ".codex/skills"
-    codex_skills.mkdir()
+    codex_skills.mkdir(parents=True)
     (codex_skills / "legacy.md").write_text("legacy\n", encoding="utf-8")
     legacy_project_files = {
         "docs/DESIGN.md": "# Legacy design\n",
@@ -526,16 +537,11 @@ def test_update_removes_legacy_agents_runtime_paths(tmp_path: Path) -> None:
 
     assert update_result.returncode == 0, update_result.stderr
     # Template content that moved to .claude/ is removed from .agents/, and
-    # .codex/skills stays removed (Codex resolves skills through config.toml
-    # path= instead).
+    # the pre-2.0 .codex/skills copy is removed as well.
     assert not legacy_runtime.exists()
     assert not codex_skills.exists()
     assert (target / ".claude/rules").is_dir()
     assert not (target / ".claude/rules").is_symlink()
-    assert {path.name for path in (target / ".codex").iterdir()} == {
-        "config.toml",
-        "AGENTS.md",
-    }
     migrated_settings = claude_settings.read_text(encoding="utf-8")
     assert ".claude/hooks/" in migrated_settings
     assert ".agents/hooks/" not in migrated_settings

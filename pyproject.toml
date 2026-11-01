@@ -42,6 +42,9 @@ ignore = [
 
 [tool.ruff.format]
 quote-style = "double"
+# Markdown code blocks are illustrative (deliberately unformatted examples,
+# quoted review evidence), not source; ruff >= 0.16 formats them by default.
+exclude = ["*.md"]
 
 # ============================================================
 # pytest
