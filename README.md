@@ -58,6 +58,20 @@ Then start Claude Code and run `/init` inside it:
 claude
 ```
 
+### Claude Code–only Edition
+
+The [`claude-only`](https://github.com/DeL-TaiseiOzaki/claude-code-orchestra/tree/claude-only)
+branch is a variant that does not use Codex CLI or Antigravity: Codex's planning,
+design, review, and debugging roles are handled by Claude Opus subagents, so only
+`claude` needs to be installed. Install it into an existing Git repository with:
+
+```bash
+template_dir="$(mktemp -d)" && git clone --depth 1 --branch claude-only https://github.com/DeL-TaiseiOzaki/claude-code-orchestra.git "$template_dir" && bash "$template_dir/scripts/install.sh" . && rm -rf "$template_dir"
+```
+
+For a new project, run the same command in a freshly initialized repository
+(`git init`), then start `claude` and run `/init`.
+
 ## Prerequisites
 
 ### Claude Code
