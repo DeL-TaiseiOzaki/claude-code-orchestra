@@ -19,7 +19,7 @@ import json
 import re
 import shlex
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 LOG_DIR = Path(__file__).parent.parent / "logs"
@@ -221,7 +221,7 @@ def process_bash(data: dict) -> str | None:
         # never reached stdout, which is itself a failure worth recording.
         success = bool(result and result.get("ok")) and exit_code == 0
         entry = {
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "tool": cli,
             "via": wrapper_file,
             "model": entry_model,
@@ -244,7 +244,7 @@ def process_bash(data: dict) -> str | None:
         return None
 
     entry = {
-        "timestamp": datetime.now(UTC).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "tool": "codex",
         "via": "codex exec (direct; the shared wrapper is the mandated path)",
         "model": extract_model(command),

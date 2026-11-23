@@ -5,10 +5,12 @@ UserPromptSubmit hook: Route to appropriate agent based on user intent.
 Routing rules (checked in order, most specific first):
 - Design arbitration / stuck problems / final review → Fable advisor (rare)
 - Explicit review/rescue/delegation phrases → Codex Plugin commands
+- Human-facing report drafts, video reading, Japanese polishing → Antigravity
+  (`antigravity-delegate`); suppressed whenever a code-context word is present
 - Planning, design, complex code → Codex CLI
 - Codebase understanding / large analysis / external research → Opus subagent
 
-Multimodal files (PDF/video/audio/image) are handled directly by Claude (Opus 4.7+).
+Images and PDFs are handled directly by Claude; video goes to `antigravity-delegate`.
 """
 
 import json
@@ -205,6 +207,104 @@ CODEX_PLUGIN_TRIGGERS = {
     ],
 }
 
+# Triggers for Antigravity (`antigravity-delegate`): exactly three uses --
+# human-facing report drafts, careful video reading, Japanese prose polishing.
+# Only high-precision phrases are listed, and the Japanese ones are anchored on
+# the request form ("...を書いて", "...を確認して"): a bare "report" or "動画", or
+# a stem such as "レポートを書" (which also matches "書き出す" / "書き込む"),
+# would steal report-generator and video-processing *code* requests from Codex.
+ANTIGRAVITY_TRIGGERS = {
+    "ja": [
+        "推敲",
+        "校正して",
+        "文章を整え",
+        "日本語を自然に",
+        "動画の内容",
+        "動画を見て",
+        "動画を確認して",
+        "動画を精査",
+        "動画を分析",
+        "動画を書き起こ",
+        "報告書を書いて",
+        "報告書を作成して",
+        "報告書にまとめて",
+        "レポートを書いて",
+        "レポートを作成して",
+        "レポートにまとめて",
+    ],
+    "en": [
+        "proofread the japanese",
+        "proofread this japanese",
+        "proofread japanese",
+        "polish the japanese",
+        "polish this japanese",
+        "polish japanese",
+        "japanese prose",
+        "watch the video",
+        "transcribe the video",
+        "what happens in the video",
+        "write a report",
+        "draft a report",
+    ],
+}
+
+# A code-context word anywhere in the prompt suppresses the Antigravity route,
+# so "報告書生成スクリプトを実装して" falls through to Codex or Opus. English
+# entries use ASCII-only boundaries, so they also match inside a Japanese
+# sentence ("CIジョブ", "APIを").
+CODE_CONTEXT_EXCLUSIONS = {
+    "ja": [
+        "実装",
+        "追加",
+        "処理",
+        "コード",
+        "関数",
+        "スクリプト",
+        "機能",
+        "設計",
+        "テスト",
+        "エンドポイント",
+        "パイプライン",
+        "バグ",
+    ],
+    "en": [
+        "implement",
+        "add",
+        "code",
+        "function",
+        "script",
+        "component",
+        "pipeline",
+        "generator",
+        "design",
+        "bug",
+        "test",
+        "api",
+        "cli",
+        "ci",
+        "endpoint",
+    ],
+}
+
+# Polishing prose *about* a design, a feature, or code is still polishing:
+# these triggers ignore the soft exclusions below, so "設計書を推敲して",
+# "機能紹介の文章を校正して", and "polish the japanese in the design doc" route
+# to Antigravity. Hard exclusions (実装, 追加, テスト, "api", ...) still apply.
+POLISH_EXEMPT_TRIGGERS = (
+    "推敲",
+    "校正して",
+    "文章を整え",
+    "日本語を自然に",
+    "proofread the japanese",
+    "proofread this japanese",
+    "proofread japanese",
+    "polish the japanese",
+    "polish this japanese",
+    "polish japanese",
+    "japanese prose",
+)
+POLISH_EXEMPT_EXCLUSIONS = ("設計", "機能", "design", "code")
+
 
 def matches_trigger(trigger: str, prompt_lower: str, lang: str) -> bool:
     """Check one trigger against the lowercased prompt.
@@ -218,6 +318,46 @@ def matches_trigger(trigger: str, prompt_lower: str, lang: str) -> bool:
     if lang != "en":
         return trigger in prompt_lower
     return re.search(rf"\b{re.escape(trigger)}s?\b", prompt_lower) is not None
+
+
+def matches_exclusion(exclusion: str, prompt_lower: str, lang: str) -> bool:
+    """Check one code-context exclusion against the lowercased prompt.
+
+    Japanese exclusions are substrings. English ones use ASCII-only
+    boundaries (with an optional plural "s"), because ``\\b`` treats an
+    adjacent Japanese character as a word character and would miss "CIジョブ".
+    """
+    if lang != "en":
+        return exclusion in prompt_lower
+    pattern = rf"(?<![a-z0-9]){re.escape(exclusion)}s?(?![a-z0-9])"
+    return re.search(pattern, prompt_lower) is not None
+
+
+def detect_antigravity(prompt_lower: str) -> str | None:
+    """Return the matched Antigravity trigger, or None.
+
+    Returns None when no routed-use phrase matches, or when a code-context
+    exclusion is present (so the prompt falls through to Codex or Opus).
+    """
+    matched: str | None = None
+    for lang, triggers in ANTIGRAVITY_TRIGGERS.items():
+        for trigger in triggers:
+            if matches_trigger(trigger, prompt_lower, lang):
+                matched = trigger
+                break
+        if matched is not None:
+            break
+    if matched is None:
+        return None
+
+    is_polish = matched in POLISH_EXEMPT_TRIGGERS
+    for lang, exclusions in CODE_CONTEXT_EXCLUSIONS.items():
+        for exclusion in exclusions:
+            if is_polish and exclusion in POLISH_EXEMPT_EXCLUSIONS:
+                continue
+            if matches_exclusion(exclusion, prompt_lower, lang):
+                return None
+    return matched
 
 
 def detect_agent(prompt: str) -> tuple[str | None, str]:
@@ -244,6 +384,14 @@ def detect_agent(prompt: str) -> tuple[str | None, str]:
         for trigger in triggers:
             if matches_trigger(trigger, prompt_lower, lang):
                 return "codex-plugin", trigger
+
+    # Antigravity triggers (report drafts, video reading, Japanese polishing).
+    # Checked BEFORE the broad Codex keywords so "この文章を推敲して" is not
+    # swallowed by them, but only on high-precision phrases and never when a
+    # code-context word is present.
+    antigravity_trigger = detect_antigravity(prompt_lower)
+    if antigravity_trigger is not None:
+        return "antigravity", antigravity_trigger
 
     # Codex triggers (planning, design, debug, complex code)
     for lang, triggers in CODEX_TRIGGERS.items():
@@ -278,10 +426,26 @@ def main():
                     "additionalContext": (
                         f"[Fable Advisor] Detected '{trigger}' — this may warrant the "
                         "fable-advisor subagent (rare escalation: design arbitration / "
-                        "stuck problems / final review of large changes; read-only, never "
-                        "implements; notes saved to .claude/docs/reviews/). For routine "
+                        "stuck problems / final review of large changes; may land the "
+                        "resolution; notes saved to .claude/docs/reviews/). For routine "
                         "review or implementation, use the normal Codex/team-execute "
                         "routes instead."
+                    ),
+                }
+            }
+            print(json.dumps(output))
+
+        elif agent == "antigravity":
+            output = {
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": (
+                        f"[Antigravity] Detected '{trigger}'. If the task is "
+                        "drafting a human-facing report from supplied sources, "
+                        "reading a video's content, or polishing Japanese prose, "
+                        "delegate to `antigravity-delegate` (Agent tool). Code, "
+                        "design, or review aspects go to Codex, and the final "
+                        "Japanese reply stays with you."
                     ),
                 }
             }

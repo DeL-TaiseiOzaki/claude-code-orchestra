@@ -52,7 +52,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn
 
@@ -326,7 +326,11 @@ def main() -> int:
     root = args.project_root
 
     try:
-        now = datetime.fromisoformat(args.now) if args.now else datetime.now(tz=UTC)
+        now = (
+            datetime.fromisoformat(args.now)
+            if args.now
+            else datetime.now(tz=timezone.utc)
+        )
     except ValueError as exc:
         _emit({"ok": False, "error": f"cannot parse '--now': {exc}", "artifacts": []})
         return EXIT_BAD_INPUT

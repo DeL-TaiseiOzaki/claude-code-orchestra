@@ -16,7 +16,7 @@
 | CLI agent contract            | normative             | `AGENTS.md`                                   | Auto-loaded by every CLI runtime: response, handoff, cross-CLI invocation, guardrails |
 | Tier definitions              | normative             | `.claude/rules/tiers.md`                            | 3-tier hierarchy (default/sol/fable) |
 | Delegation-first policy       | normative             | `.claude/rules/delegation.md`                       | Self-handle list, mandatory triggers, route table, subagent prompt contract |
-| Antigravity adapter           | normative             | `.agents/AGENTS.md`                           | Headless behaviour, why `--read-only` is refused |
+| Antigravity adapter           | normative             | `.agents/AGENTS.md`                           | Headless behaviour, read-only deny rules, three routed uses |
 | Codex adapter                 | normative             | `.codex/AGENTS.md`                            | Codex model config, sandbox discipline, enabled skills |
 | Shared rules                  | normative             | `.claude/rules/`                              | Coding, testing, security, routing, and state rules |
 | Shared skills                 | normative             | `.claude/skills/`                             | Workflow and deterministic helper implementations |

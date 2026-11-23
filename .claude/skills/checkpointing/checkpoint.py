@@ -50,7 +50,7 @@ import sys
 import tempfile
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn
 
@@ -259,7 +259,9 @@ def parse_cli_logs(
     if not log_file.exists():
         return []
 
-    since_dt = datetime.fromisoformat(since).replace(tzinfo=UTC) if since else None
+    since_dt = (
+        datetime.fromisoformat(since).replace(tzinfo=timezone.utc) if since else None
+    )
     try:
         raw = log_file.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -1456,7 +1458,11 @@ def _preflight(args: argparse.Namespace, root: Path) -> Preflight:
         return Preflight(error=message, exit_code=code)
 
     try:
-        now = datetime.fromisoformat(args.now) if args.now else datetime.now(tz=UTC)
+        now = (
+            datetime.fromisoformat(args.now)
+            if args.now
+            else datetime.now(tz=timezone.utc)
+        )
     except ValueError as exc:
         return fail(f"cannot parse '--now': {exc}", EXIT_BAD_ARGS)
     if args.since:

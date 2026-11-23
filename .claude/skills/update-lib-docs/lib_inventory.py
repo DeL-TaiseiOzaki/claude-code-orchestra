@@ -39,10 +39,17 @@ import argparse
 import json
 import re
 import sys
-import tomllib
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import NoReturn
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 has no tomllib; fall back to tomli
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError:
+        tomllib = None  # type: ignore[assignment]
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
@@ -376,6 +383,8 @@ def scan_library(
 
 def _load_toml(path: Path) -> tuple[dict | None, str | None]:
     """Parse a TOML file into (data, error); exactly one is not None."""
+    if tomllib is None:
+        return None, "TOML parsing needs Python 3.11+ or the tomli package"
     try:
         return tomllib.loads(path.read_text(encoding="utf-8")), None
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
@@ -808,7 +817,7 @@ def main() -> int:
             )
             return EXIT_BAD_INPUT
     else:
-        today = datetime.now(tz=UTC).date()
+        today = datetime.now(tz=timezone.utc).date()
 
     library = None
     if args.library is not None:

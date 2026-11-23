@@ -15,7 +15,7 @@ approval_policy = "never"
 # Sandbox mode: default to danger-full-access so Codex can read/write anywhere
 # on the filesystem and reach the network without a caller needing to pass
 # --sandbox on every invocation (2026-07-21 decision, supersedes the
-# 2026-07-18 workspace-write default -- see TEMPLATE_DESIGN_LOG.md). Combined
+# 2026-07-18 workspace-write default -- rationale is recorded in the template repository's design log). Combined
 # with approval_policy = "never" below, this means Codex runs fully
 # unattended with no sandbox and no confirmation prompts. Planning/review
 # consultations should still pass an explicit `--sandbox read-only` flag to

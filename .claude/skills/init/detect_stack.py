@@ -30,9 +30,16 @@ import argparse
 import json
 import re
 import sys
-import tomllib
 from pathlib import Path
 from typing import NoReturn
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 has no tomllib; fall back to tomli
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError:
+        tomllib = None  # type: ignore[assignment]
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
@@ -173,6 +180,9 @@ def collect_pyproject(root: Path, evidence: Evidence) -> None:
     text, error = _read_text(path)
     if text is None:
         evidence.warn(manifest, error or "unreadable")
+        return
+    if tomllib is None:
+        evidence.warn(manifest, "TOML parsing needs Python 3.11+ or the tomli package")
         return
     try:
         data = tomllib.loads(text)

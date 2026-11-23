@@ -29,6 +29,8 @@ logs. Delegate these unless the user explicitly requests otherwise.
 - `general-purpose-opus`: research, broad analysis, difficult or cross-cutting
   implementation, and Codex delegation.
 - `codex-debugger`: root-cause analysis for errors and failed checks.
+- `antigravity-delegate` (Antigravity CLI `agy`, Tier 1): human-facing report
+  drafts, detailed video reading, Japanese polishing; returns text only.
 - Codex CLI / Tier 2 `sol`: design, planning, complex implementation, and deep
   debugging. Its work must be independently verified.
 - `fable-advisor` / Tier 3 `fable`: rare arbitration, unblocking, and final
@@ -52,6 +54,8 @@ fewer, named gates and skill-bundled lead scripts, and user-facing interaction.
   `general-purpose-opus` or the `codex-system` skill.
 - External research and large-context analysis → `general-purpose-opus`.
 - Unknown root cause → `codex-debugger`.
+- Report drafts for humans, video content, Japanese prose polishing →
+  `antigravity-delegate`; the main agent verifies and writes the final reply.
 - Repeatedly stuck or high-stakes arbitration → `fable-advisor`.
 
 Delegate as soon as any trigger fires — do not investigate first and then
@@ -130,9 +134,7 @@ task before acting.
   auto-loads: response structure, handoff, cross-CLI subagent invocation, and
   the completion-verification guardrails. It is self-contained — nothing in it
   requires opening another file first — and it routes the main agent here.
-- `.agents/` holds the tool-neutral subagent schema — `AGENTS.md` (the CLI
-  subagent contract), `tiers.md`, `INDEX.md`, `change_main.md`, `check.sh`, and
-  the `workflows/` adapters for non-Claude CLIs.
+- `.agents/` is Antigravity's native directory; it holds only its `AGENTS.md` adapter.
 - `.codex/` holds Codex's own schema — `AGENTS.md` and `config.toml`, whose
   `skills.config` `path=` entries point directly at `.claude/skills/`.
 - Shared content is referenced by path, never copied: no rules, hooks, docs,

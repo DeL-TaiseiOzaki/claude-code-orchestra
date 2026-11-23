@@ -63,6 +63,7 @@ Do NOT delegate to Codex when:
   security/concurrency/data-integrity risk, or repeated failure) → `general-purpose-opus`
 - **Codebase analysis** → `general-purpose-opus` (Opus 1M context)
 - **External information retrieval / web research** → `general-purpose-opus` (WebSearch/WebFetch)
+- **Report drafting from supplied sources, video content reading, Japanese prose polishing** → `antigravity-delegate` (any code, design, debugging, or review aspect still goes to Codex)
 
 ## Hook-Detected Triggers
 

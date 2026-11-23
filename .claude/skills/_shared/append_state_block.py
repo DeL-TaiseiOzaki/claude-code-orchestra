@@ -36,7 +36,7 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn
 
@@ -377,7 +377,7 @@ def compose_identity(data: dict, original_text: str) -> Composition:
 def _parse_now(raw: str | None) -> datetime:
     """Read the clock exactly once, or parse the injected ``--now`` value."""
     if raw is None:
-        return datetime.now(tz=UTC)
+        return datetime.now(tz=timezone.utc)
     return datetime.fromisoformat(raw)
 
 

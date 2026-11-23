@@ -17,11 +17,23 @@ overrides need dedicated validation, so it keeps its own wrapper and there is
 exactly one implementation per callee CLI.
 
 Access is unrestricted unless ``--read-only`` is passed, mapped onto each
-CLI's native permission flag, so the granted access is always visible in the
-call rather than inherited from whatever the callee's own configuration
-happens to say. A callee whose headless mode cannot be confined — Antigravity
-auto-approves every tool call — refuses ``--read-only`` instead of accepting
-it and running unrestricted anyway.
+CLI's native mechanism so the granted access is visible in the call: Claude
+``--permission-mode bypassPermissions`` / ``plan``; Antigravity
+``--dangerously-skip-permissions`` / session-only ``--settings`` deny rules for
+``write_file(*)``, ``command(*)``, ``mcp(*)``, ``read_url(*)``, and
+``execute_url(*)`` (deny outranks the user's own allow rules; ``--mode plan`` is
+not read-only and is never used).
+``--add-dir DIR`` (repeatable) adds a directory outside the repository, such as
+media, to the callee's workspace for one run, as an absolute path.
+
+Antigravity runs with ``--output-format json`` and the prompt attached as the
+final argv element (``-p=<prompt>``). agy exits 0 with ``SUCCESS`` even after
+refusing work, so a non-``SUCCESS`` status, an empty ``response``, or a
+non-JSON envelope fails the run (raw stdout kept in the response file), and
+``denied_actions``, soft-deny stderr, and deny-rule messages become
+``warnings``. ``--resume`` is refused: agy restores no history in print mode.
+A prompt over Linux's single-argument limit (``MAX_ARG_STRLEN``, 128 KiB) is
+refused before anything is spawned; pass long inputs by absolute path.
 
 Because the default is unrestricted, every run is bracketed by an
 ``edit_provenance`` snapshot and the resulting ``edits`` object names the
@@ -36,7 +48,8 @@ stays diagnosable after the fact.
 Usage:
     python3 cli_consult.py --cli claude --prompt-file p.txt --label design-review
     echo "Objective: ..." | python3 cli_consult.py --cli antigravity --prompt-stdin
-    python3 cli_consult.py --cli claude --prompt-file p.txt --read-only
+    python3 cli_consult.py --cli antigravity --prompt-file p.txt --read-only \
+        --add-dir /abs/path/to/media
     python3 cli_consult.py --cli claude --prompt-file p.txt --caller feature-lead
     python3 cli_consult.py --cli claude --prompt-file p.txt \
         --cli-arg=--max-turns --cli-arg 8
@@ -44,12 +57,14 @@ Usage:
 Exit codes:
     0  the callee CLI exited 0, did not report an error, and its output was
        saved and verified
-    1  bad args (missing/both prompt sources, unreadable prompt file, bad --cwd,
-       unparseable --now, rejected passthrough argument, flag unsupported by
-       the chosen CLI)
+    1  bad args (missing/both prompt sources, unreadable prompt file, bad --cwd
+       or --add-dir, unparseable --now, rejected passthrough argument, flag
+       unsupported by the chosen CLI, prompt over the single-argv limit)
     2  the callee CLI is not on PATH
-    3  the callee CLI failed, reported an error, or timed out, or a log file
-       could not be written, created, or verified
+    3  the callee CLI could not be started, failed, reported an error (for
+       Antigravity: a non-SUCCESS status, an empty response, or an
+       unparseable envelope), or timed out, or a log file could not be
+       written, created, or verified
 """
 
 import argparse
@@ -60,20 +75,39 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn
 
 import edit_provenance
+from agy_envelope import antigravity_warnings, extract_antigravity_result
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
 DEFAULT_TIMEOUT = 900
 LABEL_RE = re.compile(r"^[a-z0-9-]+$")
 
+# Linux caps one argv string at MAX_ARG_STRLEN (131072 bytes, NUL included);
+# a longer element makes exec fail with E2BIG. Applied on every platform.
+MAX_ARG_BYTES = 131_071
+
+# Session-only deny rules for a read-only Antigravity run (`--settings` is
+# never saved). `command(*)` also blocks read-only shell use, so the callee
+# must read with its file-view tools. Reads are not confined to the workspace,
+# so URL fetch and browser actions are denied too (defence in depth: agy 1.5.14
+# print mode offers neither). `search_web` has no deny action and stays usable.
+ANTIGRAVITY_READ_ONLY_DENY_RULES = tuple(
+    "write_file(*) command(*) mcp(*) read_url(*) execute_url(*)".split()
+)
+ANTIGRAVITY_READ_ONLY_SETTINGS = json.dumps(
+    {"permissions": {"deny": list(ANTIGRAVITY_READ_ONLY_DENY_RULES)}},
+    separators=(",", ":"),
+)
+
 # Per-callee headless contract. `read_only` / `write` are the native permission
-# flags this wrapper maps its access choice onto; `install_hint` is what a caller
-# sees when the CLI is missing.
+# flags this wrapper maps its access choice onto; `output_flags` and
+# `prompt_flag` place the prompt; `install_hint` is what a caller sees when the
+# CLI is missing.
 CLI_SPECS: dict[str, dict] = {
     "claude": {
         "base": ["claude", "-p", "--output-format", "json"],
@@ -81,20 +115,30 @@ CLI_SPECS: dict[str, dict] = {
         "write": ["--permission-mode", "bypassPermissions"],
         "model_flag": "--model",
         "resume_flag": "--resume",
+        "resume_refusal": None,
+        "add_dir_flag": "--add-dir",
+        "output_flags": [],
+        # Positional: the prompt is the bare final argv element.
+        "prompt_flag": None,
         "install_hint": "install with `npm install -g @anthropic-ai/claude-code`",
     },
     "antigravity": {
-        # Antigravity's headless mode auto-approves every tool call, including
-        # `write_file` (google-antigravity/antigravity-cli#45). That made it
-        # unusable while the wrappers were read-only by default; under an
-        # unrestricted default it simply means `read_only` has no
-        # implementation to map onto, which `--read-only` reports as an error
-        # rather than granting write access under a read-only-looking flag.
-        "base": ["agy", "-p"],
-        "read_only": None,
-        "write": [],
+        "base": ["agy"],
+        "read_only": ["--settings", ANTIGRAVITY_READ_ONLY_SETTINGS],
+        # Matches Claude's bypassPermissions and Codex's danger-full-access.
+        # agy's own default (`auto`) lets an LLM risk judge soft-deny steps
+        # while the run still exits 0, which is not "unrestricted".
+        "write": ["--dangerously-skip-permissions"],
         "model_flag": "--model",
         "resume_flag": None,
+        "resume_refusal": (
+            "agy accepts --conversation but does not restore history in print mode"
+        ),
+        "add_dir_flag": "--add-dir",
+        "output_flags": ["--output-format", "json"],
+        # `-p` takes the prompt as its value, so it must come last; the
+        # attached form keeps flag and prompt in one argv element.
+        "prompt_flag": "-p",
         "install_hint": "install the Antigravity CLI so that `agy` is on PATH",
     },
 }
@@ -104,17 +148,27 @@ CLI_SPECS: dict[str, dict] = {
 # single visible statement of access, not something a passthrough can quietly
 # contradict. This still matters now that the default is unrestricted — the
 # denylist is about where access is *declared*, not about which way it points.
-CLI_ARG_DENYLIST = (
+#
+# Substring match: any spelling of these names an access decision.
+CLI_ARG_ACCESS_SUBSTRINGS = (
     "permission-mode",
-    "approval-mode",
     "allowedtools",
     "allowed-tools",
     "disallowedtools",
     "disallowed-tools",
-    "yolo",
     "sandbox",
     "dangerously",
 )
+# Exact match only: `mode` is a substring of `--model` and `--fallback-model`.
+CLI_ARG_ACCESS_EXACT = frozenset({"mode", "settings"})
+# Flags the wrapper sets itself (or deliberately does not offer), also exact.
+CLI_ARG_WRAPPER_EXACT = frozenset(
+    "add-dir conversation continue c resume r output-format input-format "
+    "print prompt p prompt-interactive i remote-agent remote-control".split()
+)
+# Flags that make the callee process itself write a file (agy's own CLI log) to
+# a caller-chosen path; no deny rule covers that, so --read-only could not.
+CLI_ARG_SIDE_EFFECT_EXACT = frozenset({"log-file"})
 
 EXIT_OK = 0
 EXIT_BAD_ARGS = 1
@@ -174,9 +228,11 @@ def parse_now(value: str | None) -> tuple[datetime | None, str | None]:
     payload agrees, and so a test can pin the log names it then inspects.
     """
     if value is None:
-        return datetime.now(tz=UTC), None
+        return datetime.now(tz=timezone.utc), None
+    # Python 3.10's fromisoformat rejects the "Z" designator that 3.11 accepts.
+    normalized = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
     try:
-        return datetime.fromisoformat(value), None
+        return datetime.fromisoformat(normalized), None
     except ValueError:
         return None, f"--now must be an ISO 8601 timestamp, got {value!r}"
 
@@ -251,23 +307,93 @@ def reserve_log_stem(
     )
 
 
-def validate_cli_args(cli_args: list[str]) -> str | None:
+def validate_cli_args(cli_args: list[str | list]) -> str | None:
     """Return an error message if any ``--cli-arg`` passthrough is unusable.
 
     Non-flag entries are flag *values* (``--cli-arg --max-turns --cli-arg 8``)
     and pass through untouched: each is its own argv element, never shell-
-    expanded. Only flags are screened, against the access denylist.
+    expanded. Only flags are screened: access flags against the access
+    denylist, and the flags the wrapper itself owns by exact name.
     """
-    for raw in cli_args:
+    for entry in cli_args:
+        # Python 3.10's argparse strips a lone "--" from an option value and
+        # stores an empty list in its place.
+        raw = entry if isinstance(entry, str) else "--"
         if not raw.startswith("-"):
             continue
-        stripped = raw.lstrip("-").split("=", 1)[0].lower()
-        if any(denied in stripped for denied in CLI_ARG_DENYLIST):
+        name = raw.lstrip("-").split("=", 1)[0].lower()
+        if not name:
+            return (
+                f"--cli-arg {raw!r} is refused: it would end option parsing "
+                "before the flags and prompt the wrapper appends"
+            )
+        if name in CLI_ARG_ACCESS_EXACT or any(
+            denied in name for denied in CLI_ARG_ACCESS_SUBSTRINGS
+        ):
             return (
                 f"--cli-arg {raw!r} is refused: use --read-only (or its "
                 "absence) so the granted access stays visible in the call"
             )
+        if name in CLI_ARG_WRAPPER_EXACT:
+            return (
+                f"--cli-arg {raw!r} is refused: the wrapper sets this flag "
+                "itself; use its own option where one exists (--add-dir, "
+                "--resume)"
+            )
+        if name in CLI_ARG_SIDE_EFFECT_EXACT:
+            return (
+                f"--cli-arg {raw!r} is refused: it makes the callee write its "
+                "own log to a caller-chosen path, which --read-only cannot block"
+            )
     return None
+
+
+def build_argv(
+    spec: dict,
+    *,
+    write_access: bool,
+    model: str | None,
+    add_dirs: list[str],
+    resume: str | None,
+    cli_args: list[str],
+    prompt: str,
+) -> list[str]:
+    """Assemble the callee argv; the prompt is always the final element."""
+    argv = [*spec["base"], *(spec["write"] if write_access else spec["read_only"])]
+    if model is not None:
+        argv.extend([spec["model_flag"], model])
+    # Attached form: Claude's --add-dir is variadic and would otherwise
+    # swallow the positional prompt as one more directory.
+    argv.extend(f"{spec['add_dir_flag']}={directory}" for directory in add_dirs)
+    if resume is not None:
+        argv.extend([spec["resume_flag"], resume])
+    argv.extend(cli_args)
+    argv.extend(spec["output_flags"])
+    # Never shell-expanded. agy's -p consumes its value, so it is attached
+    # (-p=<prompt>) and last. agy still checks that value against its own flag
+    # names: a prompt that is exactly a flag token (`--model`, `--model=x`,
+    # `-c`) exits 2 in either form, reported as exit 3 with stderr saved.
+    prompt_flag = spec["prompt_flag"]
+    argv.append(prompt if prompt_flag is None else f"{prompt_flag}={prompt}")
+    return argv
+
+
+def oversized_argv_error(argv: list[str]) -> str | None:
+    """Return an error if any argv element exceeds the single-argument limit.
+
+    An oversized element makes ``exec`` fail with E2BIG; refusing it here
+    turns that into an argument error the caller can act on. Only the prompt
+    can be the culprit: every other element arrived through this wrapper's
+    own argv (already under the limit) or is a short constant or path.
+    """
+    longest = max(len(arg.encode("utf-8", errors="surrogateescape")) for arg in argv)
+    if longest <= MAX_ARG_BYTES:
+        return None
+    return (
+        f"prompt exceeds the single-argv limit ({longest} bytes > "
+        f"{MAX_ARG_BYTES}); pass long inputs by absolute path and let the "
+        "callee read them"
+    )
 
 
 def extract_claude_result(stdout_text: str) -> tuple[str, str | None, bool]:
@@ -306,7 +432,8 @@ def _not_found_report(cli: str, model: str | None, write_access: bool) -> dict:
     }
 
 
-def main() -> int:  # noqa: C901 — single-function CLI entry point
+def build_parser() -> JsonArgumentParser:
+    """Define the command line."""
     parser = JsonArgumentParser(
         description="Invoke a peer CLI agent as a subagent and capture its output.",
     )
@@ -331,8 +458,23 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         "--read-only",
         action="store_true",
         help=(
-            "Deny the callee write access (default: unrestricted). Not every "
-            "callee can enforce this; one that cannot refuses the flag."
+            "Deny the callee write access (default: unrestricted). claude: "
+            "--permission-mode plan. antigravity: session deny rules for "
+            "write_file, command, mcp, read_url, and execute_url (writes, "
+            "shell, MCP, and URL fetches are blocked; web search is not; reads "
+            "use file-view tools)."
+        ),
+    )
+    parser.add_argument(
+        "--add-dir",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="DIR",
+        help=(
+            "Add an existing directory to the callee's workspace for this run "
+            "(repeatable), e.g. media outside the repository. Sent as an "
+            "absolute path."
         ),
     )
     parser.add_argument(
@@ -352,7 +494,10 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     parser.add_argument(
         "--resume",
         default=None,
-        help="Continue a prior session by id (claude only)",
+        help=(
+            "Continue a prior session by id (claude only; antigravity does "
+            "not restore history in print mode)"
+        ),
     )
     parser.add_argument(
         "--timeout",
@@ -374,8 +519,10 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         help=(
             "Forward one extra argument to the callee (repeatable). A value "
             "starting with '-' must use the '=' form, which argparse can "
-            "read: --cli-arg=--max-turns --cli-arg 8. Permission and sandbox "
-            "flags are refused; use --read-only."
+            "read: --cli-arg=--max-turns --cli-arg 8. Permission, sandbox, "
+            "mode, and settings flags are refused (use --read-only), and so "
+            "are flags the wrapper sets itself (prompt, output format, "
+            "add-dir, resume/continue) and agy's --log-file."
         ),
     )
     parser.add_argument(
@@ -389,7 +536,11 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         default=PROJECT_ROOT,
         help="Repository root (defaults to 4 levels above this script)",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> int:  # noqa: C901 — single-function CLI entry point
+    args = build_parser().parse_args()
     project_root = args.project_root
     spec = CLI_SPECS[args.cli]
 
@@ -415,27 +566,21 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         _emit({"ok": False, "error": f"--cwd is not a directory: {args.cwd}"})
         return EXIT_BAD_ARGS
 
+    # --- Validate --add-dir; absolute, so the callee's cwd cannot reinterpret it ---
+    for directory in args.add_dir:
+        if not directory.is_dir():
+            _emit({"ok": False, "error": f"--add-dir is not a directory: {directory}"})
+            return EXIT_BAD_ARGS
+    add_dirs = [str(directory.resolve()) for directory in args.add_dir]
+
     # --- Reject flags the chosen callee has no equivalent for ---
     if args.resume is not None and spec["resume_flag"] is None:
         _emit(
             {
                 "ok": False,
-                "error": f"--resume is not supported for --cli {args.cli}",
-            }
-        )
-        return EXIT_BAD_ARGS
-
-    # Refusing is the honest answer: silently running unrestricted under a
-    # flag that says read-only would make the call itself a lie about the
-    # access it granted.
-    if args.read_only and spec["read_only"] is None:
-        _emit(
-            {
-                "ok": False,
                 "error": (
-                    f"--read-only is not supported for --cli {args.cli}: its "
-                    "headless mode auto-approves every tool call, so the "
-                    "restriction cannot be enforced from the caller"
+                    f"--resume is not supported for --cli {args.cli}: "
+                    f"{spec['resume_refusal']}"
                 ),
             }
         )
@@ -466,9 +611,27 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     write_access = not args.read_only
     caller = args.caller or os.environ.get("ORCHESTRA_CALLER") or None
     model = args.model
+    argv = build_argv(
+        spec,
+        write_access=write_access,
+        model=model,
+        add_dirs=add_dirs,
+        resume=args.resume,
+        cli_args=args.cli_arg,
+        prompt=prompt,
+    )
+
+    # --- Refuse an argv exec would reject, before spending anything on it ---
+    oversized_error = oversized_argv_error(argv)
+    if oversized_error:
+        _emit({"ok": False, "cli": args.cli, "error": oversized_error})
+        return EXIT_BAD_ARGS
 
     # --- the callee must be resolvable on PATH before we attempt to run it ---
-    if shutil.which(spec["base"][0]) is None:
+    # The resolved path is what runs: exec's own PATH walk would skip an
+    # entry it cannot execute and silently start a later same-named binary.
+    executable = shutil.which(spec["base"][0])
+    if executable is None:
         _emit(_not_found_report(args.cli, model, write_access))
         return EXIT_NOT_FOUND
 
@@ -504,15 +667,6 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         return EXIT_FAILED
 
     cwd = args.cwd if args.cwd is not None else project_root
-    argv = list(spec["base"])
-    argv.extend(spec["write"] if write_access else spec["read_only"])
-    if model is not None:
-        argv.extend([spec["model_flag"], model])
-    if args.resume is not None:
-        argv.extend([spec["resume_flag"], args.resume])
-    argv.extend(args.cli_arg)
-    # The prompt is always the final argv element and is never shell-expanded.
-    argv.append(prompt)
 
     timed_out = False
     error: str | None = None
@@ -529,6 +683,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     try:
         result = subprocess.run(
             argv,
+            executable=executable,
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
@@ -544,18 +699,41 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         stderr_text = _as_text(exc.stderr)
         error = f"{args.cli} timed out after {args.timeout}s"
     except FileNotFoundError:
-        # Defensive fallback: PATH changed between the shutil.which check
-        # above and this call, or the resolved entry was not executable.
+        # Defensive fallback: the resolved callee vanished between the
+        # shutil.which check above and this call.
         _emit(_not_found_report(args.cli, model, write_access))
         return EXIT_NOT_FOUND
+    except OSError as exc:
+        # exec itself failed (not executable, exec format error, E2BIG from
+        # the total argv + environment size): a JSON error, never a traceback.
+        error = f"cannot start {args.cli}: {exc}"
     duration_sec = round(time.monotonic() - start, 3)
     edits = edit_provenance.edits_since(project_root, before_snapshot)
 
     session_id: str | None = None
     reported_error = False
     response_text = stdout_text
+    # Every callee and every failure path reports `denied_actions` as a list.
+    envelope: dict = {
+        "conversation_id": None,
+        "status": None,
+        "denied_actions": [],
+        "error": None,
+    }
+    warnings: list[str] = []
     if args.cli == "claude" and not timed_out:
         response_text, session_id, reported_error = extract_claude_result(stdout_text)
+    if args.cli == "antigravity" and not timed_out and error is None:
+        envelope = extract_antigravity_result(stdout_text)
+        response_text = envelope["response"]
+        warnings.extend(
+            antigravity_warnings(envelope["denied_actions"], stderr_text, response_text)
+        )
+    if args.read_only and edits.get("files_total"):
+        warnings.append(
+            f"{edits['files_total']} file(s) recorded as edited under --read-only "
+            "(possibly a concurrent writer); inspect `edits`"
+        )
 
     artifacts = [
         _repo_relative(prompt_path, project_root),
@@ -575,16 +753,16 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         write_failure = _verify_written(response_path, response_text)
         response_verified = write_failure is None
 
-    ok = exit_code == 0 and not timed_out and not reported_error
-    if not ok and error is None:
-        error = (
-            f"{args.cli} reported an error in its result envelope"
-            if reported_error
-            else f"{args.cli} exited with code {exit_code}"
-        )
+    if error is None:
+        if reported_error:
+            error = f"{args.cli} reported an error in its result envelope"
+        elif exit_code != 0:
+            error = f"{args.cli} exited with code {exit_code}"
+        elif envelope["error"] is not None:
+            error = envelope["error"]
     if write_failure is not None:
         error = write_failure if error is None else f"{error}; and {write_failure}"
-        ok = False
+    ok = error is None
 
     _emit(
         {
@@ -595,8 +773,13 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             "caller": caller,
             "label": args.label,
             "write_access": write_access,
+            "add_dirs": add_dirs,
             "edits": edits,
             "session_id": session_id,
+            "conversation_id": envelope["conversation_id"],
+            "envelope_status": envelope["status"],
+            "denied_actions": envelope["denied_actions"],
+            "warnings": warnings,
             "timed_out": timed_out,
             "duration_sec": duration_sec,
             "prompt_file": _repo_relative(prompt_path, project_root),

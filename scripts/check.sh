@@ -113,7 +113,10 @@ print(d.get('env', {}).get('CODEX_MODEL', ''))
 
     # Extract distinct fallback values from ${CODEX_MODEL:-...} patterns
     local fallbacks
-    fallbacks=$(grep -rhoE '\$\{CODEX_MODEL:-[^}]+\}' "${ROOT}/.claude/" "${ROOT}/.codex/" 2>/dev/null \
+    # Generated run logs can quote this very pattern (a consult that read
+    # check.sh), so they are not part of the shared configuration.
+    fallbacks=$(grep -rhoE --exclude-dir=logs '\$\{CODEX_MODEL:-[^}]+\}' \
+        "${ROOT}/.claude/" "${ROOT}/.codex/" 2>/dev/null \
         | sed 's/.*:-\(.*\)}/\1/' \
         | sort -u \
         | grep -v 'gpt-5.5-mini' || true)
@@ -441,6 +444,58 @@ check_skill_scripts() {
     ${ok}
 }
 check "Skill scripts and docs in sync" check_skill_scripts
+
+# --------------------------------------------------------------------------
+# 9) Peer-CLI routing: Antigravity is a formally routed Tier 1 subagent, not
+#    just a callable wrapper target, and CLAUDE.md describes .agents/ truthfully.
+# --------------------------------------------------------------------------
+check_peer_cli_routing() {
+    local ok=true
+    local agent="${ROOT}/.claude/agents/antigravity-delegate.md"
+
+    if [[ ! -f "${agent}" ]]; then
+        echo "  Missing agent definition: .claude/agents/antigravity-delegate.md"
+        return 1
+    fi
+    grep -Fxq 'model: sonnet' "${agent}" || {
+        echo "  antigravity-delegate.md must declare 'model: sonnet'"
+        ok=false
+    }
+    grep -Fq 'cli_consult.py --cli antigravity' "${agent}" || {
+        echo "  antigravity-delegate.md must call 'cli_consult.py --cli antigravity'"
+        ok=false
+    }
+    # The flag must sit in the command itself; prose such as "never omit
+    # `--read-only`" must not be able to satisfy the check on its own.
+    grep -Fq -- 'cli_consult.py --cli antigravity --read-only' "${agent}" || {
+        echo "  antigravity-delegate.md must call 'cli_consult.py --cli antigravity --read-only'"
+        ok=false
+    }
+    grep -Fq 'antigravity-delegate' "${ROOT}/.claude/rules/delegation.md" || {
+        echo "  delegation.md does not route to antigravity-delegate"
+        ok=false
+    }
+    grep -Fq 'Antigravity' "${ROOT}/.claude/rules/tiers.md" || {
+        echo "  tiers.md does not place Antigravity in a tier"
+        ok=false
+    }
+
+    # The .agents/ bullet used to list a workflows/ tree, tiers.md, and
+    # check.sh that no longer live there.
+    local agents_bullet
+    agents_bullet=$(awk '/^- `\.agents\/`/ {found = 1; print; next}
+        found && /^- / {exit} found {print}' "${ROOT}/CLAUDE.md")
+    local stale
+    for stale in 'workflows/' 'tiers.md' 'check.sh'; do
+        if grep -Fq "${stale}" <<< "${agents_bullet}"; then
+            echo "  CLAUDE.md .agents/ bullet still mentions ${stale}"
+            ok=false
+        fi
+    done
+
+    ${ok}
+}
+check "Peer CLI routing" check_peer_cli_routing
 
 # --------------------------------------------------------------------------
 # Summary

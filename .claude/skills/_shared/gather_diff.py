@@ -47,7 +47,7 @@ import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn
 
@@ -345,7 +345,7 @@ def coverage_snapshot(root: Path, scope: dict) -> tuple[dict | None, list[str]]:
     mtime_iso = (
         None
         if report_mtime is None
-        else datetime.fromtimestamp(report_mtime, tz=UTC).isoformat()
+        else datetime.fromtimestamp(report_mtime, tz=timezone.utc).isoformat()
     )
     if stale:
         warnings.append(

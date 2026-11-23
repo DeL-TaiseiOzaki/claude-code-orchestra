@@ -291,6 +291,15 @@ backup_conflicts() {
     warn "Conflicting paths were backed up to ${BACKUP_ROOT}"
 }
 
+# Remove ignored Python bytecode that cp -a copied from the local working tree.
+# Scoped strictly to the destination path passed in.
+prune_bytecode() {
+    local destination="$1"
+    [[ -d "${destination}" ]] || return 0
+    find "${destination}" -name __pycache__ -type d -prune -exec rm -rf -- {} +
+    find "${destination}" -name '*.pyc' -type f -delete
+}
+
 copy_owned_paths() {
     local path destination temporary
     for path in "${TEMPLATE_OWNED_DIRS[@]}"; do
@@ -298,6 +307,7 @@ copy_owned_paths() {
         rm -rf -- "${destination}"
         mkdir -p "$(dirname "${destination}")"
         cp -a "${SOURCE_ROOT}/${path}" "${destination}"
+        prune_bytecode "${destination}"
         info "Installed ${path}/"
     done
 

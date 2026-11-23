@@ -19,6 +19,13 @@ and referenced by skills, rules, and configuration.
   `.claude/settings.json`.
 - **Tier-1 norm**: Implementation-work subagents run on Sonnet; research and
   large-scale analysis subagents stay on Opus (1M context window).
+- **Peer CLI executor**: Antigravity CLI (`agy`) runs as a Tier 1 executor
+  through `antigravity-delegate` → `cli_consult.py --cli antigravity
+  --read-only`, limited to human-facing report drafts, careful video reading,
+  and Japanese prose polishing. It returns text; the caller verifies and
+  integrates it, and the main agent alone writes the final reply. It never
+  takes Tier 2 work (design, planning, debugging, review) or Tier 3
+  arbitration.
 
 ## Tier 2 -- `sol` (Long-Duration Executor)
 

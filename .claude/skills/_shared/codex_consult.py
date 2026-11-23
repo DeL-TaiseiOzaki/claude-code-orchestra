@@ -54,7 +54,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn
 
@@ -141,7 +141,7 @@ def parse_now(value: str | None) -> tuple[datetime | None, str | None]:
     payload agrees, and so a test can pin the log names it then inspects.
     """
     if value is None:
-        return datetime.now(tz=UTC), None
+        return datetime.now(tz=timezone.utc), None
     try:
         return datetime.fromisoformat(value), None
     except ValueError:

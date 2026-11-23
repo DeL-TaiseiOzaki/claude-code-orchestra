@@ -3,7 +3,7 @@
 # scripts/update.sh — Claude Code Orchestra Template Updater
 #
 # Fetches the latest version of the claude-code-orchestra template and safely
-# updates local files. Template-owned content is centralized under .agents/;
+# updates local files. Template-owned content is centralized under .claude/;
 # mutable project context is preserved in .claude/STATE.md and .claude/docs/.
 #
 # Usage:
@@ -59,13 +59,46 @@ SAFE_FILES=(
 # Each entry MUST start with "." (a dotfile/dot-dir) to keep the blast
 # radius scoped to template-owned locations.
 DEPRECATED_PATHS=(
-    ".gemini"
     ".agents/workflows"
     ".agents/rules"
     ".agents/skills"
     ".agents/agents"
     ".agents/hooks"
     ".codex/skills"
+)
+
+# Individual files the old template shipped inside a directory the user may
+# also own. `.gemini/` is the Gemini CLI's own directory, so it is never removed
+# as a whole: only these three files (the complete set the template installed)
+# are moved into a backup (and only when their content is a shipped template
+# version), and a parent directory is removed only if that left it
+# empty. Same rules as DEPRECATED_PATHS: relative, no "..", starts with ".".
+DEPRECATED_TEMPLATE_FILES=(
+    ".gemini/GEMINI.md"
+    ".gemini/settings.json"
+    ".gemini/skills/context-loader/SKILL.md"
+)
+
+# "<path>:<git blob hash>" for every version of those three files the template
+# ever shipped (taken from git history). A file is moved only when its content
+# hashes to one of these, so a Gemini CLI config the user customized (or created
+# themselves at the same path) is left in place and reported instead.
+KNOWN_TEMPLATE_BLOBS=(
+    ".gemini/GEMINI.md:08fc6214cd37b5c5ba132f8ca98a32d592cd6c07"
+    ".gemini/GEMINI.md:183c1b16fc97a87bfc251b230c5607bb7d1c7083"
+    ".gemini/GEMINI.md:281f636716d8b2aa98c88f4eb3034768200a3b31"
+    ".gemini/GEMINI.md:28214dd7c949a85518ca9719251648b8738639c2"
+    ".gemini/GEMINI.md:30fe2b3154fda77d556fb57ea2abccb247047f5f"
+    ".gemini/GEMINI.md:5e9502598c6d7932b87098fe8ace24e9910cc2ea"
+    ".gemini/GEMINI.md:6237b1a11ea4149ff88b3e205e175bb05d3156da"
+    ".gemini/GEMINI.md:6c43023a948cc90d85169e1acc8d8ced245ef3e7"
+    ".gemini/GEMINI.md:df432d49f3f86b6586e7c09c137a09ad83a39d22"
+    ".gemini/settings.json:142940f1205c27318eb41d58c33696c988ba4722"
+    ".gemini/settings.json:8af4e802aa36505126f98c0995d7dc5199056f64"
+    ".gemini/settings.json:b5c01c35fb8bc866e3c411bad6b589ea1c51a2f6"
+    ".gemini/settings.json:ca7830421b46b1e16db0c6335eb29e3c02bb1435"
+    ".gemini/skills/context-loader/SKILL.md:0494ab2d9e228f601aa04f3daa9aea738664db31"
+    ".gemini/skills/context-loader/SKILL.md:11208d484db9d88c297b0f6f57ffae022ee9e43c"
 )
 
 # Project-owned data that pre-2.0 installations kept under .agents/. It is
@@ -337,6 +370,96 @@ cleanup_deprecated_paths() {
             rm -rf -- "${target}"
         fi
         UPDATED_FILES+=("REMOVED: ${path}")
+    done
+}
+
+# =============================================================================
+# Phase 2.6: Move individual deprecated template files into a backup
+# =============================================================================
+# Unlike cleanup_deprecated_paths this never deletes: each existing file whose
+# content matches a shipped template blob (KNOWN_TEMPLATE_BLOBS) is moved to
+# .orchestra-backup-deprecated-<ts>-$$/<same relative path>, then any parent
+# directory left empty is removed (rmdir refuses a non-empty one, so a user's
+# own files under .gemini/ are never touched). A file with any other content is
+# left in place with a warning.
+is_known_template_blob() {
+    local path="$1" file="$2" hash entry
+    [[ -L "${file}" ]] && return 1
+    hash="$(git hash-object -- "${file}" 2>/dev/null)" || return 1
+    for entry in "${KNOWN_TEMPLATE_BLOBS[@]}"; do
+        [[ "${entry}" == "${path}:${hash}" ]] && return 0
+    done
+    return 1
+}
+
+cleanup_deprecated_template_files() {
+    header "Backing Up Deprecated Template Files"
+
+    local project_root_abs
+    project_root_abs="$(cd "${PROJECT_ROOT}" && pwd -P)"
+    local backup_root="" moved=() kept=()
+
+    local path
+    for path in "${DEPRECATED_TEMPLATE_FILES[@]}"; do
+        if [[ -z "${path//[[:space:]]/}" || "${path:0:1}" != "." ||
+            "${path}" == /* || "${path}" == *".."* ]]; then
+            error "Invalid DEPRECATED_TEMPLATE_FILES entry: '${path}'. Skipping."
+            continue
+        fi
+
+        local target="${PROJECT_ROOT}/${path}"
+        if [[ ! -f "${target}" && ! -L "${target}" ]]; then
+            continue
+        fi
+
+        local resolved
+        resolved="$(realpath -m -- "${target}")"
+        if [[ "${resolved}" != "${project_root_abs}/"* ]]; then
+            error "Refusing to move '${path}': resolves outside PROJECT_ROOT (${resolved})."
+            continue
+        fi
+
+        if ! is_known_template_blob "${path}" "${target}"; then
+            kept+=("${path}")
+            continue
+        fi
+
+        if [[ -z "${backup_root}" ]]; then
+            backup_root="${PROJECT_ROOT}/.orchestra-backup-deprecated-$(date +%Y%m%d%H%M%S)-$$"
+        fi
+        mkdir -p -- "${backup_root}/$(dirname "${path}")"
+        cp -a -- "${target}" "${backup_root}/${path}"
+        if git -C "${PROJECT_ROOT}" ls-files --error-unmatch -- "${path}" &>/dev/null; then
+            git -C "${PROJECT_ROOT}" rm -f --quiet --ignore-unmatch -- "${path}" \
+                || rm -f -- "${target}"
+        else
+            rm -f -- "${target}"
+        fi
+
+        local parent
+        parent="$(dirname "${path}")"
+        while [[ "${parent}" != "." && "${parent}" != "/" ]]; do
+            rmdir -- "${PROJECT_ROOT}/${parent}" 2>/dev/null || break
+            parent="$(dirname "${parent}")"
+        done
+
+        moved+=("${path}")
+        UPDATED_FILES+=("REMOVED: ${path} (backed up)")
+    done
+
+    if [[ ${#kept[@]} -gt 0 ]]; then
+        warn "Kept deprecated template files whose content differs from any shipped template (customized or user-owned); remove them yourself if unwanted:"
+        for path in "${kept[@]}"; do
+            echo "  ${path}"
+        done
+    fi
+    if [[ ${#moved[@]} -eq 0 ]]; then
+        [[ ${#kept[@]} -gt 0 ]] || info "No deprecated template files found."
+        return 0
+    fi
+    warn "Moved deprecated template files to ${backup_root}:"
+    for path in "${moved[@]}"; do
+        echo "  ${path}"
     done
 }
 
@@ -765,6 +888,7 @@ main() {
     fetch_template
     migrate_legacy_native_data
     cleanup_deprecated_paths
+    cleanup_deprecated_template_files
     migrate_legacy_agent_state
     retire_claude_symlink
     sync_safe_dirs

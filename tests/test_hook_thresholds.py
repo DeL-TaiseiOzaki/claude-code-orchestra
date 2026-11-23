@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HOOKS_DIR = REPO_ROOT / ".claude" / "hooks"
 
@@ -62,6 +64,64 @@ def test_detect_agent_with_two_character_japanese_prompt_still_routes():
     """The deleted `len(prompt) < 3` gate skipped exactly this prompt."""
     agent, trigger = agent_router.detect_agent("設計")
     assert (agent, trigger) == ("codex", "設計")
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "この文章を推敲して",
+        "設計書を推敲して",
+        "polish the japanese in the design doc",
+        "この動画の内容を確認して",
+        "write a report from these notes",
+        "この報告書の日本語を推敲して",
+        "この動画を精査して内容をまとめて",
+        "機能紹介の文章を校正して",
+        "proofread this Japanese README section",
+        "READMEの日本語を推敲して。code blockはそのまま",
+    ],
+)
+def test_detect_agent_routes_antigravity_uses(prompt: str):
+    """Report drafts, video reading, and Japanese polishing route to Antigravity,
+    including polishing prose that is *about* a design, a feature, or code."""
+    agent, _trigger = agent_router.detect_agent(prompt)
+    assert agent == "antigravity", prompt
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "add a video player component",
+        "報告書生成スクリプトを実装して",
+        "write a report generator script",
+        "レポートを書き出す処理を追加して",
+        "CSVレポートを書き込むCLIを追加して",
+        "報告書を書き込むAPIを実装して",
+        "動画を確認するテストを追加して",
+        "カバレッジレポートを作成するCIジョブを追加して",
+        "テストのカバレッジレポートを作成するCIジョブを追加して",
+        "報告書を書き込むAPIエンドポイントを追加して",
+    ],
+)
+def test_detect_agent_keeps_code_context_requests_off_antigravity(prompt: str):
+    """Report-generator and video-processing *code* requests must not be stolen
+    from Codex by the report/video phrases."""
+    agent, _trigger = agent_router.detect_agent(prompt)
+    assert agent != "antigravity", prompt
+
+
+def test_detect_agent_sends_video_pipeline_design_to_codex():
+    agent, _trigger = agent_router.detect_agent("動画処理パイプラインを設計して")
+    assert agent == "codex"
+    assert agent_router.detect_agent("add a video player component") == (None, "")
+    assert agent_router.detect_agent("make the docstring better") == (None, "")
+
+
+def test_detect_agent_orders_fable_and_plugin_before_antigravity():
+    agent, _trigger = agent_router.detect_agent("報告書を書く前に最終レビューして")
+    assert agent == "fable"
+    agent, _trigger = agent_router.detect_agent("write a report after code review")
+    assert agent != "antigravity"
 
 
 # --- check-codex-before-write.py -------------------------------------------

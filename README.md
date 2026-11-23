@@ -7,16 +7,23 @@ Multi-Agent AI Development Environment
 ```
 Claude Code (Orchestrator) ─┬─ Sonnet Subagents (Routine Implementation)
                              ├─ Opus Subagents (Research, Analysis, Difficult Implementation)
-                             └─ Codex CLI (Planning & Complex Code)
+                             ├─ Codex CLI (Planning & Complex Code)
+                             └─ Antigravity CLI (Reports, Video Reading, Japanese Polishing)
 ```
 
 ## Quick Start
 
-Confirm that both AI CLIs are installed and authenticated first:
+Confirm that the AI CLIs are installed and authenticated first:
 
 ```bash
 claude --version && codex --version
+agy --version   # optional: only the three Antigravity-routed uses need it
 ```
+
+Wrappers and hooks run under `python3` and need **Python 3.10 or newer**. On
+Python 3.10 without `tomli` installed, the TOML-based features (stack
+detection and the library inventory) degrade; install `tomli` or run a newer
+Python that ships `tomllib`.
 
 ### New Project
 
@@ -41,8 +48,8 @@ bash "$template_dir/scripts/install.sh" . && rm -rf "$template_dir"
 
 The installer preserves project-owned files, including `README.md`, `VERSION`, and
 existing `AGENTS.md` / `CLAUDE.md` content. It installs the merged content in
-`.claude/STATE.md`, installs the concise shared `AGENTS.md` contract, and creates
-`CLAUDE.md -> AGENTS.md`. Template-owned path conflicts stop the install before
+`.claude/STATE.md` and installs the concise shared `AGENTS.md` contract.
+Template-owned path conflicts stop the install before
 changes are made. After reviewing the reported paths, `--force` can be used to back
 them up under `.orchestra-backup-*/` and replace them.
 
@@ -72,6 +79,29 @@ npm install -g @openai/codex
 codex login
 ```
 
+### Antigravity CLI (optional)
+
+Needed only for the three uses routed to it (report drafts, video reading,
+Japanese polishing).
+
+```bash
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+agy --version
+```
+
+Run `agy` once interactively to sign in (keyring OAuth). For CI, set
+`"modelProvider": "gemini"` plus `GEMINI_API_KEY`, or use Application Default
+Credentials with `AGY_ADC_AUTH=true`. See the
+[install guide](https://antigravity.google/docs/install.md?tab=cli).
+
+### Python
+
+The shared wrappers (`.claude/skills/_shared/`) and hooks run under `python3`
+and need **Python >= 3.10**. If the system `python3` is older, put a newer
+interpreter first on `PATH` (for example one from `uv python install 3.12`).
+On 3.10, also install `tomli` (or use a Python that ships `tomllib`) so stack detection and the
+library inventory can read `pyproject.toml`.
+
 ### System Tools
 
 The installer and updater require `git` and standard Unix shell tools. Template
@@ -97,7 +127,7 @@ A plugin that lets you use Codex directly from Claude Code. Simplifies code revi
 
 ### Keeping AI CLIs Up to Date
 
-Claude Code and Codex CLI both release frequently — model names, flags, and sandbox semantics drift between minor versions. **Update both before each working session.**
+Claude Code, Codex CLI, and Antigravity CLI all release frequently — model names, flags, and sandbox semantics drift between minor versions. **Update them before each working session.**
 
 ```bash
 # Claude Code (built-in self-update)
@@ -105,12 +135,15 @@ claude update
 
 # Codex CLI
 npm install -g @openai/codex@latest
+
+# Antigravity CLI (optional): no update command is documented here;
+# see https://antigravity.google/docs/install.md?tab=cli
 ```
 
 Confirm versions afterward:
 
 ```bash
-claude --version && codex --version
+claude --version && codex --version && agy --version
 ```
 
 The Codex model is centralized in `.claude/settings.json` (`env.CODEX_MODEL`), which every `${CODEX_MODEL:-...}` reference resolves to. `.codex/config.toml` (`model` + `model_reasoning_effort = "xhigh"`) must be kept in sync — `scripts/check.sh` verifies coherence between the two. To always use the latest model, bump that single value (currently `gpt-5.6-sol`) — no need to edit individual skill files. The `${CODEX_MODEL:-...}` fallback is just a default for when the env var is unset. Note: `update.sh` never auto-merges `.claude/settings.json` — downstream users must bump `env.CODEX_MODEL` manually after reviewing the Phase 5 diff.
@@ -122,7 +155,10 @@ subagents default to Sonnet through `.claude/settings.json`
 
 Peer CLI agents are reached through `.claude/skills/_shared/cli_consult.py`,
 which supports Claude Code (`--cli claude`) and Antigravity (`--cli
-antigravity`, headless `agy -p`). Gemini CLI support was removed.
+antigravity`, headless `agy ... --output-format json -p=<prompt>`). Gemini CLI support was
+removed. The main agent routes three uses to Antigravity (report drafts, video
+reading, Japanese polishing) through `antigravity-delegate`, always read-only;
+see `.claude/rules/delegation.md`.
 
 ## Architecture
 
@@ -145,6 +181,7 @@ below is a non-normative overview of the default setup.
 │  │  │ general-purpose-sonnet: routine impl.        │    │   │
 │  │  │ general-purpose-opus: research / hard impl.  │    │   │
 │  │  │ codex-debugger: error analysis               │    │   │
+│  │  │ antigravity-delegate: reports / video / JA   │    │   │
 │  │  └──────────────────────────────────────────────┘    │   │
 │  │                       │                              │   │
 │  │  ┌────────────────────┴─────────────────────────┐    │   │
@@ -202,13 +239,13 @@ reached through a symlink.
 │   ├── skills/                  # Workflow skills and deterministic helpers
 │   │   └── _shared/             # Bundled runtime: helpers every skill may depend on
 │   ├── hooks/                   # Hook implementations
-│   ├── rules/                   # Policy: delegation, tiers, CLI, coding, testing, security, state
+│   ├── rules/                   # Policy: delegation, tiers, coding, testing, security, state
 │   ├── docs/                    # INDEX.md registry, change_main.md runbook, design, research, reviews
 │   ├── logs/                    # Runtime logs (git-ignored)
 │   └── checkpoints/             # Session checkpoints (git-ignored)
 │
 ├── .agents/                     # Antigravity's native directory
-│   └── AGENTS.md                # Antigravity adapter: headless behaviour and limits
+│   └── AGENTS.md                # Antigravity adapter: routed uses, headless behaviour and limits
 │
 ├── .codex/                      # Codex's native directory
 │   ├── AGENTS.md                # Codex adapter: model config, sandbox discipline, enabled skills

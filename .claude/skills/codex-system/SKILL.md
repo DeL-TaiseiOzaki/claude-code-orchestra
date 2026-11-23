@@ -46,7 +46,7 @@ Delegation policy — when to consult, when NOT to, and trigger criteria — liv
 python3 .claude/skills/_shared/codex_consult.py (--prompt-file PATH | --prompt-stdin) [--label L] [--caller AGENT] [--sandbox {read-only,workspace-write,danger-full-access}] [--model M] [--timeout N] [--cwd DIR] [--project-root DIR] [--skip-git-repo-check] [--config KEY=VALUE]
 ```
 
-> **Consulting a peer CLI instead of Codex.** Claude Code and Antigravity go through `.claude/skills/_shared/cli_consult.py --cli {claude,antigravity} --prompt-file PATH`, unrestricted unless `--read-only` — which Antigravity refuses, because its headless mode auto-approves every tool call and the restriction cannot be enforced from the caller (`--resume SESSION` is Claude-only; `--cli-arg` forwards a native flag; default timeout 900 s; same four exit codes as below). Never shell out to a CLI directly — the wrapper-only rule and the per-callee permission mapping live in root `AGENTS.md`. Codex's sandbox and `--config` semantics stay here because they are Codex-specific; everything cross-CLI is in that rule file.
+> **Consulting a peer CLI instead of Codex.** Claude Code and Antigravity go through `.claude/skills/_shared/cli_consult.py --cli {claude,antigravity} --prompt-file PATH`, unrestricted unless `--read-only` (Claude: plan mode; Antigravity: session deny rules for writes, shell, MCP, and URL fetch/execute — web search stays available). Antigravity's three routed uses (human-facing report drafts, careful video reading, Japanese polishing) go through the `antigravity-delegate` agent, always read-only; pass out-of-repo media with `--add-dir DIR` (`--resume SESSION` is Claude-only, since `agy` does not restore history in print mode; `--cli-arg` forwards a native flag; default timeout 900 s; same four exit codes as below). Never shell out to a CLI directly — the wrapper-only rule and the per-callee permission mapping live in root `AGENTS.md`. Codex's sandbox and `--config` semantics stay here because they are Codex-specific; everything cross-CLI is in that rule file.
 
 - Write the prompt body (Objective / Constraints / Relevant files / Acceptance checks / Output format) to a file and pass it via `--prompt-file`; use `--prompt-stdin` to pipe a short prompt instead. Any path works — the ad-hoc snippets below use `mktemp`, while skills write to `.claude/logs/codex/prompt-{label}.md` so the prompt sits next to the response the wrapper writes for it, which is what makes a disappointing answer diagnosable afterwards.
 - `--sandbox` defaults to `danger-full-access`, matching `.codex/config.toml`. Pass `--sandbox read-only` explicitly for planning and review calls — see Sandbox Modes below.
@@ -282,7 +282,7 @@ When the `openai/codex-plugin-cc` plugin is installed, these slash commands are 
 | Ad-hoc design question | `codex_consult.py` (direct) |
 | Unrestricted implementation | `codex_consult.py` (the default) + [Verify Before Trusting](#verify-before-trusting) |
 | Subagent delegation | `codex_consult.py` via general-purpose-opus |
-| Consulting Claude Code or Antigravity | `cli_consult.py --cli {claude,antigravity}` |
+| Consulting Claude Code; Antigravity's routed uses → `antigravity-delegate` | `cli_consult.py --cli {claude,antigravity}` |
 
 Plugin routes (the first four rows) leave no wrapper log, no `cli-tools.jsonl` entry, and no record of which files they changed; the `codex_consult.py` routes leave all three. Whichever route made the change, an unrestricted run is verified the same way.
 

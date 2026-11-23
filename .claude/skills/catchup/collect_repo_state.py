@@ -32,9 +32,16 @@ import json
 import re
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 from typing import NoReturn
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 has no tomllib; fall back to tomli
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError:
+        tomllib = None  # type: ignore[assignment]
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
@@ -575,7 +582,11 @@ def collect_env(root: Path) -> dict:
             env["manifests"].append(name)
 
     pyproject = root / "pyproject.toml"
-    if pyproject.exists():
+    if pyproject.exists() and tomllib is None:
+        env["errors"].append(
+            "cannot parse pyproject.toml: TOML parsing needs Python 3.11+ or the tomli package"
+        )
+    elif pyproject.exists():
         try:
             data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:

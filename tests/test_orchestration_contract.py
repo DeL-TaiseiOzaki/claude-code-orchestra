@@ -1,3 +1,5 @@
+import shutil
+import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +31,11 @@ REQUIRED_HEADINGS = (
 
 def read_repo_file(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def markdown_section(content: str, heading: str) -> str:
+    """Return the body of a `## ` heading, up to the next `## ` heading."""
+    return content.split(f"{heading}\n", 1)[1].split("\n## ", 1)[0]
 
 
 def assert_references_in_order(content: str, references: tuple[str, ...]) -> None:
@@ -305,3 +312,135 @@ def test_consistency_checker_validates_contract_and_bootstraps() -> None:
     assert "check_root_contract" in content
     assert "check_bootstrap_references" in content
     assert "check_native_boundaries" in content
+    assert "check_peer_cli_routing" in content
+
+
+def test_antigravity_is_routed_not_just_callable() -> None:
+    """Antigravity used to be reachable through the wrapper but named by no
+    routing document, so the main agent had no reason to pick it."""
+    claude_md = read_repo_file("CLAUDE.md")
+    for heading in ("## Agent Topology", "## Routing Policy"):
+        assert "antigravity-delegate" in markdown_section(claude_md, heading)
+
+    delegation = read_repo_file(".claude/rules/delegation.md")
+    assert "antigravity-delegate" in markdown_section(delegation, "## Route Selection")
+
+    tiers = read_repo_file(".claude/rules/tiers.md")
+    tier_1 = markdown_section(
+        tiers, "## Tier 1 -- `default` (Main Agent and Default Executors)"
+    )
+    assert "Antigravity" in tier_1
+    assert "antigravity-delegate" in tier_1
+
+    adapter = read_repo_file(".agents/AGENTS.md")
+    assert "Tier 1" in adapter
+    assert "antigravity-delegate" in adapter
+
+    agent = read_repo_file(".claude/agents/antigravity-delegate.md")
+    assert "cli_consult.py --cli antigravity --read-only" in agent
+
+
+def test_claude_md_describes_agents_dir_as_adapter_only() -> None:
+    """`.agents/` holds exactly `AGENTS.md`; CLAUDE.md used to list a
+    `workflows/` tree, `tiers.md`, and `check.sh` that no longer live there."""
+    content = read_repo_file("CLAUDE.md")
+    bullet = next(
+        block for block in content.split("\n- ") if block.startswith("`.agents/`")
+    )
+
+    assert "AGENTS.md" in bullet
+    for stale in ("workflows/", "tiers.md", "check.sh"):
+        assert stale not in bullet
+
+
+def test_root_contract_allows_prompt_specified_deliverable_format() -> None:
+    """Antigravity returns `## TL;DR` / `## Deliverable` / `## Notes`; the root
+    contract must not force the six-section structure onto such a reply."""
+    content = read_repo_file("AGENTS.md")
+    # The structure's own code block contains `## ` lines, so cut at the next
+    # top-level section instead of the first `\n## `.
+    structure = content.split("## Required Response Structure", 1)[1].split(
+        "## Handoff Rules", 1
+    )[0]
+
+    assert "specifies a deliverable format" in structure
+    assert "## Deliverable" in structure
+
+
+def test_routed_antigravity_uses_always_run_read_only() -> None:
+    delegation = read_repo_file(".claude/rules/delegation.md")
+    boundaries = delegation.split("### Antigravity boundaries", 1)[1].split("\n## ", 1)[
+        0
+    ]
+
+    assert "alone writes" in boundaries
+    assert "Codex" in boundaries
+    assert "general-purpose-opus" in boundaries
+    assert "read-only" in boundaries
+
+
+READ_ONLY_COMMAND = "cli_consult.py --cli antigravity --read-only"
+READ_ONLY_CHECK_MESSAGE = f"must call '{READ_ONLY_COMMAND}'"
+
+
+def run_peer_cli_check(tmp_path: Path, agent_text: str) -> str:
+    """Run scripts/check.sh against a minimal tree and return its output.
+
+    Only the files `check_peer_cli_routing` reads are present, so unrelated
+    checks fail; the assertions look for this check's own message.
+    """
+    for relative_path in (
+        "scripts/check.sh",
+        "CLAUDE.md",
+        ".claude/rules/delegation.md",
+        ".claude/rules/tiers.md",
+    ):
+        destination = tmp_path / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(REPO_ROOT / relative_path, destination)
+    agent = tmp_path / ".claude/agents/antigravity-delegate.md"
+    agent.parent.mkdir(parents=True)
+    agent.write_text(agent_text, encoding="utf-8")
+
+    result = subprocess.run(
+        ["bash", str(tmp_path / "scripts/check.sh")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout
+
+
+def test_antigravity_delegate_command_carries_the_read_only_flag() -> None:
+    agent = read_repo_file(".claude/agents/antigravity-delegate.md")
+
+    assert READ_ONLY_COMMAND in agent
+
+
+def test_check_script_accepts_the_agent_command_with_read_only(
+    tmp_path: Path,
+) -> None:
+    agent = read_repo_file(".claude/agents/antigravity-delegate.md")
+
+    output = run_peer_cli_check(tmp_path, agent)
+
+    assert READ_ONLY_CHECK_MESSAGE not in output
+
+
+def test_check_script_fails_when_the_command_drops_read_only(tmp_path: Path) -> None:
+    """Prose such as "never omit `--read-only`" must not satisfy the check."""
+    agent = read_repo_file(".claude/agents/antigravity-delegate.md")
+    mutated = agent.replace(READ_ONLY_COMMAND, "cli_consult.py --cli antigravity")
+    assert mutated != agent
+    assert "never omit `--read-only`" in mutated
+
+    output = run_peer_cli_check(tmp_path, mutated)
+
+    assert READ_ONLY_CHECK_MESSAGE in output
+
+
+def test_documented_python_floor_is_3_10() -> None:
+    readme = read_repo_file("README.md")
+
+    assert "Python >= 3.10" in readme
+    assert "3.11" not in readme

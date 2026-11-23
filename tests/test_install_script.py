@@ -5,6 +5,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALL_SCRIPT = REPO_ROOT / "scripts" / "install.sh"
 
@@ -248,6 +250,24 @@ def test_force_install_backs_up_existing_native_subagents_and_skills(
     assert (target / ".claude/agents").is_dir()
     assert not (target / ".claude/agents").is_symlink()
     assert (target / ".claude/agents/general-purpose-opus.md").is_file()
+
+
+def test_install_skips_python_bytecode_from_the_source_tree(tmp_path: Path) -> None:
+    template = build_template_repo(tmp_path)
+    for directory in (".claude/skills/_shared", ".claude/hooks"):
+        cache = template / directory / "__pycache__"
+        cache.mkdir()
+        (cache / "x.pyc").write_bytes(b"\x00")
+    (template / ".claude/hooks/stray.pyc").write_bytes(b"\x00")
+    target = tmp_path / "project"
+    init_git_repo(target)
+
+    result = run_install(target, script=template / "scripts/install.sh")
+
+    assert result.returncode == 0, result.stderr
+    assert (target / ".claude/skills/_shared").is_dir()
+    assert list((target / ".claude").rglob("__pycache__")) == []
+    assert list((target / ".claude").rglob("*.pyc")) == []
 
 
 def test_install_retires_a_legacy_claude_md_symlink(tmp_path: Path) -> None:
@@ -504,6 +524,192 @@ def test_update_removes_legacy_agents_runtime_paths(tmp_path: Path) -> None:
     assert (migration_backups[0] / ".agents/docs/DESIGN.md").read_text(
         encoding="utf-8"
     ) == legacy_project_files["docs/DESIGN.md"]
+
+
+DEPRECATED_GEMINI_TEMPLATE_FILES = (
+    ".gemini/GEMINI.md",
+    ".gemini/settings.json",
+    ".gemini/skills/context-loader/SKILL.md",
+)
+
+
+def install_project_for_update(tmp_path: Path, template: Path) -> Path:
+    target = tmp_path / "project"
+    init_git_repo(target)
+    install_result = run_install(target, script=template / "scripts/install.sh")
+    assert install_result.returncode == 0, install_result.stderr
+    subprocess.run(["git", "-C", str(target), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(target), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(target), "config", "user.name", "Test User"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(target), "commit", "-qm", "initial install"], check=True
+    )
+    return target
+
+
+# Verbatim copy of `.gemini/settings.json` as the template once shipped it (git
+# blob b5c01c35fb8bc866e3c411bad6b589ea1c51a2f6), which update.sh must recognize.
+SHIPPED_GEMINI_SETTINGS = """{
+  "context": {
+    "fileName": ["GEMINI.md", "AGENTS.md"],
+    "discoveryMaxDirs": 200,
+    "respectGitIgnore": true,
+    "respectGeminiIgnore": true
+  },
+  "model": {
+    "default": "gemini-2.5-pro"
+  },
+  "sandbox": {
+    "enabled": false
+  }
+}
+"""
+
+# One shipped blob per deprecated path, for the files too large to inline.
+SHIPPED_GEMINI_BLOBS = {
+    ".gemini/GEMINI.md": "5e9502598c6d7932b87098fe8ace24e9910cc2ea",
+    ".gemini/settings.json": "b5c01c35fb8bc866e3c411bad6b589ea1c51a2f6",
+    ".gemini/skills/context-loader/SKILL.md": (
+        "0494ab2d9e228f601aa04f3daa9aea738664db31"
+    ),
+}
+
+
+def shipped_gemini_content(relative_path: str) -> str:
+    """Return the shipped content of a deprecated file from this repo's history."""
+    if relative_path == ".gemini/settings.json":
+        return SHIPPED_GEMINI_SETTINGS
+    blob = SHIPPED_GEMINI_BLOBS[relative_path]
+    result = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "cat-file", "-p", blob],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        pytest.skip(f"blob {blob} is not in this clone's history")
+    return result.stdout
+
+
+def write_deprecated_gemini_files(target: Path) -> None:
+    for relative_path in DEPRECATED_GEMINI_TEMPLATE_FILES:
+        path = target / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(shipped_gemini_content(relative_path), encoding="utf-8")
+
+
+def test_shipped_gemini_settings_fixture_matches_the_pinned_blob() -> None:
+    blob = subprocess.run(
+        ["git", "hash-object", "--stdin"],
+        input=SHIPPED_GEMINI_SETTINGS,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    assert blob == SHIPPED_GEMINI_BLOBS[".gemini/settings.json"]
+
+
+def test_update_backs_up_deprecated_gemini_template_files_and_removes_empty_dir(
+    tmp_path: Path,
+) -> None:
+    template = build_template_repo(tmp_path)
+    target = install_project_for_update(tmp_path, template)
+    write_deprecated_gemini_files(target)
+
+    result = run_update(target, template)
+
+    assert result.returncode == 0, result.stderr
+    assert not (target / ".gemini").exists()
+    backups = list(target.glob(".orchestra-backup-deprecated-*"))
+    assert len(backups) == 1
+    for relative_path in DEPRECATED_GEMINI_TEMPLATE_FILES:
+        assert (backups[0] / relative_path).read_text(
+            encoding="utf-8"
+        ) == shipped_gemini_content(relative_path)
+
+
+def test_update_keeps_a_customized_gemini_file_and_warns(tmp_path: Path) -> None:
+    template = build_template_repo(tmp_path)
+    target = install_project_for_update(tmp_path, template)
+    settings = target / ".gemini/settings.json"
+    settings.parent.mkdir(parents=True)
+    customized = SHIPPED_GEMINI_SETTINGS.replace("gemini-2.5-pro", "my-own-model")
+    settings.write_text(customized, encoding="utf-8")
+
+    result = run_update(target, template)
+
+    assert result.returncode == 0, result.stderr
+    assert settings.read_text(encoding="utf-8") == customized
+    assert list(target.glob(".orchestra-backup-deprecated-*")) == []
+    assert "Kept deprecated template files" in result.stdout
+    assert ".gemini/settings.json" in result.stdout
+
+
+def test_update_moves_matching_gemini_file_but_keeps_a_customized_one(
+    tmp_path: Path,
+) -> None:
+    template = build_template_repo(tmp_path)
+    target = install_project_for_update(tmp_path, template)
+    settings = target / ".gemini/settings.json"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(SHIPPED_GEMINI_SETTINGS, encoding="utf-8")
+    gemini_md = target / ".gemini/GEMINI.md"
+    gemini_md.write_text("my own Gemini instructions\n", encoding="utf-8")
+
+    result = run_update(target, template)
+
+    assert result.returncode == 0, result.stderr
+    assert not settings.exists()
+    assert gemini_md.read_text(encoding="utf-8") == "my own Gemini instructions\n"
+    backups = list(target.glob(".orchestra-backup-deprecated-*"))
+    assert len(backups) == 1
+    assert (backups[0] / ".gemini/settings.json").read_text(
+        encoding="utf-8"
+    ) == SHIPPED_GEMINI_SETTINGS
+    assert not (backups[0] / ".gemini/GEMINI.md").exists()
+    assert ".gemini/GEMINI.md" in result.stdout
+
+
+def test_update_keeps_user_owned_files_in_the_gemini_directory(
+    tmp_path: Path,
+) -> None:
+    template = build_template_repo(tmp_path)
+    target = install_project_for_update(tmp_path, template)
+    write_deprecated_gemini_files(target)
+    user_file = target / ".gemini/skills/mine/SKILL.md"
+    user_file.parent.mkdir(parents=True)
+    user_file.write_text("user skill\n", encoding="utf-8")
+    user_settings = target / ".gemini/extra.json"
+    user_settings.write_text("{}\n", encoding="utf-8")
+
+    result = run_update(target, template)
+
+    assert result.returncode == 0, result.stderr
+    assert user_file.read_text(encoding="utf-8") == "user skill\n"
+    assert user_settings.read_text(encoding="utf-8") == "{}\n"
+    for relative_path in DEPRECATED_GEMINI_TEMPLATE_FILES:
+        assert not (target / relative_path).exists()
+    # The emptied context-loader directory goes; the user's directories stay.
+    assert not (target / ".gemini/skills/context-loader").exists()
+    assert (target / ".gemini/skills/mine").is_dir()
+
+
+def test_update_without_deprecated_gemini_files_creates_no_backup(
+    tmp_path: Path,
+) -> None:
+    template = build_template_repo(tmp_path)
+    target = install_project_for_update(tmp_path, template)
+
+    result = run_update(target, template)
+
+    assert result.returncode == 0, result.stderr
+    assert list(target.glob(".orchestra-backup-deprecated-*")) == []
 
 
 def test_update_migrates_legacy_claude_zones_into_shared_state(tmp_path: Path) -> None:

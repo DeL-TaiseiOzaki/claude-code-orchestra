@@ -42,7 +42,7 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn
 
@@ -609,7 +609,7 @@ def validate_composition(new_text: str, original_text: str) -> str | None:
 def _parse_now(raw: str | None) -> datetime:
     """Read the clock exactly once, or parse the injected ``--now`` value."""
     if raw is None:
-        return datetime.now(tz=UTC)
+        return datetime.now(tz=timezone.utc)
     return datetime.fromisoformat(raw)
 
 

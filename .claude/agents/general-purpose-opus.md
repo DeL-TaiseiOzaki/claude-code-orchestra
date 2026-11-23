@@ -17,6 +17,8 @@ materially improve the result.
 - Large-codebase analysis and dependency mapping
 - Architecture, convention, and impact analysis
 - Synthesis into `.claude/docs/research/` or `.claude/docs/libraries/`
+- Human-facing report prose, video reading, and Japanese polishing route to
+  `antigravity-delegate`; Opus supplies the researched source set.
 
 ### Difficult implementation
 

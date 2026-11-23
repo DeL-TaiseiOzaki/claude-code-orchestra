@@ -31,7 +31,8 @@ swallowed. Both failure modes are worse than the split.
 | `work-log-format.md` | Canonical work-log template for Agent Teams teammates (format doc, not a script). |
 | `workspace.py` | Resolve, create, and verify a skill's slug, team name, and artifact paths. Single source of truth for cross-phase naming. |
 | `codex_consult.py` | Invoke the Codex CLI safely: prompt from `--prompt-file`, stdin, or the label's default path; stdin closed; prompt, stdout, and stderr captured to `.claude/logs/codex/` under a collision-free stem; `--sandbox` defaults to the project's own `danger-full-access` and is always sent explicitly; full diagnostics as JSON. |
-| `cli_consult.py` | Invoke a peer CLI agent (Claude Code, Antigravity) as a subagent under the same contract, unrestricted unless `--read-only`. Cross-CLI rules: root `AGENTS.md`. |
+| `cli_consult.py` | Invoke a peer CLI agent (Claude Code, Antigravity) as a subagent under the same contract, unrestricted unless `--read-only` (Claude: `--permission-mode plan`; Antigravity: session-only `--settings` deny rules for `write_file`, `command`, `mcp`, `read_url`, and `execute_url`). Antigravity runs return the JSON envelope's `response`, fail on a non-`SUCCESS`, empty, or unparseable envelope (raw stdout kept), surface refusals as `warnings`, and refuse `--resume`. `--add-dir DIR` declares the media directory for the run (not a read boundary); the payload carries `envelope_status`, `conversation_id`, `denied_actions` (always a list), and `warnings`; a prompt over the 128 KiB single-argv limit is refused with exit `1`. Cross-CLI rules: root `AGENTS.md`. |
+| `agy_envelope.py` | Parse an Antigravity `--output-format json` envelope and collect its refusals, imported by `cli_consult.py`: fails closed on non-JSON, non-`SUCCESS`, or empty-`response` output, and turns `denied_actions`, soft-denial stderr, and deny-rule messages into warnings. Also runs offline against saved stdout/stderr files (`--stdout-file`, `--stderr-file`). |
 | `edit_provenance.py` | Snapshot the repository's dirty set before a delegated run and diff it afterwards, so the consult wrappers can report the files the callee actually created, changed, or deleted — committed work included, pre-existing dirt excluded. |
 | `validate_doc.py` | Validate a markdown document (work log, lib doc, plan, brief, diagnosis, guide, checkpoint summary, PROGRESS, spike/bug report) against a named `## ` section contract; `--expect-files N` makes "nobody wrote one" a failure. |
 | `append_state_block.py` | Typed writers for `.claude/STATE.md`: `--type feature\|bug-fix\|project` appends a `## Current …` work block, `--type repository-identity` replaces the `## Repository Identity` body `/init` owns. Writer Safety Contract. |
@@ -141,7 +142,7 @@ Exactly two clauses have a documented exception:
 | Exactly one JSON object on stdout | `checkpointing/checkpoint.py`'s success path prints a human-readable report | It generates files, and the report says what it wrote. `--json` gives callers the machine-readable form. |
 | Injectable clock `--now ISO8601` | `update-lib-docs/lib_inventory.py` keeps `--today YYYY-MM-DD` | It stamps nothing; the date is an *input* it compares against, and the strict format is pinned by its tests. |
 
-**A third carve-out requires a `TEMPLATE_DESIGN_LOG.md` entry**, in the same
+**A third carve-out requires an entry in the template repository's design log**, in the same
 commit, naming the clause, the script, and the failure mode the exception does
 not reintroduce. This is not ceremony: the `--project-root` exemption for the two
 shell scripts was justified in this file by a rationale that was simply untrue of

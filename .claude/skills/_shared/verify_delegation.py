@@ -43,7 +43,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn
 
@@ -295,7 +295,7 @@ def _read_untracked(
 def _parse_now(raw: str | None) -> datetime:
     """Parse --now, or read the clock exactly once."""
     if raw is None:
-        return datetime.now(tz=UTC)
+        return datetime.now(tz=timezone.utc)
     return datetime.fromisoformat(raw)
 
 

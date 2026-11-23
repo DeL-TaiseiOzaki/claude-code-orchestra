@@ -42,6 +42,7 @@ def test_model_specific_general_purpose_agents_are_defined() -> None:
     expected_models = {
         "general-purpose-opus.md": ("general-purpose-opus", "opus"),
         "general-purpose-sonnet.md": ("general-purpose-sonnet", "sonnet"),
+        "antigravity-delegate.md": ("antigravity-delegate", "sonnet"),
     }
 
     for filename, (expected_name, expected_model) in expected_models.items():
@@ -50,6 +51,16 @@ def test_model_specific_general_purpose_agents_are_defined() -> None:
         assert frontmatter["model"] == expected_model
 
     assert not (AGENTS_DIR / "general-purpose.md").exists()
+
+
+def test_antigravity_delegate_tool_list_has_bash_and_write_but_no_edit() -> None:
+    """Asserts the tool list only. Write and Bash can still change files, so the
+    real boundary is procedural: prompts go under the gitignored `.claude/logs/`."""
+    frontmatter = read_frontmatter(AGENTS_DIR / "antigravity-delegate.md")
+    tools = {tool.strip() for tool in frontmatter["tools"].split(",")}
+
+    assert {"Read", "Write", "Bash"} <= tools
+    assert "Edit" not in tools
 
 
 def test_unspecified_subagents_default_to_sonnet() -> None:

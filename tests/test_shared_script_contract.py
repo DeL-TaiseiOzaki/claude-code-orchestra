@@ -329,6 +329,8 @@ SUCCESS_EXEMPT: dict[Path, str] = {
     # Needs a fake codex/claude/agy executable on PATH.
     SKILLS_DIR / "_shared" / "codex_consult.py": "tests/test_codex_consult.py",
     SKILLS_DIR / "_shared" / "cli_consult.py": "tests/test_cli_consult.py",
+    # Needs a saved agy envelope file on disk.
+    SKILLS_DIR / "_shared" / "agy_envelope.py": "tests/test_cli_consult.py",
     # Needs typed JSON input built against the script's own schema.
     SKILLS_DIR
     / "_shared"
@@ -508,12 +510,49 @@ def test_documented_exit_codes_are_from_the_shared_vocabulary(script: Path) -> N
 SHARED_MODULES = {path.stem for path in (SKILLS_DIR / "_shared").glob("*.py")}
 
 
-@pytest.mark.parametrize("script", PYTHON_SCRIPTS, ids=_script_id)
-def test_no_third_party_imports(script: Path) -> None:
-    """The README states stdlib-only; nothing verified it, so the first
-    `import yaml` would have landed unnoticed and broken every environment
-    that has python3 but not that package."""
-    tree = ast.parse(script.read_text(encoding="utf-8"), filename=str(script))
+# `tomllib` is stdlib from Python 3.11, the floor for TOML parsing, but the
+# project supports 3.10 where `sys.stdlib_module_names` lacks it. It therefore
+# counts as stdlib whatever interpreter runs this test.
+VERSION_GATED_STDLIB = {"tomllib"}
+
+# `tomli` is the one third-party module a script may import, and only as a
+# guarded fallback for `tomllib` on 3.10: the import must sit in a `try` body
+# whose handler catches an ImportError, so its absence degrades instead of
+# crashing. An unguarded `import tomli`, or any other third-party module
+# (guarded or not), still fails the stdlib-only clause.
+GUARDED_FALLBACK_MODULES = {"tomli"}
+IMPORT_ERROR_NAMES = {"ImportError", "ModuleNotFoundError"}
+
+
+def _handler_catches_import_error(handler: ast.ExceptHandler) -> bool:
+    caught = handler.type
+    if caught is None:
+        return False
+    candidates = caught.elts if isinstance(caught, ast.Tuple) else [caught]
+    return any(
+        isinstance(candidate, ast.Name) and candidate.id in IMPORT_ERROR_NAMES
+        for candidate in candidates
+    )
+
+
+def _import_error_guarded_nodes(tree: ast.AST) -> set[int]:
+    """ids of every node inside the body of a `try` that catches ImportError."""
+    guarded: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Try):
+            continue
+        if not any(_handler_catches_import_error(h) for h in node.handlers):
+            continue
+        for statement in node.body:
+            guarded.update(id(child) for child in ast.walk(statement))
+    return guarded
+
+
+def _non_stdlib_imports(source: str) -> list[str]:
+    """Top-level modules imported by *source* that break the stdlib-only clause."""
+    tree = ast.parse(source)
+    guarded = _import_error_guarded_nodes(tree)
+    offenders: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             roots = [alias.name.split(".")[0] for alias in node.names]
@@ -525,9 +564,66 @@ def test_no_third_party_imports(script: Path) -> None:
         else:
             continue
         for root in roots:
-            assert root in sys.stdlib_module_names or root in SHARED_MODULES, (
-                f"{_script_id(script)} imports non-stdlib {root!r}"
-            )
+            if root in sys.stdlib_module_names or root in SHARED_MODULES:
+                continue
+            if root in VERSION_GATED_STDLIB:
+                continue
+            if root in GUARDED_FALLBACK_MODULES and id(node) in guarded:
+                continue
+            offenders.append(root)
+    return offenders
+
+
+@pytest.mark.parametrize("script", PYTHON_SCRIPTS, ids=_script_id)
+def test_no_third_party_imports(script: Path) -> None:
+    """The README states stdlib-only; nothing verified it, so the first
+    `import yaml` would have landed unnoticed and broken every environment
+    that has python3 but not that package."""
+    offenders = _non_stdlib_imports(script.read_text(encoding="utf-8"))
+    assert not offenders, f"{_script_id(script)} imports non-stdlib {offenders!r}"
+
+
+GUARDED_TOMLI_SOURCE = """
+try:
+    import tomllib
+except ModuleNotFoundError:
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError:
+        tomllib = None
+"""
+
+
+def test_import_check_accepts_tomllib_and_a_guarded_tomli_fallback() -> None:
+    assert _non_stdlib_imports(GUARDED_TOMLI_SOURCE) == []
+
+
+def test_import_check_accepts_tomli_guarded_by_an_import_error_tuple() -> None:
+    source = (
+        "try:\n    import tomli\nexcept (ImportError, ValueError):\n    tomli = None\n"
+    )
+    assert _non_stdlib_imports(source) == []
+
+
+def test_import_check_rejects_an_unguarded_tomli_import() -> None:
+    assert _non_stdlib_imports("import tomli\n") == ["tomli"]
+    assert _non_stdlib_imports("from tomli import loads\n") == ["tomli"]
+
+
+def test_import_check_rejects_tomli_whose_try_catches_something_else() -> None:
+    source = "try:\n    import tomli\nexcept ValueError:\n    pass\n"
+    assert _non_stdlib_imports(source) == ["tomli"]
+
+
+def test_import_check_rejects_tomli_imported_in_the_handler_not_the_try_body() -> None:
+    source = "try:\n    pass\nexcept ImportError:\n    import tomli\n"
+    assert _non_stdlib_imports(source) == ["tomli"]
+
+
+def test_import_check_rejects_other_third_party_modules_even_when_guarded() -> None:
+    source = "try:\n    import requests\nexcept ImportError:\n    requests = None\n"
+    assert _non_stdlib_imports(source) == ["requests"]
+    assert _non_stdlib_imports("import requests\n") == ["requests"]
 
 
 # --- 13. an unwritable .claude/ is reported, never a traceback ---------------

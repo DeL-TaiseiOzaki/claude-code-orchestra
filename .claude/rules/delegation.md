@@ -57,11 +57,31 @@ decide:
 | Codebase-wide investigation, large-context analysis, external research | `general-purpose-opus` |
 | Unknown root cause, failing tests or builds, unexpected behaviour | `codex-debugger` |
 | Architecture, planning, decomposition, complex algorithms, code review | Codex (`codex-system` skill / `.claude/skills/_shared/codex_consult.py`) |
+| Human-facing report drafts from supplied sources, careful reading of video files (media Claude cannot read), Japanese prose polishing / proofreading | `antigravity-delegate` (Antigravity CLI, read-only via `cli_consult.py --cli antigravity --read-only`) |
 | Repeated failure, conflicting proposals, final review of a large change | `fable-advisor` (rare) |
 
 Escalate rather than retry: a `general-purpose-sonnet` task that comes back
 wrong or under-specified goes to `general-purpose-opus` or Codex, not back to
 the same tier with the same prompt.
+
+### Antigravity boundaries
+
+Antigravity is a Tier 1 peer-CLI executor with exactly three routed uses and
+no others. Every routed call is read-only; the deliverable comes back as text
+and the caller applies it.
+
+- Antigravity drafts human-facing reports from a source set the caller
+  supplies, reads supplied video files, and polishes existing Japanese prose.
+  It does not research missing facts, design software, review code, or write
+  the final reply to the user.
+- Research, source discovery, and large-context synthesis remain
+  `general-purpose-opus` work; Antigravity drafts a report only after the
+  source set is supplied.
+- Any code, architecture, planning, debugging, or review aspect routes to
+  Codex even when the subject is a report, Japanese text, or a video.
+- The main agent verifies and integrates Antigravity output and alone writes
+  the final Japanese reply.
+- Images and PDFs are read by Claude directly.
 
 ## Parallel by Default
 

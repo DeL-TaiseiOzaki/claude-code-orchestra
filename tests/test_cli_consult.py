@@ -13,8 +13,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / ".claude" / "skills" / "_shared" / "cli_consult.py"
+
+# Linux MAX_ARG_STRLEN (131072) minus the NUL terminator.
+MAX_ARG_BYTES = 131_071
 
 
 def write_fake_cli(
@@ -26,6 +31,7 @@ def write_fake_cli(
     stderr: str = "",
     sleep: float = 0.0,
     argv_log: Path | None = None,
+    create_file: Path | None = None,
 ) -> Path:
     """Write a fake CLI executable named *name* into *bin_dir*.
 
@@ -42,6 +48,10 @@ def write_fake_cli(
         "if argv_log:",
         "    with open(argv_log, 'w', encoding='utf-8') as f:",
         "        json.dump(sys.argv, f)",
+        f"create_file = {json.dumps(str(create_file) if create_file else '')}",
+        "if create_file:",
+        "    with open(create_file, 'w', encoding='utf-8') as f:",
+        "        f.write('written by the callee')",
         f"time.sleep({sleep!r})",
         f"sys.stdout.write({stdout!r})",
         f"sys.stderr.write({stderr!r})",
@@ -59,10 +69,13 @@ def run_cli_consult(
     *,
     path_prefix: Path | None = None,
     empty_path: bool = False,
+    exact_path: str | None = None,
     stdin_input: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
-    if empty_path:
+    if exact_path is not None:
+        env["PATH"] = exact_path
+    elif empty_path:
         empty_bin = tmp_path / "empty_bin"
         empty_bin.mkdir(exist_ok=True)
         env["PATH"] = str(empty_bin)
@@ -94,6 +107,30 @@ def claude_envelope(result: str, *, session_id: str = "sess-1", is_error: bool =
             "is_error": is_error,
         }
     )
+
+
+def agy_envelope(
+    response: str,
+    *,
+    status: str = "SUCCESS",
+    conversation_id: str = "conv-1",
+    denied_actions: list[dict] | None = None,
+) -> str:
+    """The single-line envelope `agy --output-format json` prints (agy 1.5.14)."""
+    envelope: dict = {
+        "conversation_id": conversation_id,
+        "status": status,
+        "response": response,
+        "duration_seconds": 1.0,
+        "num_turns": 1,
+    }
+    if denied_actions is not None:
+        envelope["denied_actions"] = denied_actions
+    return json.dumps(envelope)
+
+
+def init_git_repo(root: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True, timeout=60)
 
 
 # --- Claude Code callee -----------------------------------------------------
@@ -209,11 +246,18 @@ def test_claude_unparseable_stdout_is_kept_verbatim(tmp_path: Path) -> None:
 # --- Antigravity callee -----------------------------------------------------
 
 
-def test_antigravity_captures_text_output_verbatim(tmp_path: Path) -> None:
+def test_antigravity_parses_json_envelope(tmp_path: Path) -> None:
+    """agy's answer is the envelope's `response`; the prompt is the attached
+    `-p=` element, last, after every flag (a bare `-p` swallows the next one)."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     argv_log = tmp_path / "argv.json"
-    write_fake_cli(bin_dir, "agy", stdout="Antigravity answer\n", argv_log=argv_log)
+    write_fake_cli(
+        bin_dir,
+        "agy",
+        stdout=agy_envelope("Antigravity answer\n", conversation_id="conv-9"),
+        argv_log=argv_log,
+    )
     prompt_file = write_prompt(tmp_path, "Objective: research")
 
     result = run_cli_consult(
@@ -222,39 +266,307 @@ def test_antigravity_captures_text_output_verbatim(tmp_path: Path) -> None:
         path_prefix=bin_dir,
     )
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, result.stdout
     payload = json.loads(result.stdout)
+    assert payload["ok"] is True
     assert payload["cli"] == "antigravity"
     assert payload["model"] == "fast"
     assert payload["response_head"] == "Antigravity answer\n"
+    assert payload["conversation_id"] == "conv-9"
+    assert payload["envelope_status"] == "SUCCESS"
+    # Not a resumable id: agy restores no history in print mode.
+    assert payload["session_id"] is None
+    assert payload["denied_actions"] == []
+    assert payload["warnings"] == []
     assert payload["response_file"].startswith(".claude/logs/antigravity/")
-    assert payload["write_access"] is True
+    assert (tmp_path / payload["response_file"]).read_text(
+        encoding="utf-8"
+    ) == "Antigravity answer\n"
 
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
-    assert argv[1] == "-p"
+    assert argv[-1] == "-p=Objective: research"
+    assert argv[-3:-1] == ["--output-format", "json"]
+    assert argv.index("--model") < len(argv) - 3
     assert argv[argv.index("--model") + 1] == "fast"
-    # Headless is already unrestricted: there is no permission flag to send,
-    # and inventing one would misreport what the callee is actually doing.
-    assert not [arg for arg in argv if "approval" in arg or "permission" in arg]
+    assert argv.count("-p") == 0
 
 
-def test_antigravity_refuses_read_only_it_cannot_enforce(tmp_path: Path) -> None:
-    """Accepting the flag and running unrestricted anyway would be the lie."""
+def test_antigravity_argv_order_with_every_option(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"), argv_log=argv_log)
+    media = tmp_path / "media"
+    media.mkdir()
+    extra = tmp_path / "extra"
+    extra.mkdir()
+    prompt_file = write_prompt(tmp_path, "Describe the clip")
+
+    result = run_cli_consult(
+        tmp_path,
+        [
+            "--cli",
+            "antigravity",
+            "--prompt-file",
+            str(prompt_file),
+            "--model",
+            "fast",
+            "--add-dir",
+            str(media),
+            "--add-dir",
+            str(extra),
+            "--cli-arg=--effort",
+            "--cli-arg",
+            "high",
+        ],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["add_dirs"] == [str(media.resolve()), str(extra.resolve())]
+    argv = json.loads(argv_log.read_text(encoding="utf-8"))
+    assert argv[1:] == [
+        "--dangerously-skip-permissions",
+        "--model",
+        "fast",
+        f"--add-dir={media.resolve()}",
+        f"--add-dir={extra.resolve()}",
+        "--effort",
+        "high",
+        "--output-format",
+        "json",
+        "-p=Describe the clip",
+    ]
+
+
+def test_antigravity_write_access_is_explicitly_unrestricted(tmp_path: Path) -> None:
+    """agy's own default lets a risk judge soft-deny steps; the wrapper's
+    unrestricted default must say so in the call instead."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"), argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file)],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["write_access"] is True
+    argv = json.loads(argv_log.read_text(encoding="utf-8"))
+    assert "--dangerously-skip-permissions" in argv
+    assert "--settings" not in argv
+    assert "--mode" not in argv
+
+
+def test_antigravity_read_only_sends_session_deny_rules(tmp_path: Path) -> None:
+    """--read-only maps onto deny rules, the only mechanism that blocked writes
+    in the probe; `--mode plan` is not read-only and must not be used."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"), argv_log=argv_log)
     prompt_file = write_prompt(tmp_path, "Objective: x")
 
     result = run_cli_consult(
         tmp_path,
         ["--cli", "antigravity", "--prompt-file", str(prompt_file), "--read-only"],
+        path_prefix=bin_dir,
     )
 
-    assert result.returncode == 1
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["write_access"] is False
+    argv = json.loads(argv_log.read_text(encoding="utf-8"))
+    settings = json.loads(argv[argv.index("--settings") + 1])
+    assert set(settings["permissions"]["deny"]) == {
+        "write_file(*)",
+        "command(*)",
+        "mcp(*)",
+        # Reads reach outside the workspace, so the network stays closed.
+        "read_url(*)",
+        "execute_url(*)",
+    }
+    assert "--dangerously-skip-permissions" not in argv
+    assert "--mode" not in argv
+    assert argv[-1] == "-p=Objective: x"
+
+
+def test_antigravity_prompt_starting_with_dash_stays_attached(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"), argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, "--not-a-flag\n- item one")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file)],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    argv = json.loads(argv_log.read_text(encoding="utf-8"))
+    assert argv[-1] == "-p=--not-a-flag\n- item one"
+
+
+def test_antigravity_non_success_status_fails_and_keeps_raw_output(
+    tmp_path: Path,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    raw = agy_envelope("partial", status="ERROR")
+    write_fake_cli(bin_dir, "agy", stdout=raw)
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file)],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 3, result.stdout
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
-    assert "--read-only" in payload["error"]
+    assert payload["exit_code"] == 0
+    assert payload["envelope_status"] == "ERROR"
+    assert "status 'ERROR'" in payload["error"]
+    assert (tmp_path / payload["response_file"]).read_text(encoding="utf-8") == raw
+
+
+def test_antigravity_unparseable_output_fails_but_is_saved_verbatim(
+    tmp_path: Path,
+) -> None:
+    """Exit 0 with a changed output shape must fail closed without losing it."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    for raw in ("plain text answer\n", "[1, 2]", ""):
+        write_fake_cli(bin_dir, "agy", stdout=raw)
+        result = run_cli_consult(
+            tmp_path,
+            ["--cli", "antigravity", "--prompt-file", str(prompt_file)],
+            path_prefix=bin_dir,
+        )
+
+        assert result.returncode == 3, raw
+        payload = json.loads(result.stdout)
+        assert payload["ok"] is False, raw
+        assert "unparseable agy envelope" in payload["error"], raw
+        assert payload["response_verified"] is True, raw
+        saved = (tmp_path / payload["response_file"]).read_text(encoding="utf-8")
+        assert saved == raw
+
+
+def test_antigravity_empty_response_fails(tmp_path: Path) -> None:
+    """A refused task still reports SUCCESS; an empty answer is the tell."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    for empty in ("", "  \n"):
+        write_fake_cli(bin_dir, "agy", stdout=agy_envelope(empty))
+        result = run_cli_consult(
+            tmp_path,
+            ["--cli", "antigravity", "--prompt-file", str(prompt_file)],
+            path_prefix=bin_dir,
+        )
+
+        assert result.returncode == 3, repr(empty)
+        payload = json.loads(result.stdout)
+        assert payload["ok"] is False
+        assert "empty response" in payload["error"]
+
+
+def test_antigravity_denied_actions_become_warnings_not_failure(
+    tmp_path: Path,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    denied = [{"action": "command", "display_name": "Bash"}]
+    write_fake_cli(
+        bin_dir,
+        "agy",
+        stdout=agy_envelope("Deliverable text", denied_actions=denied),
+        stderr=(
+            "jetski: no output produced \u2014 a tool required the "
+            '"command" permission that headless mode cannot prompt for, '
+            "so it was auto-denied\n"
+        ),
+    )
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file), "--read-only"],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["denied_actions"] == denied
+    warnings = payload["warnings"]
+    assert any("command (Bash)" in warning for warning in warnings), warnings
+    assert any("soft denial" in warning for warning in warnings), warnings
+
+
+def test_antigravity_deny_rule_message_becomes_a_warning(tmp_path: Path) -> None:
+    """Hard denies appear only in the response prose, never in denied_actions."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_cli(
+        bin_dir,
+        "agy",
+        stdout=agy_envelope(
+            "Permission denied for write_file(/x/probe.txt). "
+            "Matches user-configured deny rule."
+        ),
+    )
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file), "--read-only"],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert any("deny rule" in warning for warning in payload["warnings"])
+
+
+def test_read_only_run_with_edits_warns(tmp_path: Path) -> None:
+    """Provenance cannot tell writers apart, so edits under --read-only are a
+    warning (possibly a concurrent writer), not a failure."""
+    init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_cli(
+        bin_dir, "agy", stdout=agy_envelope("ok"), create_file=tmp_path / "new.txt"
+    )
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file), "--read-only"],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["edits"]["created_files"] == ["new.txt"]
+    assert any("under --read-only" in warning for warning in payload["warnings"])
 
 
 def test_antigravity_rejects_resume(tmp_path: Path) -> None:
-    """A flag the callee has no equivalent for is an argument error, not a run."""
+    """A flag the callee has no equivalent for is an argument error, not a run:
+    agy accepts --conversation but restores no history in print mode."""
     prompt_file = write_prompt(tmp_path, "Objective: x")
 
     result = run_cli_consult(
@@ -266,6 +578,58 @@ def test_antigravity_rejects_resume(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
     assert "--resume" in payload["error"]
+    assert "does not restore history" in payload["error"]
+
+
+def test_add_dir_must_exist(tmp_path: Path) -> None:
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        [
+            "--cli",
+            "antigravity",
+            "--prompt-file",
+            str(prompt_file),
+            "--add-dir",
+            str(tmp_path / "missing"),
+        ],
+    )
+
+    assert result.returncode == 1
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "--add-dir" in payload["error"]
+
+
+def test_claude_add_dir_uses_the_attached_form(tmp_path: Path) -> None:
+    """Claude's --add-dir is variadic: a separate value would let it swallow
+    the positional prompt as one more directory."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "claude", stdout=claude_envelope("ok"), argv_log=argv_log)
+    media = tmp_path / "media"
+    media.mkdir()
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        [
+            "--cli",
+            "claude",
+            "--prompt-file",
+            str(prompt_file),
+            "--add-dir",
+            str(media),
+        ],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    argv = json.loads(argv_log.read_text(encoding="utf-8"))
+    assert f"--add-dir={media.resolve()}" in argv
+    assert argv[-1] == "Objective: x"
 
 
 # --- Failure paths ----------------------------------------------------------
@@ -291,22 +655,27 @@ def test_nonzero_exit_captures_stderr_file(tmp_path: Path) -> None:
     assert (tmp_path / payload["stderr_file"]).read_text(encoding="utf-8") == "boom\n"
 
 
-def test_timeout_is_reported_not_hung(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("cli", "binary"), [("claude", "claude"), ("antigravity", "agy")]
+)
+def test_timeout_is_reported_not_hung(tmp_path: Path, cli: str, binary: str) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    write_fake_cli(bin_dir, "claude", stdout="late", sleep=5.0)
+    write_fake_cli(bin_dir, binary, stdout="late", sleep=5.0)
     prompt_file = write_prompt(tmp_path, "Objective: x")
 
     result = run_cli_consult(
         tmp_path,
-        ["--cli", "claude", "--prompt-file", str(prompt_file), "--timeout", "1"],
+        ["--cli", cli, "--prompt-file", str(prompt_file), "--timeout", "1"],
         path_prefix=bin_dir,
     )
 
     assert result.returncode == 3
     payload = json.loads(result.stdout)
     assert payload["timed_out"] is True
-    assert "timed out after 1s" in payload["error"]
+    assert f"{cli} timed out after 1s" in payload["error"]
+    # A list on every path, so callers can iterate it without a None check.
+    assert payload["denied_actions"] == []
 
 
 def test_missing_cli_is_exit_2_with_install_hint(tmp_path: Path) -> None:
@@ -343,7 +712,7 @@ def test_prompt_stdin_is_accepted(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     argv_log = tmp_path / "argv.json"
-    write_fake_cli(bin_dir, "agy", stdout="ok", argv_log=argv_log)
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"), argv_log=argv_log)
 
     result = run_cli_consult(
         tmp_path,
@@ -354,7 +723,7 @@ def test_prompt_stdin_is_accepted(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
-    assert argv[-1] == "Objective: piped prompt"
+    assert argv[-1] == "-p=Objective: piped prompt"
 
 
 def test_both_prompt_sources_is_an_argument_error(tmp_path: Path) -> None:
@@ -394,24 +763,120 @@ def test_bad_label_is_rejected_before_running(tmp_path: Path) -> None:
     assert "--label" in json.loads(result.stdout)["error"]
 
 
-def test_permission_flags_cannot_be_smuggled_through_cli_arg(tmp_path: Path) -> None:
+@pytest.mark.parametrize("cli", ["claude", "antigravity"])
+def test_permission_flags_cannot_be_smuggled_through_cli_arg(
+    tmp_path: Path, cli: str
+) -> None:
     """The wrapper's own flag must stay the single statement of access."""
     prompt_file = write_prompt(tmp_path, "Objective: x")
 
-    for smuggled in ("--permission-mode", "--yolo", "--approval-mode=yolo"):
+    for smuggled in (
+        "--permission-mode",
+        "--dangerously-skip-permissions",
+        "--sandbox",
+        "--mode=plan",
+        "--mode",
+        "--settings={}",
+        "--allowedTools=Bash",
+    ):
         result = run_cli_consult(
             tmp_path,
-            [
-                "--cli",
-                "claude",
-                "--prompt-file",
-                str(prompt_file),
-                f"--cli-arg={smuggled}",
-            ],
+            ["--cli", cli, "--prompt-file", str(prompt_file), f"--cli-arg={smuggled}"],
         )
         assert result.returncode == 1, smuggled
         payload = json.loads(result.stdout)
         assert "--read-only" in payload["error"], smuggled
+
+
+@pytest.mark.parametrize("cli", ["claude", "antigravity"])
+def test_wrapper_owned_flags_are_refused(tmp_path: Path, cli: str) -> None:
+    """Prompt placement, output format, workspace, and session flags belong to
+    the wrapper; a passthrough copy would contradict or break the call."""
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    for owned in (
+        "--output-format=text",
+        "--input-format",
+        "-p",
+        "--print",
+        "--prompt=hi",
+        "--add-dir=/tmp",
+        "--conversation",
+        "--continue",
+        "-c",
+        "--resume",
+        "-r",
+        "--prompt-interactive",
+        "-i",
+    ):
+        result = run_cli_consult(
+            tmp_path,
+            ["--cli", cli, "--prompt-file", str(prompt_file), f"--cli-arg={owned}"],
+        )
+        assert result.returncode == 1, owned
+        payload = json.loads(result.stdout)
+        assert "wrapper sets this flag" in payload["error"], owned
+
+
+@pytest.mark.parametrize("cli", ["claude", "antigravity"])
+def test_bare_option_terminator_is_refused(tmp_path: Path, cli: str) -> None:
+    """A passthrough `--` would turn agy's `--output-format json -p=...` into
+    stray positionals (agy exits 2); refuse it before spawning."""
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    for terminator in ("--", "-"):
+        result = run_cli_consult(
+            tmp_path,
+            [
+                "--cli",
+                cli,
+                "--prompt-file",
+                str(prompt_file),
+                f"--cli-arg={terminator}",
+            ],
+        )
+        assert result.returncode == 1, terminator
+        payload = json.loads(result.stdout)
+        assert "end option parsing" in payload["error"], terminator
+
+
+def test_exact_denylist_does_not_overmatch(tmp_path: Path) -> None:
+    """`mode` is a substring of `--model`; exact entries must not catch it."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"), argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        [
+            "--cli",
+            "antigravity",
+            "--prompt-file",
+            str(prompt_file),
+            "--cli-arg=--model=fast",
+            "--cli-arg=--fallback-model",
+            "--cli-arg",
+            "slow",
+            "--cli-arg=--effort",
+            "--cli-arg",
+            "high",
+            "--cli-arg=--print-timeout=60s",
+        ],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    argv = json.loads(argv_log.read_text(encoding="utf-8"))
+    for forwarded in (
+        "--model=fast",
+        "--fallback-model",
+        "--effort",
+        "--print-timeout=60s",
+    ):
+        assert forwarded in argv, forwarded
+    assert argv[-1] == "-p=Objective: x"
 
 
 def test_cli_arg_passthrough_reaches_the_callee(tmp_path: Path) -> None:
@@ -450,7 +915,7 @@ def test_prompt_is_persisted_next_to_the_response_even_from_stdin(
     that was actually sent used to exist nowhere at all."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    write_fake_cli(bin_dir, "agy", stdout="an answer")
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("an answer"))
 
     result = run_cli_consult(
         tmp_path,
@@ -472,7 +937,7 @@ def test_prompt_is_persisted_next_to_the_response_even_from_stdin(
 def test_now_pins_the_log_filenames(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    write_fake_cli(bin_dir, "agy", stdout="ok")
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"))
     prompt_file = write_prompt(tmp_path, "Objective: pinned clock")
 
     result = run_cli_consult(
@@ -526,9 +991,9 @@ def test_same_second_and_label_cannot_overwrite_an_earlier_response(
     same_second = ["--now", "2026-07-25T10:00:00+00:00"]
     base = ["--cli", "antigravity", "--prompt-file", str(prompt_file), *same_second]
 
-    write_fake_cli(bin_dir, "agy", stdout="first answer")
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("first answer"))
     first = run_cli_consult(tmp_path, base, path_prefix=bin_dir)
-    write_fake_cli(bin_dir, "agy", stdout="second answer")
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("second answer"))
     second = run_cli_consult(tmp_path, base, path_prefix=bin_dir)
 
     assert first.returncode == 0, first.stdout
@@ -619,3 +1084,294 @@ def test_success_reports_artifacts_and_a_verified_response(tmp_path: Path) -> No
     for relative in payload["artifacts"]:
         assert not Path(relative).is_absolute()
         assert (tmp_path / relative).is_file()
+
+
+# --- argv-size guard, exec failures, Python 3.10 clock parsing ---------------
+
+
+@pytest.mark.parametrize(
+    ("cli", "prompt"),
+    [
+        # One byte past the limit once agy's attached "-p=" is counted.
+        ("antigravity", "x" * (MAX_ARG_BYTES - len("-p=") + 1)),
+        ("claude", "x" * (MAX_ARG_BYTES + 1)),
+        # The limit is in bytes: ~43.7k Japanese characters already exceed it.
+        ("antigravity", "あ" * (MAX_ARG_BYTES // 3)),
+    ],
+)
+def test_over_long_prompt_is_refused_before_spawning(
+    tmp_path: Path, cli: str, prompt: str
+) -> None:
+    """E2BIG used to escape subprocess.run as a traceback with no JSON."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"), argv_log=argv_log)
+    write_fake_cli(bin_dir, "claude", stdout=claude_envelope("ok"), argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, prompt)
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", cli, "--prompt-file", str(prompt_file)],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 1, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["error"].startswith("prompt exceeds the single-argv limit")
+    assert "absolute path" in payload["error"]
+    assert result.stderr == ""
+    assert not argv_log.exists()
+    assert not (tmp_path / ".claude" / "logs").exists()
+
+
+def test_prompt_at_the_argv_limit_still_runs(tmp_path: Path) -> None:
+    """The guard is exact: the largest element Linux accepts is not refused."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"), argv_log=argv_log)
+    prompt = "x" * (MAX_ARG_BYTES - len("-p="))
+    prompt_file = write_prompt(tmp_path, prompt)
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file)],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    argv = json.loads(argv_log.read_text(encoding="utf-8"))
+    assert len(argv[-1].encode("utf-8")) == MAX_ARG_BYTES
+
+
+def test_callee_that_cannot_be_executed_is_json_and_exit_3(tmp_path: Path) -> None:
+    """An exec failure (here ENOEXEC) is an external failure, not a traceback,
+    and never falls through to a later `agy` on PATH."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    garbage = bin_dir / "agy"
+    garbage.write_bytes(b"\x00\x01not an executable format\n")
+    garbage.chmod(0o755)
+    # A later, working `agy` that exec's own PATH walk would have started.
+    fallback_dir = tmp_path / "fallback_bin"
+    fallback_dir.mkdir()
+    fallback_log = tmp_path / "fallback-ran.json"
+    fallback = fallback_dir / "agy"
+    fallback.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        f"open({str(fallback_log)!r}, 'w').write('ran')\n"
+        f"sys.stdout.write({agy_envelope('ok')!r})\n",
+        encoding="utf-8",
+    )
+    fallback.chmod(0o755)
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "antigravity", "--prompt-file", str(prompt_file)],
+        exact_path=f"{bin_dir}{os.pathsep}{fallback_dir}",
+    )
+
+    assert result.returncode == 3, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["exit_code"] is None
+    assert "cannot start antigravity" in payload["error"]
+    assert payload["denied_actions"] == []
+    assert result.stderr == ""
+    assert not fallback_log.exists()
+    assert (tmp_path / payload["prompt_file"]).is_file()
+
+
+def test_now_accepts_a_zulu_suffix_on_python_310(tmp_path: Path) -> None:
+    """3.10's fromisoformat rejects "Z"; the wrapper must not depend on 3.11."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    write_fake_cli(bin_dir, "claude", stdout=claude_envelope("ok"))
+    prompt_file = write_prompt(tmp_path, "Objective: zulu")
+
+    result = run_cli_consult(
+        tmp_path,
+        [
+            "--cli",
+            "claude",
+            "--prompt-file",
+            str(prompt_file),
+            "--label",
+            "zulu",
+            "--now",
+            "2026-07-25T10:00:00Z",
+        ],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["response_file"] == ".claude/logs/claude/20260725T100000Z-zulu.md"
+
+
+def test_claude_payload_keeps_its_shape_and_gains_no_agy_fields(
+    tmp_path: Path,
+) -> None:
+    """Shared code paths changed; Claude's argv and result must not."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "claude", stdout=claude_envelope("body"), argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "claude", "--prompt-file", str(prompt_file), "--model", "opus"],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["warnings"] == []
+    assert payload["denied_actions"] == []
+    assert payload["conversation_id"] is None
+    assert payload["envelope_status"] is None
+    assert payload["add_dirs"] == []
+    argv = json.loads(argv_log.read_text(encoding="utf-8"))
+    assert argv[1:] == [
+        "-p",
+        "--output-format",
+        "json",
+        "--permission-mode",
+        "bypassPermissions",
+        "--model",
+        "opus",
+        "Objective: x",
+    ]
+
+
+@pytest.mark.parametrize("cli", ["claude", "antigravity"])
+def test_remote_session_flags_are_refused(tmp_path: Path, cli: str) -> None:
+    """--remote-agent / --remote-control move where the session runs, so the
+    wrapper's own call can no longer be the visible statement of it."""
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    for remote in (
+        "--remote-agent",
+        "--remote-agent=cloud",
+        "--remote-control",
+        "--remote-control=on",
+    ):
+        result = run_cli_consult(
+            tmp_path,
+            ["--cli", cli, "--prompt-file", str(prompt_file), f"--cli-arg={remote}"],
+        )
+        assert result.returncode == 1, remote
+        payload = json.loads(result.stdout)
+        assert "wrapper sets this flag" in payload["error"], remote
+
+
+@pytest.mark.parametrize(
+    "log_flag", ["--log-file", "--log-file=/tmp/agy.log", "--LOG-FILE=x"]
+)
+def test_log_file_flag_is_refused(tmp_path: Path, log_flag: str) -> None:
+    """agy's --log-file makes the process itself write to any path; no deny
+    rule covers that, so a --read-only run could still write outside the repo."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"), argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = run_cli_consult(
+        tmp_path,
+        [
+            "--cli",
+            "antigravity",
+            "--prompt-file",
+            str(prompt_file),
+            "--read-only",
+            f"--cli-arg={log_flag}",
+        ],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 1, result.stdout
+    payload = json.loads(result.stdout)
+    assert "write its own log" in payload["error"], log_flag
+    assert not argv_log.exists()
+    assert not (tmp_path / ".claude" / "logs" / "antigravity").exists()
+
+
+# --- agy_envelope.py: the parsing half, also runnable offline ----------------
+
+AGY_ENVELOPE_SCRIPT = SCRIPT.with_name("agy_envelope.py")
+
+
+def run_agy_envelope(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            str(AGY_ENVELOPE_SCRIPT),
+            "--project-root",
+            str(tmp_path),
+            *args,
+        ],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+def test_agy_envelope_cli_accepts_a_success_envelope(tmp_path: Path) -> None:
+    (tmp_path / "out.json").write_text(agy_envelope("Deliverable"), encoding="utf-8")
+
+    result = run_agy_envelope(tmp_path, "--stdout-file", "out.json")
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["status"] == "SUCCESS"
+    assert payload["warnings"] == []
+
+
+def test_agy_envelope_cli_reports_warnings_from_stderr_and_denials(
+    tmp_path: Path,
+) -> None:
+    denied = [{"action": "command", "display_name": "Bash"}]
+    (tmp_path / "out.json").write_text(
+        agy_envelope("Deliverable", denied_actions=denied), encoding="utf-8"
+    )
+    (tmp_path / "err.txt").write_text("tool was auto-denied\n", encoding="utf-8")
+
+    result = run_agy_envelope(
+        tmp_path, "--stdout-file", "out.json", "--stderr-file", "err.txt"
+    )
+
+    assert result.returncode == 0, result.stdout
+    warnings = json.loads(result.stdout)["warnings"]
+    assert any("command (Bash)" in warning for warning in warnings), warnings
+    assert any("soft denial" in warning for warning in warnings), warnings
+
+
+def test_agy_envelope_cli_fails_closed_on_an_unusable_envelope(tmp_path: Path) -> None:
+    for name, text, expected in (
+        ("garbage.json", "not json", "unparseable agy envelope"),
+        ("empty.json", agy_envelope("  "), "empty response"),
+        ("bad.json", agy_envelope("x", status="ERROR"), "reported status"),
+    ):
+        (tmp_path / name).write_text(text, encoding="utf-8")
+
+        result = run_agy_envelope(tmp_path, "--stdout-file", name)
+
+        assert result.returncode == 3, name
+        payload = json.loads(result.stdout)
+        assert payload["ok"] is False, name
+        assert expected in payload["error"], name
+
+
+def test_agy_envelope_cli_missing_input_is_bad_args(tmp_path: Path) -> None:
+    result = run_agy_envelope(tmp_path, "--stdout-file", "absent.json")
+
+    assert result.returncode == 1
+    assert json.loads(result.stdout)["ok"] is False

@@ -54,7 +54,7 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn
 
@@ -110,7 +110,7 @@ def _sha256(text: str) -> str:
 def _parse_now(raw: str | None) -> datetime:
     """Read the clock exactly once, or parse the injected ``--now`` value."""
     if raw is None:
-        return datetime.now(tz=UTC)
+        return datetime.now(tz=timezone.utc)
     return datetime.fromisoformat(raw)
 
 
@@ -266,7 +266,7 @@ def collect_research_notes(state_text: str, research_dir: Path) -> list[dict]:
     lowered = state_text.lower()
     notes = []
     for path in sorted(research_dir.glob("*.md")):
-        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
         notes.append(
             {
                 "file": path.name,

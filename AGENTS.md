@@ -45,6 +45,10 @@ Always respond in the following order.
 - Impact of failure and mitigation strategies
 ```
 
+When the delegation prompt specifies a deliverable format, keep `## TL;DR`
+first and replace the remaining sections with `## Deliverable` and the
+requested structure.
+
 ## Handoff Rules
 
 - Return procedures that are directly executable as-is
@@ -72,7 +76,7 @@ a stalled call has no deadline.
 |--------|-----------|-------|
 | Claude Code | `python3 .claude/skills/_shared/cli_consult.py --cli claude --prompt-file <path>` | Wraps `claude -p --output-format json`; returns the envelope's `result` as the response and its `session_id` for chaining via `--resume` |
 | Codex | `python3 .claude/skills/_shared/codex_consult.py --prompt-file <path>` | Wraps `codex exec`; sandbox modes and `--config` overrides are validated there. Flags and exit codes: `.claude/skills/codex-system/SKILL.md` |
-| Antigravity | `python3 .claude/skills/_shared/cli_consult.py --cli antigravity --prompt-file <path>` | Wraps `agy -p`; text output is captured verbatim and the exit code is the success signal. Its headless mode auto-approves every tool call, so it cannot be confined from the caller and refuses `--read-only` |
+| Antigravity | `python3 .claude/skills/_shared/cli_consult.py --cli antigravity --prompt-file <path>` | Wraps `agy ... --output-format json -p=<prompt>`; returns the envelope's `response`, fails on non-`SUCCESS`, empty, or unparseable output, and surfaces `denied_actions` and soft-deny stderr as `warnings`. `--add-dir <dir>` declares the media directory for the run (it is not a read boundary). The payload adds `envelope_status`, `conversation_id`, `denied_actions` (always a list), and `warnings`. `--resume` is refused (`agy` does not restore history in print mode) |
 
 Both wrappers share one contract: prompt via `--prompt-file`/`--prompt-stdin`
 as a single argv element (no shell), stdin closed, a timeout, stdout and stderr
@@ -98,10 +102,13 @@ Rules:
   |--------|------------------------|------------------|
   | Claude Code | `--permission-mode bypassPermissions` | `cli_consult.py --read-only` → `--permission-mode plan` |
   | Codex | `codex_consult.py` default `--sandbox danger-full-access` | `--sandbox read-only` (or `workspace-write` for a middle ground) |
-  | Antigravity | headless auto-approves every tool call; nothing to pass | **not supported** — `--read-only` is refused rather than accepted and ignored |
+  | Antigravity | `--dangerously-skip-permissions` | `cli_consult.py --read-only` → `--settings` session deny rules for `write_file(*)`, `command(*)`, `mcp(*)`, `read_url(*)`, and `execute_url(*)` |
 
   Planning, design, and review consultations should still pass the read-only
-  opt-in where the callee supports it. Unrestricted is the default because it
+  opt-in where the callee supports it. Antigravity's routed uses (human-facing
+  report drafts, careful video reading, Japanese prose polishing) always run
+  `--read-only`; the deliverable comes back as text. A read-only run can still
+  exit 0 after a refused action, so inspect `denied_actions` and `warnings`. Unrestricted is the default because it
   is the truth about the environment, not because every call needs it.
 
 - **Every run records what it edited.** Because the default is unrestricted,
@@ -130,8 +137,8 @@ Rules:
   came back, and which files it changed (`caller`, `label`, `access`, `edits`).
   A direct `codex exec` is logged too, but with all four of those fields
   `null` — the missing provenance is the reason the wrapper is mandated.
-- Prefer the project's own delegation skills (`codex-system`,
-  `general-purpose-opus`) over an ad-hoc wrapper call when one already covers
+- Prefer the project's own delegation skills and agents (`codex-system`,
+  `general-purpose-opus`, `antigravity-delegate`) over an ad-hoc wrapper call when one already covers
   the task.
 
 ## Internal Context References
