@@ -4,7 +4,7 @@
 Two typed writers, one contract. ``--type feature|bug-fix|project`` renders a
 ``## Current Feature|Bug Fix|Project`` block from typed JSON input and appends
 it to shared state; ``--type repository-identity`` replaces the body of the
-``## Repository Identity`` section that ``/init`` owns (previously written by
+``## Repository Identity`` section that ``/start-project`` owns (previously written by
 hand with raw Edit/Write, with no validation of that section at all).
 
 Both are dry-run by default; ``--apply`` writes atomically, validates the
@@ -47,7 +47,9 @@ STATE_HEADING = "# Agent State"
 IDENTITY_HEADING = "## Repository Identity"
 
 IDENTITY_TYPE = "repository-identity"
-IDENTITY_MANAGED_COMMENT = "<!-- Managed by /init. Re-run /init to refresh. -->"
+IDENTITY_MANAGED_COMMENT = (
+    "<!-- Managed by /start-project. Re-run /start-project to refresh. -->"
+)
 IDENTITY_DESIGN_POINTER = (
     "Macro requirements and design live in [docs/DESIGN.md](docs/DESIGN.md)."
 )
@@ -124,7 +126,7 @@ def validate_identity_input(data: dict) -> str | None:
     """Return an error message if *data* violates the identity schema, else None.
 
     The section body is one identity sentence plus the fixed DESIGN.md pointer
-    (``init/SKILL.md`` step 4), so anything that would introduce a heading, a
+    (``start-project/SKILL.md`` step 4), so anything that would introduce a heading, a
     thematic break, or a second paragraph is rejected rather than written.
     """
     if not isinstance(data, dict):

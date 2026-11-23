@@ -39,11 +39,10 @@ Because the default is unrestricted, every run is bracketed by an
 ``edit_provenance`` snapshot and the resulting ``edits`` object names the
 files the callee actually created, changed, or deleted, including files it
 committed. With ``caller`` and ``label`` alongside it, a change in the tree
-can be traced back to the subagent that asked for it.
-
-The prompt that was actually sent is always persisted next to the response
-(``{stem}.prompt.md``), including on the ``--prompt-stdin`` path, so a consult
-stays diagnosable after the fact.
+can be traced back to the subagent that asked for it. ``executor_contract.py``
+prefixes every prompt with the executor contract and sets
+``ORCHESTRA_ROLE=executor``; the composed prompt actually sent (which the argv
+limit applies to) is persisted as ``{stem}.prompt.md``, ``--prompt-stdin`` too.
 
 Usage:
     python3 cli_consult.py --cli claude --prompt-file p.txt --label design-review
@@ -63,8 +62,8 @@ Exit codes:
     2  the callee CLI is not on PATH
     3  the callee CLI could not be started, failed, reported an error (for
        Antigravity: a non-SUCCESS status, an empty response, or an
-       unparseable envelope), or timed out, or a log file could not be
-       written, created, or verified
+       unparseable envelope), or timed out, a log file could not be
+       written, created, or verified, or the executor contract is unreadable
 """
 
 import argparse
@@ -80,6 +79,7 @@ from pathlib import Path
 from typing import NoReturn
 
 import edit_provenance
+import executor_contract
 from agy_envelope import antigravity_warnings, extract_antigravity_result
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
@@ -87,9 +87,6 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 DEFAULT_TIMEOUT = 900
 LABEL_RE = re.compile(r"^[a-z0-9-]+$")
 
-# Linux caps one argv string at MAX_ARG_STRLEN (131072 bytes, NUL included);
-# a longer element makes exec fail with E2BIG. Applied on every platform.
-MAX_ARG_BYTES = 131_071
 
 # Session-only deny rules for a read-only Antigravity run (`--settings` is
 # never saved). `command(*)` also blocks read-only shell use, so the callee
@@ -143,13 +140,9 @@ CLI_SPECS: dict[str, dict] = {
     },
 }
 
-# Passthrough arguments are forwarded verbatim, so the flags that decide what
-# the callee may touch are refused: the wrapper's own access flag must stay the
-# single visible statement of access, not something a passthrough can quietly
-# contradict. This still matters now that the default is unrestricted — the
-# denylist is about where access is *declared*, not about which way it points.
-#
-# Substring match: any spelling of these names an access decision.
+# Passthrough flags that decide what the callee may touch are refused: the
+# wrapper's own access flag stays the single visible statement of access, in
+# either direction. Substring match: any spelling names an access decision.
 CLI_ARG_ACCESS_SUBSTRINGS = (
     "permission-mode",
     "allowedtools",
@@ -175,11 +168,9 @@ EXIT_BAD_ARGS = 1
 EXIT_NOT_FOUND = 2
 EXIT_FAILED = 3
 
-# Second-granularity timestamps collide: two consults started in the same second
-# with the same --label (and `consult` is the default) used to write the same
-# response file, so the second run silently destroyed the first run's answer.
-# The repository now runs several agents in parallel, so the log stem is
-# *reserved* with O_EXCL and a numeric suffix is appended on collision.
+# Same-second consults with the same --label used to overwrite each other's
+# response file, so the log stem is reserved with O_EXCL (numeric suffix on
+# collision).
 MAX_LOG_ATTEMPTS = 100
 
 
@@ -189,10 +180,8 @@ def _emit(obj: dict) -> None:
 
 
 class JsonArgumentParser(argparse.ArgumentParser):
-    """ArgumentParser that reports usage errors through this tool's own
-    JSON-on-stdout / exit-1 contract instead of argparse's default stderr
-    text + exit(2) — so even an argparse-level failure stays machine-readable
-    and never masquerades as this tool's exit code 2."""
+    """Report usage errors as one JSON object with exit 1, never argparse's
+    stderr text + exit 2 (which would read as "CLI not on PATH")."""
 
     def error(self, message: str) -> NoReturn:
         _emit({"ok": False, "error": message})
@@ -376,24 +365,6 @@ def build_argv(
     prompt_flag = spec["prompt_flag"]
     argv.append(prompt if prompt_flag is None else f"{prompt_flag}={prompt}")
     return argv
-
-
-def oversized_argv_error(argv: list[str]) -> str | None:
-    """Return an error if any argv element exceeds the single-argument limit.
-
-    An oversized element makes ``exec`` fail with E2BIG; refusing it here
-    turns that into an argument error the caller can act on. Only the prompt
-    can be the culprit: every other element arrived through this wrapper's
-    own argv (already under the limit) or is a short constant or path.
-    """
-    longest = max(len(arg.encode("utf-8", errors="surrogateescape")) for arg in argv)
-    if longest <= MAX_ARG_BYTES:
-        return None
-    return (
-        f"prompt exceeds the single-argv limit ({longest} bytes > "
-        f"{MAX_ARG_BYTES}); pass long inputs by absolute path and let the "
-        "callee read them"
-    )
 
 
 def extract_claude_result(stdout_text: str) -> tuple[str, str | None, bool]:
@@ -608,6 +579,12 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     else:
         prompt = sys.stdin.read()
 
+    try:  # The callee must know it is a delegated executor, not the main agent.
+        prompt, contract_sha = executor_contract.prepare_prompt(prompt)
+    except executor_contract.ContractError as exc:
+        _emit({"ok": False, "cli": args.cli, "error": str(exc), "artifacts": []})
+        return EXIT_FAILED
+
     write_access = not args.read_only
     caller = args.caller or os.environ.get("ORCHESTRA_CALLER") or None
     model = args.model
@@ -622,7 +599,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     )
 
     # --- Refuse an argv exec would reject, before spending anything on it ---
-    oversized_error = oversized_argv_error(argv)
+    oversized_error = executor_contract.oversized_argv_error(argv)
     if oversized_error:
         _emit({"ok": False, "cli": args.cli, "error": oversized_error})
         return EXIT_BAD_ARGS
@@ -689,6 +666,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             text=True,
             timeout=args.timeout,
             cwd=cwd,
+            env=executor_contract.executor_env(),
         )
         stdout_text = result.stdout
         stderr_text = result.stderr
@@ -773,6 +751,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             "caller": caller,
             "label": args.label,
             "write_access": write_access,
+            "executor_contract_sha": contract_sha,
             "add_dirs": add_dirs,
             "edits": edits,
             "session_id": session_id,

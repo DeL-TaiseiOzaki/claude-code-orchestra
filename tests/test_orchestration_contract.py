@@ -3,8 +3,19 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ORCHESTRATION_PATH = REPO_ROOT / "CLAUDE.md"
+ORCHESTRATION_PATH = REPO_ROOT / ".claude" / "rules" / "orchestration.md"
+ORCHESTRATION_REL = ".claude/rules/orchestration.md"
+CLI_CONTRACT_REL = ".claude/rules/cli-contract.md"
+EXECUTOR_CONTRACT_REL = ".claude/skills/_shared/executor_contract.md"
 ROUTER_PATH = REPO_ROOT / "AGENTS.md"
+AGENTS_HEADINGS = (
+    "## Project",
+    "## Commands",
+    "## Conventions",
+    "## Agent Roles",
+    "## Orchestra References",
+)
+INSTRUCTION_SHADOW_FILES = ("CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md")
 SHARED_RUNTIME_DIRS = (
     "rules",
     "skills",
@@ -43,7 +54,7 @@ def assert_references_in_order(content: str, references: tuple[str, ...]) -> Non
     assert positions == sorted(positions)
 
 
-def test_claude_md_is_the_main_agent_orchestration_contract() -> None:
+def test_orchestration_rule_is_the_main_agent_contract() -> None:
     assert ORCHESTRATION_PATH.is_file()
     assert not ORCHESTRATION_PATH.is_symlink()
     content = ORCHESTRATION_PATH.read_text(encoding="utf-8")
@@ -52,8 +63,8 @@ def test_claude_md_is_the_main_agent_orchestration_contract() -> None:
         assert content.count(heading) == 1
 
 
-def test_claude_md_is_concise_complete_instruction_file() -> None:
-    content = read_repo_file("CLAUDE.md")
+def test_orchestration_rule_is_concise_and_complete() -> None:
+    content = read_repo_file(ORCHESTRATION_REL)
 
     assert len(content.splitlines()) <= 150
     for reference in (
@@ -69,11 +80,35 @@ def test_claude_md_is_concise_complete_instruction_file() -> None:
     assert "Claude Code" in content
     assert "verify" in content.lower()
     assert "@orchestra:" not in content
-    assert not (REPO_ROOT / ".claude/rules/orchestration.md").exists()
+    assert CLI_CONTRACT_REL in content
 
 
-def test_claude_md_catalogs_every_bundled_agent_and_skill() -> None:
-    content = read_repo_file("CLAUDE.md")
+def test_orchestration_rule_yields_to_delegated_executors() -> None:
+    """Claude Code auto-loads `.claude/rules/`, so a headless `claude -p`
+    executor loads this file too; its first section must scope it away."""
+    content = read_repo_file(ORCHESTRATION_REL)
+    scope = content.split("## Mission", 1)[0]
+
+    assert "active main agent" in scope
+    assert "delegated executor" in scope
+    assert EXECUTOR_CONTRACT_REL in scope
+
+
+def test_no_claude_md_exists_and_builtin_init_is_forbidden() -> None:
+    """Any CLAUDE.md-family file makes Claude Code skip AGENTS.md, and the
+    built-in `/init` creates one."""
+    for name in INSTRUCTION_SHADOW_FILES:
+        assert not (REPO_ROOT / name).exists(), name
+    for rel in (
+        ORCHESTRATION_REL,
+        ".claude/rules/agent-state.md",
+        EXECUTOR_CONTRACT_REL,
+    ):
+        assert "built-in `/init`" in read_repo_file(rel), rel
+
+
+def test_orchestration_rule_catalogs_every_bundled_agent_and_skill() -> None:
+    content = read_repo_file(ORCHESTRATION_REL)
     agent_names = {
         path.stem for path in (REPO_ROOT / ".claude" / "agents").glob("*.md")
     }
@@ -87,40 +122,82 @@ def test_claude_md_catalogs_every_bundled_agent_and_skill() -> None:
     assert all(f"`{name}`" in content for name in agent_names | skill_names)
 
 
-def test_root_agents_md_is_the_self_contained_cli_contract() -> None:
-    """Every CLI runtime auto-loads root AGENTS.md and nothing else. When it was
-    a thin router, a delegated Codex run loaded a pointer instead of the
-    cross-CLI rules and the completion guardrails it is bound by — so the
-    sections a delegated run depends on must be in this file, not behind a link.
-    It still must not restate CLAUDE.md's own policy sections."""
+def test_root_agents_md_is_the_thin_project_owned_bootstrap() -> None:
+    """Root AGENTS.md is the single always-loaded file. It stays thin, carries
+    the role split, and points into `.claude/` instead of restating policy —
+    a delegated run gets its contract from the wrapper, not from this file."""
     assert ROUTER_PATH.is_file()
     assert not ROUTER_PATH.is_symlink()
     content = ROUTER_PATH.read_text(encoding="utf-8")
 
-    for section in (
-        "## Required Response Structure",
-        "## Handoff Rules",
-        "## Cross-CLI Subagent Invocation",
-        "## Guardrails (Completion Verification)",
-    ):
-        assert content.count(section) == 1
+    assert len(content.splitlines()) <= 150
+    assert len(content.encode("utf-8")) < 32 * 1024
+    for heading in AGENTS_HEADINGS:
+        assert content.splitlines().count(heading) == 1
+    roles = markdown_section(content, "## Agent Roles")
+    assert "ORCHESTRA_ROLE" in roles
+    assert EXECUTOR_CONTRACT_REL in roles
     for route in (
-        "CLAUDE.md",
+        ORCHESTRATION_REL,
+        CLI_CONTRACT_REL,
+        EXECUTOR_CONTRACT_REL,
         ".agents/AGENTS.md",
         ".codex/AGENTS.md",
         ".claude/rules/tiers.md",
     ):
         assert route in content
-    for policy_heading in REQUIRED_HEADINGS:
-        assert policy_heading not in content
+    for moved in (
+        "## Required Response Structure",
+        "## Handoff Rules",
+        "## Cross-CLI Subagent Invocation",
+        "## Guardrails (Completion Verification)",
+        *REQUIRED_HEADINGS,
+    ):
+        assert moved not in content
+    assert "@orchestra:" not in content
+
+
+def test_template_policy_moved_out_of_agents_md_exists_once() -> None:
+    """Caller-side and callee-side halves of the old CLI contract each live in
+    exactly one file now."""
+    cli_contract = read_repo_file(CLI_CONTRACT_REL)
+    executor = read_repo_file(EXECUTOR_CONTRACT_REL)
+
+    for section in (
+        "## Cross-CLI Subagent Invocation",
+        "## Guardrails (Completion Verification)",
+    ):
+        assert cli_contract.count(section) == 1
+        assert section not in executor
+    for section in ("## Role", "## Required Response Structure", "## Handoff Rules"):
+        assert executor.splitlines().count(section) == 1
+        assert section not in cli_contract
+    assert "ORCHESTRA_ROLE=executor" in executor
+    assert "executor_contract.md" in cli_contract
+
+
+def test_shipped_skeleton_is_recognized_by_the_updater() -> None:
+    """update.sh replaces AGENTS.md only while it is a known shipped blob; an
+    unregistered skeleton would be preserved forever as "project-owned"."""
+    content = ROUTER_PATH.read_text(encoding="utf-8")
+    assert "_Not initialized — run `/start-project`" in content
+    blob = subprocess.run(
+        ["git", "hash-object", str(ROUTER_PATH)],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert f'"AGENTS.md:{blob}"' in read_repo_file("scripts/update.sh")
 
 
 def test_contract_files_are_real_files_not_symlinks() -> None:
     """The layout is symlink-free by design: a checkout on a filesystem or CI
     runner that does not honour symlinks must still carry every contract."""
     for relative_path in (
-        "CLAUDE.md",
         "AGENTS.md",
+        ORCHESTRATION_REL,
+        CLI_CONTRACT_REL,
+        EXECUTOR_CONTRACT_REL,
         ".agents/AGENTS.md",
         ".codex/AGENTS.md",
         ".claude/STATE.md",
@@ -246,27 +323,30 @@ def test_state_tools_write_canonical_claude_state_file() -> None:
         ".claude/skills/_shared/append_state_block.py",
         ".claude/skills/checkpointing/checkpoint.py",
         ".claude/skills/checkpointing/refresh_guard.py",
-        ".claude/skills/init/detect_stack.py",
+        ".claude/skills/start-project/detect_stack.py",
     )
     for tool_path in tool_paths:
         content = read_repo_file(tool_path)
         assert ' / ".claude" / "STATE.md"' in content
-        if not tool_path.endswith("detect_stack.py"):
-            assert ' / "CLAUDE.md"' not in content
+        assert ' / "CLAUDE.md"' not in content
 
 
-def test_runtime_adapters_defer_to_the_root_contract() -> None:
-    """Each adapter adds only what is specific to its runtime and points back at
-    the root contract; neither restates it, which is how they used to drift."""
+def test_runtime_adapters_defer_to_the_shared_contracts() -> None:
+    """Each adapter adds only what is specific to its runtime and points at the
+    executor and CLI contracts; neither restates them, which is how they used
+    to drift, and neither routes an executor to the main-agent contract."""
     for adapter_path in (".agents/AGENTS.md", ".codex/AGENTS.md"):
         adapter = read_repo_file(adapter_path)
         assert "AGENTS.md" in adapter
         assert ".claude/rules/tiers.md" in adapter
-        assert ".claude/rules/orchestration.md" not in adapter
+        assert EXECUTOR_CONTRACT_REL in adapter
+        assert CLI_CONTRACT_REL in adapter
+        assert ORCHESTRATION_REL not in adapter
         # The contract lives in one place: an adapter that grew its own copy of
         # a root section is the drift this check exists to catch.
         for section in ("## Required Response Structure", "## Handoff Rules"):
             assert section not in adapter
+    assert "reference only" in read_repo_file(".codex/AGENTS.md").lower()
 
 
 def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
@@ -275,7 +355,7 @@ def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
     by tests/test_shared_script_contract.py) that Codex is reached only through
     the wrapper — and leaving `claude -p` / `agy -p` with no hardened path
     at all."""
-    content = read_repo_file("AGENTS.md")
+    content = read_repo_file(CLI_CONTRACT_REL)
     section = content.split("## Cross-CLI Subagent Invocation", 1)[1].split("\n## ", 1)[
         0
     ]
@@ -293,17 +373,22 @@ def test_cross_cli_invocation_routes_through_the_shared_wrappers() -> None:
     assert "read-only" in section.lower()
     assert "--read-only" in section
 
-    assert "cli_consult.py" in read_repo_file("CLAUDE.md")
+    assert "cli_consult.py" in read_repo_file(ORCHESTRATION_REL)
+    assert "executor_contract.md" in section
 
 
 def test_registry_marks_main_agent_contract_as_normative() -> None:
     content = read_repo_file(".claude/docs/INDEX.md")
     matching_lines = [
-        line for line in content.splitlines() if "Root agent contract" in line
+        line for line in content.splitlines() if "Main-agent contract" in line
     ]
 
     assert len(matching_lines) == 1
     assert "normative" in matching_lines[0]
+    assert ORCHESTRATION_REL in matching_lines[0]
+    bootstrap = [line for line in content.splitlines() if "| Root bootstrap" in line]
+    assert len(bootstrap) == 1
+    assert "project-owned" in bootstrap[0]
 
 
 def test_consistency_checker_validates_contract_and_bootstraps() -> None:
@@ -313,14 +398,16 @@ def test_consistency_checker_validates_contract_and_bootstraps() -> None:
     assert "check_bootstrap_references" in content
     assert "check_native_boundaries" in content
     assert "check_peer_cli_routing" in content
+    assert "check_instruction_shadowing" in content
+    assert "check_executor_contract_wiring" in content
 
 
 def test_antigravity_is_routed_not_just_callable() -> None:
     """Antigravity used to be reachable through the wrapper but named by no
     routing document, so the main agent had no reason to pick it."""
-    claude_md = read_repo_file("CLAUDE.md")
+    orchestration = read_repo_file(ORCHESTRATION_REL)
     for heading in ("## Agent Topology", "## Routing Policy"):
-        assert "antigravity-delegate" in markdown_section(claude_md, heading)
+        assert "antigravity-delegate" in markdown_section(orchestration, heading)
 
     delegation = read_repo_file(".claude/rules/delegation.md")
     assert "antigravity-delegate" in markdown_section(delegation, "## Route Selection")
@@ -340,10 +427,11 @@ def test_antigravity_is_routed_not_just_callable() -> None:
     assert "cli_consult.py --cli antigravity --read-only" in agent
 
 
-def test_claude_md_describes_agents_dir_as_adapter_only() -> None:
-    """`.agents/` holds exactly `AGENTS.md`; CLAUDE.md used to list a
-    `workflows/` tree, `tiers.md`, and `check.sh` that no longer live there."""
-    content = read_repo_file("CLAUDE.md")
+def test_orchestration_rule_describes_agents_dir_as_adapter_only() -> None:
+    """`.agents/` holds exactly `AGENTS.md`; the main-agent contract used to
+    list a `workflows/` tree, `tiers.md`, and `check.sh` that no longer live
+    there."""
+    content = read_repo_file(ORCHESTRATION_REL)
     bullet = next(
         block for block in content.split("\n- ") if block.startswith("`.agents/`")
     )
@@ -353,10 +441,11 @@ def test_claude_md_describes_agents_dir_as_adapter_only() -> None:
         assert stale not in bullet
 
 
-def test_root_contract_allows_prompt_specified_deliverable_format() -> None:
-    """Antigravity returns `## TL;DR` / `## Deliverable` / `## Notes`; the root
-    contract must not force the six-section structure onto such a reply."""
-    content = read_repo_file("AGENTS.md")
+def test_executor_contract_allows_prompt_specified_deliverable_format() -> None:
+    """Antigravity returns `## TL;DR` / `## Deliverable` / `## Notes`; the
+    executor contract must not force the six-section structure onto such a
+    reply."""
+    content = read_repo_file(EXECUTOR_CONTRACT_REL)
     # The structure's own code block contains `## ` lines, so cut at the next
     # top-level section instead of the first `\n## `.
     structure = content.split("## Required Response Structure", 1)[1].split(
@@ -391,7 +480,7 @@ def run_peer_cli_check(tmp_path: Path, agent_text: str) -> str:
     """
     for relative_path in (
         "scripts/check.sh",
-        "CLAUDE.md",
+        ORCHESTRATION_REL,
         ".claude/rules/delegation.md",
         ".claude/rules/tiers.md",
     ):

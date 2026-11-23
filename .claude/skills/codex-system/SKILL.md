@@ -36,7 +36,7 @@ metadata:
 
 ## When to Delegate
 
-Delegation policy — when to consult, when NOT to, and trigger criteria — lives in `.claude/rules/codex-delegation.md` (SSOT). This skill covers *how* to consult. The other half of "how" is **how to verify what came back**: root `AGENTS.md` → *Guardrails (Completion Verification)* is mandatory for every write-access call, and [Verify Before Trusting](#verify-before-trusting) below is its executable form. A delegated CLI is never trusted on its self-report.
+Delegation policy — when to consult, when NOT to, and trigger criteria — lives in `.claude/rules/codex-delegation.md` (SSOT). This skill covers *how* to consult. The other half of "how" is **how to verify what came back**: `.claude/rules/cli-contract.md` → *Guardrails (Completion Verification)* is mandatory for every write-access call, and [Verify Before Trusting](#verify-before-trusting) below is its executable form. A delegated CLI is never trusted on its self-report.
 
 ## How to Consult
 
@@ -46,7 +46,7 @@ Delegation policy — when to consult, when NOT to, and trigger criteria — liv
 python3 .claude/skills/_shared/codex_consult.py (--prompt-file PATH | --prompt-stdin) [--label L] [--caller AGENT] [--sandbox {read-only,workspace-write,danger-full-access}] [--model M] [--timeout N] [--cwd DIR] [--project-root DIR] [--skip-git-repo-check] [--config KEY=VALUE]
 ```
 
-> **Consulting a peer CLI instead of Codex.** Claude Code and Antigravity go through `.claude/skills/_shared/cli_consult.py --cli {claude,antigravity} --prompt-file PATH`, unrestricted unless `--read-only` (Claude: plan mode; Antigravity: session deny rules for writes, shell, MCP, and URL fetch/execute — web search stays available). Antigravity's three routed uses (human-facing report drafts, careful video reading, Japanese polishing) go through the `antigravity-delegate` agent, always read-only; pass out-of-repo media with `--add-dir DIR` (`--resume SESSION` is Claude-only, since `agy` does not restore history in print mode; `--cli-arg` forwards a native flag; default timeout 900 s; same four exit codes as below). Never shell out to a CLI directly — the wrapper-only rule and the per-callee permission mapping live in root `AGENTS.md`. Codex's sandbox and `--config` semantics stay here because they are Codex-specific; everything cross-CLI is in that rule file.
+> **Consulting a peer CLI instead of Codex.** Claude Code and Antigravity go through `.claude/skills/_shared/cli_consult.py --cli {claude,antigravity} --prompt-file PATH`, unrestricted unless `--read-only` (Claude: plan mode; Antigravity: session deny rules for writes, shell, MCP, and URL fetch/execute — web search stays available). Antigravity's three routed uses (human-facing report drafts, careful video reading, Japanese polishing) go through the `antigravity-delegate` agent, always read-only; pass out-of-repo media with `--add-dir DIR` (`--resume SESSION` is Claude-only, since `agy` does not restore history in print mode; `--cli-arg` forwards a native flag; default timeout 900 s; same four exit codes as below). Never shell out to a CLI directly — the wrapper-only rule and the per-callee permission mapping live in `.claude/rules/cli-contract.md`. Codex's sandbox and `--config` semantics stay here because they are Codex-specific; everything cross-CLI is in that rule file.
 
 - Write the prompt body (Objective / Constraints / Relevant files / Acceptance checks / Output format) to a file and pass it via `--prompt-file`; use `--prompt-stdin` to pipe a short prompt instead. Any path works — the ad-hoc snippets below use `mktemp`, while skills write to `.claude/logs/codex/prompt-{label}.md` so the prompt sits next to the response the wrapper writes for it, which is what makes a disappointing answer diagnosable afterwards.
 - `--sandbox` defaults to `danger-full-access`, matching `.codex/config.toml`. Pass `--sandbox read-only` explicitly for planning and review calls — see Sandbox Modes below.
@@ -121,7 +121,7 @@ The call is **not** finished here. Continue with the next section.
 
 ### Verify Before Trusting
 
-Mandatory after every `workspace-write` / `danger-full-access` call (Codex or a peer CLI), per root `AGENTS.md` → *Guardrails*. `ok: true` from the wrapper means only that `codex exec` exited `0`; it says nothing about whether the change is correct, complete, or honest.
+Mandatory after every `workspace-write` / `danger-full-access` call (Codex or a peer CLI), per `.claude/rules/cli-contract.md` → *Guardrails*. `ok: true` from the wrapper means only that `codex exec` exited `0`; it says nothing about whether the change is correct, complete, or honest.
 
 **1. Run the acceptance checks from your own prompt**, plus the project gates:
 

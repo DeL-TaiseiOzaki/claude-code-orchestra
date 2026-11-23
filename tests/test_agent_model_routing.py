@@ -6,12 +6,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AGENTS_DIR = REPO_ROOT / ".claude/agents"
-# CLAUDE.md carries the routing policy. It used to be a symlink to AGENTS.md,
-# so scanning AGENTS.md covered it; now they are separate files and it has to
-# be listed in its own right.
+# The routing policy lives in .claude/rules/orchestration.md (covered by the
+# rules glob below); root AGENTS.md and the executor contract name the roles.
 ROUTING_FILES = (
     REPO_ROOT / "AGENTS.md",
-    REPO_ROOT / "CLAUDE.md",
+    REPO_ROOT / ".claude/skills/_shared/executor_contract.md",
     REPO_ROOT / "README.md",
     *sorted((REPO_ROOT / ".agents").rglob("*.md")),
     *sorted((REPO_ROOT / ".codex").glob("*.md")),

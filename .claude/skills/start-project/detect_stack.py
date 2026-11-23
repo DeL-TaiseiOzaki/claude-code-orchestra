@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Report stack *evidence* and agent-bootstrap integrity for /init.
+"""Report stack *evidence* and agent-bootstrap integrity for /start-project.
 
 This script deliberately does **not** infer commands, tools, or a stack.  It
 reports which manifest and which key each fact came from and lets the agent
@@ -16,6 +16,16 @@ An unreadable or malformed manifest is a ``warnings`` entry and never a
 traceback, and ``evidence.unparsed_manifests`` keeps "present but not parsed"
 distinguishable from "parsed and empty".
 
+The bootstrap half reports ``agents_md_state`` (``skeleton`` before
+``/start-project`` converts the root ``AGENTS.md``, ``converted`` after,
+``unrecognized`` for a file without the carried Orchestra sections, or
+``missing``) and ``instruction_shadowing``: ``CLAUDE.md``, ``CLAUDE.local.md``,
+or ``.claude/CLAUDE.md`` in the project (``owned``) or a parent directory
+(``ancestor``) makes Claude Code skip ``AGENTS.md``. An owned one fails the
+bootstrap; an ancestor one is a ``bootstrap_warnings`` entry, since the project
+cannot remove it. A file that only imports ``@AGENTS.md`` is listed as ``shim``
+and is not a failure.
+
 Usage:
     python3 detect_stack.py
     python3 detect_stack.py --project-root /path/to/repo
@@ -23,7 +33,8 @@ Usage:
 Exit codes:
     0  normal (read ``warnings`` — evidence may be partial)
     1  bad arguments, including a --project-root that is not a directory
-    2  agent bootstrap or shared state is invalid; ``error`` names the markers
+    2  agent bootstrap or shared state is invalid, or an owned CLAUDE.md-family
+       file shadows AGENTS.md; ``error`` names the markers
 """
 
 import argparse
@@ -32,6 +43,8 @@ import re
 import sys
 from pathlib import Path
 from typing import NoReturn
+
+from write_agents_md import classify_agents_md, find_instruction_shadows
 
 try:
     import tomllib
@@ -313,27 +326,40 @@ def detect_ci(root: Path) -> list[dict]:
     return found
 
 
-def detect_agent_bootstrap(root: Path) -> tuple[dict[str, bool], list[str]]:
-    """Verify the root bootstrap files, the native runtime directories, and
-    shared state.
+def detect_agent_bootstrap(root: Path) -> tuple[dict, list[str]]:
+    """Verify the root bootstrap, the native runtime directories, shared state,
+    and that no instruction file shadows ``AGENTS.md``.
 
     This mirrors ``scripts/check.sh``: ``.claude/agents`` and ``.claude/skills``
     are real directories, and a missing one disables native auto-discovery
-    entirely, so /init must not report success while either is absent.
+    entirely, so /start-project must not report success while either is absent.
+    Returns ``(details, failed_markers)``.
     """
     agents_md = root / "AGENTS.md"
-    claude_md = root / "CLAUDE.md"
     state_md = root / ".claude" / "STATE.md"
     state_text, _ = _read_text(state_md) if state_md.is_file() else (None, None)
+    agents_real = agents_md.is_file() and not agents_md.is_symlink()
+    agents_text, _ = _read_text(agents_md) if agents_real else (None, None)
+    shadows = find_instruction_shadows(root)
     status = {
-        "agents_md": agents_md.is_file() and not agents_md.is_symlink(),
-        "claude_md": claude_md.is_file() and not claude_md.is_symlink(),
+        "agents_md": agents_real,
         "state_md": state_text is not None and "# Agent State" in state_text,
         "claude_agents_dir": _is_runtime_dir(root, "agents"),
         "claude_skills_dir": _is_runtime_dir(root, "skills"),
         "cli_subagent_contract": (root / ".agents" / "AGENTS.md").is_file(),
+        "no_owned_instruction_shadowing": not shadows["owned"],
     }
-    return status, [name for name, ok in status.items() if not ok]
+    details = {
+        "agent_bootstrap": status,
+        "agents_md_state": classify_agents_md(agents_text),
+        "instruction_shadowing": shadows,
+        "bootstrap_warnings": [
+            f"{path} makes Claude Code skip AGENTS.md for this project; "
+            "remove it or replace its content with '@AGENTS.md'"
+            for path in shadows["ancestor"]
+        ],
+    }
+    return details, [name for name, ok in status.items() if not ok]
 
 
 def _is_runtime_dir(root: Path, name: str) -> bool:
@@ -354,7 +380,7 @@ def build_report(root: Path) -> tuple[dict, list[str]]:
         "package_managers": managers,
         "manifests": manifests,
         "evidence": evidence.as_dict(),
-        "agent_bootstrap": bootstrap,
+        **bootstrap,
         "warnings": evidence.warnings,
         "artifacts": [],
     }
@@ -363,7 +389,7 @@ def build_report(root: Path) -> tuple[dict, list[str]]:
 
 def main() -> int:
     parser = JsonArgumentParser(
-        description="Report stack evidence + agent bootstrap integrity for /init",
+        description="Report stack evidence + agent bootstrap integrity for /start-project",
     )
     parser.add_argument(
         "--project-root",

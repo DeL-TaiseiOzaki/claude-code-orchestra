@@ -18,7 +18,8 @@ template: their reference document *is* the seed
 copies into a project, and both are project-owned and mutable afterwards, so
 each requires only the sections their writers (``update_design.py``,
 ``append_state_block.py``, ``refresh_guard.py``) depend on rather than every
-heading the seed happens to contain. A contract may additionally require
+heading the seed happens to contain. ``agents-md`` is the same arrangement for
+the root ``AGENTS.md`` skeleton. A contract may additionally require
 machine-readable metadata lines (``lib-doc`` requires the
 ``> **Last Updated**:`` / ``> **Version Checked**:`` blockquote that
 ``update-lib-docs/lib_inventory.py`` parses); those are reported in
@@ -250,7 +251,7 @@ CONTRACTS: dict[str, Resolver] = {
     ),
     # .claude/docs/DESIGN.md — the document install.sh seeds into every project
     # and the structure update_design.py's typed targets locate by heading, so
-    # a DESIGN.md missing one of these makes /init or /design-tracker exit 2.
+    # a DESIGN.md missing one of these makes /start-project or /design-tracker exit 2.
     # Only the `##` sections are required: the `### Agent Roles` table is
     # meaningful for an agent-orchestration project and absent from an ordinary
     # one, and `### In Scope` / `### Out of Scope` are a rendering choice inside
@@ -274,11 +275,25 @@ CONTRACTS: dict[str, Resolver] = {
     # append_state_block.py and refresh_guard.py both hard-enforce (exactly one
     # occurrence, or exit 2), and `## Main Agent`, the one fact the file exists
     # to carry (load_context.py and collect_repo_state.py read it by heading).
-    # `## Repository Identity` is deliberately *not* required: it is /init-owned
+    # `## Repository Identity` is deliberately *not* required: it is /start-project-owned
     # and append_state_block.py inserts it when absent, so a state file that has
-    # not been through /init is legitimately without it. Working blocks
+    # not been through /start-project is legitimately without it. Working blocks
     # (`## Current Feature`, …) come and go and are never required.
     "state-doc": _static(["Main Agent", "Progress Tracker"]),
+    # Root AGENTS.md — the shipped skeleton is its reference document, and
+    # start-project/write_agents_md.py converts it into the project's own file.
+    # These are the headings both states share; the writer additionally
+    # enforces the size caps, the role/reference markers, and (once converted)
+    # the absence of the skeleton placeholder.
+    "agents-md": _static(
+        [
+            "Project",
+            "Commands",
+            "Conventions",
+            "Agent Roles",
+            "Orchestra References",
+        ]
+    ),
 }
 
 # Required machine-readable metadata lines, per contract: contract -> field

@@ -8,6 +8,17 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / ".claude" / "skills" / "_shared" / "codex_consult.py"
+EXECUTOR_CONTRACT_FILE = (
+    REPO_ROOT / ".claude" / "skills" / "_shared" / "executor_contract.md"
+)
+EXECUTOR_CONTRACT = EXECUTOR_CONTRACT_FILE.read_text(encoding="utf-8")
+
+
+def composed(prompt: str) -> str:
+    """What the wrapper must send: the executor contract, the delimiter, then
+    the caller's prompt byte for byte. Built from the asset file directly, not
+    from the module under test."""
+    return f"{EXECUTOR_CONTRACT.rstrip()}\n\n=== DELEGATED TASK ===\n\n{prompt}"
 
 
 def write_fake_codex(
@@ -18,6 +29,7 @@ def write_fake_codex(
     stderr: str = "",
     sleep: float = 0.0,
     argv_log: Path | None = None,
+    env_log: Path | None = None,
 ) -> Path:
     """Write a fake ``codex`` executable into *bin_dir* for test isolation.
 
@@ -35,6 +47,11 @@ def write_fake_codex(
         "if argv_log:",
         "    with open(argv_log, 'w', encoding='utf-8') as f:",
         "        json.dump(sys.argv, f)",
+        f"env_log = {json.dumps(str(env_log) if env_log else '')}",
+        "if env_log:",
+        "    import os",
+        "    with open(env_log, 'w', encoding='utf-8') as f:",
+        "        json.dump({'ORCHESTRA_ROLE': os.environ.get('ORCHESTRA_ROLE')}, f)",
         f"time.sleep({sleep!r})",
         f"sys.stdout.write({stdout!r})",
         f"sys.stderr.write({stderr!r})",
@@ -216,7 +233,7 @@ def test_neither_prompt_source_falls_back_to_the_label_path(tmp_path: Path) -> N
     assert result.returncode == 0, result.stdout
     assert json.loads(result.stdout)["ok"] is True
     recorded_argv = json.loads(argv_log.read_text(encoding="utf-8"))
-    assert recorded_argv[-1] == "Objective: from the label path"
+    assert recorded_argv[-1] == composed("Objective: from the label path")
 
 
 def test_neither_prompt_source_and_no_default_file_is_bad_args(tmp_path: Path) -> None:
@@ -267,7 +284,8 @@ def test_prompt_with_nested_quotes_and_newline_round_trips_byte_identical(
 
     assert result.returncode == 0, result.stderr
     recorded_argv = json.loads(argv_log.read_text(encoding="utf-8"))
-    assert recorded_argv[-1] == tricky_prompt
+    assert recorded_argv[-1] == composed(tricky_prompt)
+    assert recorded_argv[-1].endswith(tricky_prompt)
 
 
 def test_codex_model_env_var_is_honoured_and_flag_overrides_it(
@@ -319,7 +337,7 @@ def test_skip_git_repo_check_is_forwarded_before_the_prompt(tmp_path: Path) -> N
     recorded_argv = json.loads(argv_log.read_text(encoding="utf-8"))
     assert "--skip-git-repo-check" in recorded_argv
     # The prompt must stay the final element so it is never parsed as a flag.
-    assert recorded_argv[-1] == "Objective: anything"
+    assert recorded_argv[-1] == composed("Objective: anything")
 
 
 def test_skip_git_repo_check_is_absent_by_default(tmp_path: Path) -> None:
@@ -361,7 +379,7 @@ def test_config_overrides_are_forwarded_in_order(tmp_path: Path) -> None:
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
     assert argv.count("--config") == 2
     assert argv[argv.index("--config") + 1] == "model_reasoning_effort=low"
-    assert argv[-1] == "Objective: anything"
+    assert argv[-1] == composed("Objective: anything")
 
 
 def test_config_override_touching_sandbox_is_refused(tmp_path: Path) -> None:
@@ -424,9 +442,10 @@ def test_prompt_is_persisted_next_to_the_response_even_from_stdin(
     prompt_file = payload["prompt_file"]
     assert not Path(prompt_file).is_absolute()
     assert prompt_file.endswith(".prompt.md")
-    assert (tmp_path / prompt_file).read_text(
-        encoding="utf-8"
-    ) == "Objective: only ever on stdin"
+    # What is persisted is what was sent: the composed executor prompt.
+    assert (tmp_path / prompt_file).read_text(encoding="utf-8") == composed(
+        "Objective: only ever on stdin"
+    )
     # The prompt and the response share one stem, so a reader finds the pair.
     assert prompt_file[: -len(".prompt.md")] == payload["response_file"][: -len(".md")]
 
@@ -682,3 +701,119 @@ def test_read_only_is_still_available_as_an_explicit_opt_in(tmp_path: Path) -> N
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
     # Always sent explicitly, whichever value is in force.
     assert argv[argv.index("--sandbox") + 1] == "read-only"
+
+
+# --- executor contract -------------------------------------------------------
+
+
+def test_every_prompt_carries_the_executor_contract_and_the_executor_role(
+    tmp_path: Path,
+) -> None:
+    """Codex auto-loads the project's root AGENTS.md; only the injected
+    contract and the environment tell it that it is a delegated executor."""
+    import hashlib
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    env_log = tmp_path / "env.json"
+    write_fake_codex(bin_dir, stdout="ok\n", argv_log=argv_log, env_log=env_log)
+    prompt_file = write_prompt(tmp_path, "Objective: role check")
+
+    result = run_codex_consult(
+        tmp_path,
+        ["--prompt-file", str(prompt_file)],
+        path_prefix=bin_dir,
+        env_overrides={"ORCHESTRA_ROLE": "main"},
+    )
+
+    assert result.returncode == 0, result.stdout
+    sent = json.loads(argv_log.read_text(encoding="utf-8"))[-1]
+    assert sent.startswith(EXECUTOR_CONTRACT.rstrip())
+    assert sent.count("=== DELEGATED TASK ===") == 1
+    assert sent.count("## Required Response Structure") == 1
+    assert sent.endswith("\n\nObjective: role check")
+    assert json.loads(env_log.read_text(encoding="utf-8")) == {
+        "ORCHESTRA_ROLE": "executor"
+    }
+    payload = json.loads(result.stdout)
+    assert (
+        payload["executor_contract_sha"]
+        == hashlib.sha256(EXECUTOR_CONTRACT.encode("utf-8")).hexdigest()
+    )
+
+
+def test_an_already_composed_prompt_is_not_wrapped_twice(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_codex(bin_dir, stdout="ok\n", argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, composed("Objective: once"))
+
+    result = run_codex_consult(
+        tmp_path, ["--prompt-file", str(prompt_file)], path_prefix=bin_dir
+    )
+
+    assert result.returncode == 0, result.stdout
+    assert json.loads(argv_log.read_text(encoding="utf-8"))[-1] == composed(
+        "Objective: once"
+    )
+
+
+def test_missing_executor_contract_fails_before_calling_codex(tmp_path: Path) -> None:
+    import shutil
+
+    shared = tmp_path / "shared"
+    shutil.copytree(SCRIPT.parent, shared, ignore=shutil.ignore_patterns("__pycache__"))
+    (shared / "executor_contract.md").unlink()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_codex(bin_dir, stdout="ok\n", argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(shared / "codex_consult.py"),
+            "--project-root",
+            str(tmp_path),
+            "--prompt-file",
+            str(prompt_file),
+        ],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=20,
+    )
+
+    assert result.returncode == 3, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "executor contract" in payload["error"]
+    assert not argv_log.exists()
+
+
+def test_a_prompt_that_only_the_contract_pushes_over_the_argv_limit_is_bad_args(
+    tmp_path: Path,
+) -> None:
+    """The caller's prompt fits in one argv element; the composed one does not.
+    That must be a bad-argument error, not an E2BIG traceback from exec."""
+    max_arg_bytes = 131_071
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_codex(bin_dir, stdout="ok\n", argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, "x" * (max_arg_bytes - 10))
+
+    result = run_codex_consult(
+        tmp_path, ["--prompt-file", str(prompt_file)], path_prefix=bin_dir
+    )
+
+    assert result.returncode == 1, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["error"].startswith("prompt exceeds the single-argv limit")
+    assert not argv_log.exists()

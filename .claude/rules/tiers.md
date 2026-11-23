@@ -10,8 +10,8 @@ and referenced by skills, rules, and configuration.
 - **Selection criteria**: Default for all tasks unless escalation is needed.
 - **Permission boundary**: The active runtime's native permissions; changing
   the main agent must follow `.claude/docs/change_main.md`.
-- **Inputs**: User prompt, `CLAUDE.md`, tier definitions, and relevant
-  product-native rules.
+- **Inputs**: User prompt, root `AGENTS.md`, `.claude/rules/orchestration.md`,
+  tier definitions, and relevant product-native rules.
 - **Outputs**: Direct edits, user-facing responses, delegation calls to other tiers.
 - **Default runtime**: Claude Code. The active runtime is recorded in
   `.claude/STATE.md`.
@@ -43,7 +43,7 @@ and referenced by skills, rules, and configuration.
   Validation / Risks); file patches; validation commands.
 - **Model**: Codex CLI model (`CODEX_MODEL` env in `.claude/settings.json`,
   mirrored in `.codex/config.toml`).
-- **Guardrails**: See root `AGENTS.md` section "Guardrails (Completion Verification)".
+- **Guardrails**: See `.claude/rules/cli-contract.md` section "Guardrails (Completion Verification)".
 
 ## Tier 3 -- `fable` (Rare Escalation / Final Authority)
 
@@ -66,7 +66,7 @@ and referenced by skills, rules, and configuration.
   other tier.
 - **Model**: Claude `fable-advisor` agent
   (`.claude/agents/fable-advisor.md`).
-- **Guardrails**: See root `AGENTS.md` section "Guardrails
+- **Guardrails**: See `.claude/rules/cli-contract.md` section "Guardrails
   (Completion Verification)". Fable's judgment is not self-certifying: a
   change it lands is verified like any other.
 

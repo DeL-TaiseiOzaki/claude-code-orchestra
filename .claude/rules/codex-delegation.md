@@ -126,10 +126,11 @@ delegating subagent **MUST verify before trusting it**:
 then re-delegate at most once with the original prompt plus failure context.
 If the second attempt also fails, halt and require explicit user approval.
 
-Canonical definition: `AGENTS.md` section "Guardrails (Completion
+Canonical definition: `.claude/rules/cli-contract.md` section "Guardrails (Completion
 Verification)".
 
 ## Language Protocol
 
-See root `AGENTS.md` section "Language Protocol": ask Codex in English and
-report to the user in Japanese.
+See root `AGENTS.md` section "Conventions" (the project's language policy):
+ask Codex in English and report to the user in the user language it names
+(Japanese by default).

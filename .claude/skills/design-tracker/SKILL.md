@@ -137,7 +137,7 @@ thing: a no-op becomes `ok: false` and exit `2`, so "recorded" can never be
 reported for a run that wrote nothing.
 
 Other exit codes: `1` bad arguments or input-schema violation · `2` DESIGN.md
-structure invalid or missing (run `/init` first), a duplicate requirement ID, a
+structure invalid or missing (run `/start-project` first), a duplicate requirement ID, a
 table row passed through `section_updates`, or a no-op under `--require-change` ·
 `3` DESIGN.md changed while the writer held it, or the write failed — re-read and
 retry.

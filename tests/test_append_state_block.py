@@ -4,7 +4,7 @@ This script mutates ``.claude/STATE.md`` — the file every session reads first 
 and had no test file at all. The tests below pin the four documented guarantees
 (dry-run by default, atomic replace, concurrent-modification guard, validation
 of the composed result before replacing), the ``## Repository Identity`` writer
-that ``init/SKILL.md`` previously performed by hand with raw Edit/Write, and the
+that ``start-project/SKILL.md`` previously performed by hand with raw Edit/Write, and the
 ``progress_tracker_preserved`` field, which used to be a hard-coded ``True``.
 
 Every test runs against a copy of the repository's own STATE.md under

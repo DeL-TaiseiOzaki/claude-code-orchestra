@@ -120,7 +120,7 @@ delegated result as done:
 - run the acceptance checks from the prompt contract yourself;
 - inspect the diff (`.claude/skills/_shared/verify_delegation.py`,
   `git diff --stat`) for out-of-scope edits, deletions, and placeholders;
-- apply the guardrails in root `AGENTS.md` section "Guardrails
+- apply the guardrails in `.claude/rules/cli-contract.md` section "Guardrails
   (Completion Verification)" — weakened or skipped tests, swallowed exceptions,
   and hardcoded return values are rejections, not completions.
 

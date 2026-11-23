@@ -331,6 +331,10 @@ NEW_CONTRACT_EXPECTATIONS = {
         "# Agent State\n## Main Agent\n\nClaude Code\n",
         ["Progress Tracker"],
     ),
+    "agents-md": (
+        "# Acme — Agent Instructions\n## Project\np\n## Commands\nc\n",
+        ["Conventions", "Agent Roles", "Orchestra References"],
+    ),
 }
 
 
@@ -1017,6 +1021,7 @@ REFERENCE_TEMPLATES: dict[str, tuple[tuple[str, str | None, str | None], ...]] =
     # is then a test failure instead of a runtime surprise.
     "design-doc": ((".claude/docs/DESIGN.md", None, None),),
     "state-doc": ((".claude/STATE.md", None, None),),
+    "agents-md": (("AGENTS.md", None, None),),
 }
 
 # `{placeholder}` tokens as the templates write them.
@@ -1178,8 +1183,8 @@ def test_deeper_heading_level_still_satisfies_the_contract(tmp_path: Path) -> No
 
 
 def test_state_doc_accepts_a_minimal_pre_init_state_file(tmp_path: Path) -> None:
-    """`## Repository Identity` is /init-owned and append_state_block.py inserts
-    it when absent, so a state file that has not been through /init is
+    """`## Repository Identity` is /start-project-owned and append_state_block.py inserts
+    it when absent, so a state file that has not been through /start-project is
     legitimate. A contract stricter than the writers guarantee would reject it
     and teach agents that the check is wrong."""
     body = (
@@ -1265,7 +1270,11 @@ def test_design_doc_rejects_a_document_missing_a_writer_target(tmp_path: Path) -
 
 @pytest.mark.parametrize(
     ("contract", "rel_path"),
-    [("design-doc", ".claude/docs/DESIGN.md"), ("state-doc", ".claude/STATE.md")],
+    [
+        ("design-doc", ".claude/docs/DESIGN.md"),
+        ("state-doc", ".claude/STATE.md"),
+        ("agents-md", "AGENTS.md"),
+    ],
 )
 def test_contract_accepts_this_repository_s_live_document(
     contract: str, rel_path: str

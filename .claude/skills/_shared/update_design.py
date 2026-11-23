@@ -679,7 +679,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
         _emit(
             {
                 "ok": False,
-                "error": "DESIGN.md does not exist; run /init first",
+                "error": "DESIGN.md does not exist; run /start-project first",
                 "artifacts": [],
             }
         )

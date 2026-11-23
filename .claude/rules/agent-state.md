@@ -1,15 +1,22 @@
 # Agent State Contract
 
-Root `AGENTS.md` is a thin router, and `CLAUDE.md` is the main agent's
-contract. Both are template-owned, immutable bootstraps. Repository-specific
-and cross-session state belongs in `.claude/STATE.md`, never in either
-bootstrap path.
+Root `AGENTS.md` is the single always-loaded bootstrap and belongs to the
+project: `/start-project` converts the shipped skeleton once, and the project
+owns it afterwards (`scripts/update.sh` replaces it only while it is
+byte-identical to a known shipped skeleton). The main agent's contract is
+`.claude/rules/orchestration.md`. There is no `CLAUDE.md`: Claude Code skips
+`AGENTS.md` while any `CLAUDE.md`, `CLAUDE.local.md`, or `.claude/CLAUDE.md`
+exists in the working directory or a parent, so install and update back such
+files up, remove them, and record the backups for `/start-project` to offer
+merging. Never run Claude Code's built-in `/init`, which creates `CLAUDE.md`.
+Cross-session state belongs in `.claude/STATE.md`.
 
 ## State Ownership
 
 | Section | Owner / writers | Content |
 |---------|-----------------|---------|
-| `## Repository Identity` | `/init` only | Thin identity plus a pointer to `.claude/docs/DESIGN.md`. |
+| `## Repository Identity` | `/start-project` only | Thin identity plus a pointer to `.claude/docs/DESIGN.md`. |
+| `## Pending Instruction Merge` | `scripts/install.sh` / `scripts/update.sh` write; `/start-project` resolves | Backups of removed `CLAUDE.md`-family files and replaced `AGENTS.md` content awaiting a merge decision. |
 | `## Progress Tracker` | `/checkpointing` | Idempotent link to `PROGRESS.md`. |
 | Working blocks | `/feature`, `/troubleshoot`, `/checkpointing`, and manual notes | Current project, feature, and bug-fix context. |
 
@@ -44,4 +51,5 @@ Structural contract for the document itself:
 `.claude/skills/_shared/validate_doc.py --contract state-doc --file .claude/STATE.md`
 (requires `## Main Agent` and `## Progress Tracker`; `## Repository Identity` is
 inserted by its writer when missing, so it is not required). Stack and shared
-state: `.claude/skills/init/detect_stack.py`.
+state: `.claude/skills/start-project/detect_stack.py`, which also reports the
+`AGENTS.md` state and any instruction file that would shadow it.

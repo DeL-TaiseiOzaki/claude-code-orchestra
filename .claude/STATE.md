@@ -6,9 +6,9 @@ Claude Code
 
 ## Repository Identity
 
-<!-- Managed by /init. Re-run /init to refresh. -->
+<!-- Managed by /start-project. Re-run /start-project to refresh. -->
 
-_Not initialized yet. Run `/init` to populate._
+_Not initialized yet. Run `/start-project` to populate._
 
 Macro requirements and design live in [docs/DESIGN.md](docs/DESIGN.md).
 

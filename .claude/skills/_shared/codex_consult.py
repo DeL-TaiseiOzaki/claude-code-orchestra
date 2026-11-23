@@ -10,9 +10,12 @@ the prompt is a single argv element (no shell), stdin is closed, stdout and
 stderr are captured to timestamped files under ``.claude/logs/codex/``, and
 every outcome is reported as a single JSON object.
 
-The prompt that was actually sent is always persisted next to the response
-(``{stem}.prompt.md``), including on the ``--prompt-stdin`` path, so a consult
-stays diagnosable after the fact. With neither ``--prompt-file`` nor
+Every prompt is sent as a delegated-executor prompt: ``executor_contract.md``
+comes first, then the caller's prompt unchanged, and ``ORCHESTRA_ROLE=executor``
+is set in Codex's environment (see ``executor_contract.py``); the payload names
+the contract's ``executor_contract_sha``. The composed prompt that was actually
+sent is always persisted next to the response (``{stem}.prompt.md``), including
+on the ``--prompt-stdin`` path, so a consult stays diagnosable after the fact. With neither ``--prompt-file`` nor
 ``--prompt-stdin``, the prompt is read from the label's conventional path,
 ``.claude/logs/codex/prompt-{label}.md``.
 
@@ -40,10 +43,10 @@ Usage:
 Exit codes:
     0  codex exec exited 0 and its output was saved and verified
     1  bad args (both prompt sources, unreadable prompt file, bad --cwd,
-       unparseable --now)
+       unparseable --now, composed prompt over the single-argv limit)
     2  codex CLI not found on PATH
-    3  codex exec exited non-zero or timed out, or a log file could not be
-       written, created, or verified
+    3  codex exec exited non-zero or timed out, a log file could not be
+       written, created, or verified, or the executor contract is unreadable
 """
 
 import argparse
@@ -59,6 +62,7 @@ from pathlib import Path
 from typing import NoReturn
 
 import edit_provenance
+import executor_contract
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
@@ -386,6 +390,19 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
     else:
         prompt = sys.stdin.read()
 
+    # Every delegated run carries the executor contract before the caller's
+    # prompt, so Codex knows it is an executor and not the main agent.
+    try:
+        prompt, contract_sha = executor_contract.prepare_prompt(prompt)
+    except executor_contract.ContractError as exc:
+        _emit({"ok": False, "error": str(exc), "artifacts": []})
+        return EXIT_FAILED
+    # The composed prompt is one argv element; refuse it before exec would.
+    oversized_error = executor_contract.oversized_argv_error([prompt])
+    if oversized_error:
+        _emit({"ok": False, "error": oversized_error, "artifacts": []})
+        return EXIT_BAD_ARGS
+
     # An empty CODEX_MODEL is treated as unset: codex rejects an empty --model,
     # and an exported-but-blank variable is a common shell accident.
     env_model = os.environ.get("CODEX_MODEL") or DEFAULT_MODEL
@@ -461,6 +478,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             text=True,
             timeout=args.timeout,
             cwd=cwd,
+            env=executor_contract.executor_env(),
         )
         stdout_text = result.stdout
         stderr_text = result.stderr
@@ -515,6 +533,7 @@ def main() -> int:  # noqa: C901 — single-function CLI entry point
             "label": args.label,
             "sandbox": sandbox,
             "write_access": write_access,
+            "executor_contract_sha": contract_sha,
             "edits": edits,
             "timed_out": timed_out,
             "duration_sec": duration_sec,

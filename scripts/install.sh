@@ -55,11 +55,19 @@ PROJECT_FILES_IF_MISSING=(
     ".claude/docs/DESIGN.md"
     ".claude/docs/research/.gitkeep"
 )
+# Claude Code (>= 2.1.277) skips AGENTS.md while any of these exists in the
+# project or a parent, so install backs each one up and removes it. A file that
+# only imports "@AGENTS.md" is the documented manual fallback and is kept.
+INSTRUCTION_SHADOW_FILES=(
+    "CLAUDE.md"
+    "CLAUDE.local.md"
+    ".claude/CLAUDE.md"
+)
+PENDING_MERGE_HEADING="## Pending Instruction Merge"
 GITIGNORE_ENTRIES=(
     ".claude/settings.local.json"
     ".claude/settings.orchestra.json"
     ".codex/config.orchestra.toml"
-    "CLAUDE.local.md"
     ".claude/logs/"
     ".claude/checkpoints/"
     ".orchestra-backup-*/"
@@ -72,6 +80,7 @@ TARGET_SET=false
 TARGET_ROOT=""
 BACKUP_ROOT=""
 CONFLICTS=()
+PENDING_MERGE_ENTRIES=()
 
 info() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*"; }
@@ -88,9 +97,13 @@ Options:
   -f, --force  Back up and replace conflicting template-owned paths
   -h, --help   Show this help message
 
-Existing AGENTS.md and CLAUDE.md content is preserved in .claude/STATE.md.
-The template installs the root AGENTS.md router and the CLAUDE.md main-agent
-contract as real files. Existing
+The template installs the root AGENTS.md skeleton; run /start-project in
+Claude Code afterwards to convert it into the project's own instructions.
+Existing CLAUDE.md, CLAUDE.local.md, and .claude/CLAUDE.md files stop Claude
+Code from loading AGENTS.md, so they are backed up to .orchestra-backup-*/ and
+removed; an existing AGENTS.md is backed up before the skeleton replaces it.
+Each backup is printed and recorded under "## Pending Instruction Merge" in
+.claude/STATE.md so /start-project can offer to merge it. Existing
 .claude/settings.json is never overwritten; a merge candidate is written to
 .claude/settings.orchestra.json when the files differ.
 EOF
@@ -133,7 +146,7 @@ require_source_paths() {
     local path
     for path in "${TEMPLATE_OWNED_DIRS[@]}" \
         "${TEMPLATE_OWNED_FILES[@]}" "${PROJECT_FILES_IF_MISSING[@]}" \
-        "AGENTS.md" "CLAUDE.md" ".claude/settings.json" ".codex/config.toml" \
+        "AGENTS.md" ".claude/settings.json" ".codex/config.toml" \
         "VERSION"; do
         if [[ ! -e "${SOURCE_ROOT}/${path}" && ! -L "${SOURCE_ROOT}/${path}" ]]; then
             error "Template source is incomplete: ${path} is missing."
@@ -167,7 +180,7 @@ validate_destination_paths() {
         "${TEMPLATE_OWNED_FILES[@]}"
         "${PROJECT_FILES_IF_MISSING[@]}"
         "AGENTS.md"
-        "CLAUDE.md"
+        "${INSTRUCTION_SHADOW_FILES[@]}"
         ".claude/settings.json"
         ".claude/settings.orchestra.json"
         ".claude/orchestra-version"
@@ -196,11 +209,25 @@ validate_destination_paths() {
     done
 }
 
+is_instruction_shadow_file() {
+    local candidate="$1" name
+    for name in "${INSTRUCTION_SHADOW_FILES[@]}"; do
+        [[ "${candidate}" == "${name}" ]] && return 0
+    done
+    return 1
+}
+
+# A file whose only content is "@AGENTS.md" imports AGENTS.md instead of
+# shadowing it (the README's manual fallback); it is left in place.
+is_agents_shim() {
+    [[ -f "$1" && ! -L "$1" && "$(tr -d '[:space:]' < "$1")" == "@AGENTS.md" ]]
+}
+
 validate_project_files() {
     local path destination
     local project_files=(
         "AGENTS.md"
-        "CLAUDE.md"
+        "${INSTRUCTION_SHADOW_FILES[@]}"
         ".claude/settings.json"
         ".codex/config.toml"
         ".claude/STATE.md"
@@ -210,10 +237,10 @@ validate_project_files() {
     for path in "${project_files[@]}"; do
         destination="${TARGET_ROOT}/${path}"
         if [[ -L "${destination}" ]]; then
-            # A pre-2.0 CLAUDE.md -> AGENTS.md link is the one symlink we know
-            # how to retire: it is backed up as a conflict and replaced with the
-            # real contract file. Any other symlink here is still refused.
-            if [[ "${path}" != "CLAUDE.md" ]]; then
+            # A CLAUDE.md-family link (pre-2.0 installs shipped CLAUDE.md ->
+            # AGENTS.md) is backed up as a link and removed, never followed.
+            # Any other symlink here is still refused.
+            if ! is_instruction_shadow_file "${path}"; then
                 error "Refusing project-owned symlink: ${path}"
                 exit 2
             fi
@@ -238,12 +265,6 @@ collect_conflicts() {
             CONFLICTS+=("${path}")
         fi
     done
-
-    # A pre-2.0 installation left CLAUDE.md as a symlink to AGENTS.md. Both are
-    # real files now, so report the link instead of writing through it.
-    if [[ -L "${TARGET_ROOT}/CLAUDE.md" ]]; then
-        CONFLICTS+=("CLAUDE.md")
-    fi
 
     if [[ ${#CONFLICTS[@]} -eq 0 ]]; then
         return 0
@@ -279,10 +300,16 @@ confirm_install() {
     esac
 }
 
+ensure_backup_root() {
+    if [[ -z "${BACKUP_ROOT}" ]]; then
+        BACKUP_ROOT="${TARGET_ROOT}/.orchestra-backup-$(date +%Y%m%d%H%M%S)-$$"
+    fi
+}
+
 backup_conflicts() {
     [[ ${#CONFLICTS[@]} -gt 0 ]] || return 0
 
-    BACKUP_ROOT="${TARGET_ROOT}/.orchestra-backup-$(date +%Y%m%d%H%M%S)-$$"
+    ensure_backup_root
     local path
     for path in "${CONFLICTS[@]}"; do
         mkdir -p "${BACKUP_ROOT}/$(dirname "${path}")"
@@ -325,10 +352,7 @@ copy_owned_paths() {
 
 remove_legacy_runtime_paths() {
     local path
-    for path in "${LEGACY_RUNTIME_PATHS[@]}" "CLAUDE.md"; do
-        if [[ "${path}" == "CLAUDE.md" && ! -L "${TARGET_ROOT}/CLAUDE.md" ]]; then
-            continue
-        fi
+    for path in "${LEGACY_RUNTIME_PATHS[@]}"; do
         if [[ -e "${TARGET_ROOT}/${path}" || -L "${TARGET_ROOT}/${path}" ]]; then
             rm -rf -- "${TARGET_ROOT:?}/${path}"
             info "Removed legacy path ${path}"
@@ -350,38 +374,124 @@ copy_project_files_if_missing() {
     done
 }
 
+# Back up one project file into BACKUP_ROOT and queue a pending-merge entry
+# for .claude/STATE.md. A symlink that resolves to a regular file is backed up
+# as that content, so the backup stays readable after it moves; a dangling
+# link is kept as a link.
+backup_instruction_file() {
+    local path="$1" note="$2" backup_rel source
+    source="${TARGET_ROOT}/${path}"
+    ensure_backup_root
+    mkdir -p "${BACKUP_ROOT}/$(dirname "${path}")"
+    if [[ -L "${source}" && -f "${source}" ]]; then
+        cp -L -- "${source}" "${BACKUP_ROOT}/${path}"
+    else
+        cp -a -- "${source}" "${BACKUP_ROOT}/${path}"
+    fi
+    backup_rel="${BACKUP_ROOT#"${TARGET_ROOT}/"}/${path}"
+    PENDING_MERGE_ENTRIES+=("\`${path}\` backed up to \`${backup_rel}\` and ${note} (scripts/install.sh)")
+    warn "Backed up ${path} to ${backup_rel} (${note})"
+}
+
+# How a removed instruction file is labelled for /start-project: only the
+# pre-2.0 CLAUDE.md -> AGENTS.md link is known to need no merge.
+instruction_file_note() {
+    local destination="$1" link_target
+    if [[ ! -L "${destination}" ]]; then
+        echo "removed: Claude Code skips AGENTS.md while it exists"
+        return 0
+    fi
+    link_target="$(readlink -- "${destination}")"
+    if [[ ! -e "${destination}" ]]; then
+        echo "removed: dangling symlink to ${link_target}, kept as a link"
+    elif [[ "$(realpath -- "${destination}")" == "$(realpath -m -- "${TARGET_ROOT}/AGENTS.md")" ]]; then
+        echo "removed: legacy symlink to AGENTS.md, no merge needed"
+    else
+        echo "removed: symlink to ${link_target}, content copied, review for merge"
+    fi
+}
+
+retire_instruction_shadow_files() {
+    local path destination
+    for path in "${INSTRUCTION_SHADOW_FILES[@]}"; do
+        destination="${TARGET_ROOT}/${path}"
+        [[ -e "${destination}" || -L "${destination}" ]] || continue
+        if is_agents_shim "${destination}"; then
+            info "Kept ${path}: it only imports @AGENTS.md"
+            continue
+        fi
+        backup_instruction_file "${path}" "$(instruction_file_note "${destination}")"
+        rm -f -- "${destination}"
+    done
+}
+
+# Append queued entries under "## Pending Instruction Merge" in STATE.md,
+# creating the section at the end of the file when it is absent.
+record_pending_merge() {
+    [[ ${#PENDING_MERGE_ENTRIES[@]} -gt 0 ]] || return 0
+    local state="${TARGET_ROOT}/.claude/STATE.md" entries="" entry
+    for entry in "${PENDING_MERGE_ENTRIES[@]}"; do
+        entries+="- ${entry}"$'\n'
+    done
+    if ! grep -Fqx "${PENDING_MERGE_HEADING}" "${state}"; then
+        {
+            echo ""
+            echo "${PENDING_MERGE_HEADING}"
+            echo ""
+            echo "<!-- Written by scripts/install.sh and scripts/update.sh. /start-project offers to merge these backups into AGENTS.md, then removes this section. -->"
+            echo ""
+        } >> "${state}"
+        printf '%s' "${entries}" >> "${state}"
+    else
+        awk -v heading="${PENDING_MERGE_HEADING}" -v entries="${entries}" '
+            $0 == heading { inside = 1; print; next }
+            inside && /^## / { printf "%s\n", entries; inside = 0 }
+            { print }
+            END { if (inside) printf "%s", entries }
+        ' "${state}" > "${state}.tmp.$$"
+        mv -f "${state}.tmp.$$" "${state}"
+    fi
+    info "Recorded ${#PENDING_MERGE_ENTRIES[@]} backup(s) under '${PENDING_MERGE_HEADING}' in .claude/STATE.md"
+}
+
 install_agent_files() {
     local existing_agents="${TARGET_ROOT}/AGENTS.md"
-    local existing_claude="${TARGET_ROOT}/CLAUDE.md"
-    local state="${TARGET_ROOT}/.claude/STATE.md"
-    local name source destination temporary
+    local source="${SOURCE_ROOT}/AGENTS.md"
+    local temporary="${TARGET_ROOT}/.AGENTS.md.tmp.$$"
     mkdir -p "${TARGET_ROOT}/.claude/logs" "${TARGET_ROOT}/.claude/checkpoints"
 
-    if [[ -f "${existing_agents}" ]]; then
-        {
-            echo ""
-            echo "<!-- Existing AGENTS.md content preserved by scripts/install.sh. -->"
-            echo ""
-            cat "${existing_agents}"
-        } >> "${state}"
-    fi
-    if [[ -f "${existing_claude}" ]] \
-        && { [[ ! -f "${existing_agents}" ]] || ! cmp -s "${existing_agents}" "${existing_claude}"; }; then
-        {
-            echo ""
-            echo "<!-- Existing CLAUDE.md content preserved by scripts/install.sh. -->"
-            echo ""
-            cat "${existing_claude}"
-        } >> "${state}"
-    fi
-    for name in "AGENTS.md" "CLAUDE.md"; do
-        source="${SOURCE_ROOT}/${name}"
-        destination="${TARGET_ROOT}/${name}"
-        temporary="${TARGET_ROOT}/.${name}.tmp.$$"
+    retire_instruction_shadow_files
+    if [[ -f "${existing_agents}" ]] && cmp -s "${source}" "${existing_agents}"; then
+        info "AGENTS.md already matches the template skeleton"
+    elif [[ -f "${existing_agents}" ]] \
+        && grep -Fxq "## Agent Roles" "${existing_agents}" \
+        && grep -Fxq "## Orchestra References" "${existing_agents}"; then
+        info "Preserved project-owned AGENTS.md (already in Orchestra format)"
+    else
+        if [[ -f "${existing_agents}" ]]; then
+            backup_instruction_file "AGENTS.md" "replaced by the Orchestra skeleton"
+        fi
         cp -a "${source}" "${temporary}"
-        mv -f "${temporary}" "${destination}"
+        mv -f "${temporary}" "${existing_agents}"
+        info "Installed the AGENTS.md skeleton; run /start-project to convert it"
+    fi
+    record_pending_merge
+}
+
+warn_ancestor_shadowing() {
+    local dir name path user_memory="${HOME:-/nonexistent}/.claude/CLAUDE.md"
+    dir="$(dirname "${TARGET_ROOT}")"
+    while :; do
+        for name in "${INSTRUCTION_SHADOW_FILES[@]}"; do
+            path="${dir%/}/${name}"
+            [[ "${path}" == "${user_memory}" ]] && continue
+            if [[ -f "${path}" ]] && ! is_agents_shim "${path}"; then
+                warn "${path} (a parent directory) makes Claude Code skip AGENTS.md here."
+            fi
+        done
+        [[ "${dir}" == "/" ]] && break
+        dir="$(dirname "${dir}")"
     done
-    info "Installed AGENTS.md and CLAUDE.md; preserved existing instructions in .claude/STATE.md"
 }
 
 install_settings() {
@@ -442,10 +552,15 @@ print_summary() {
     echo ""
     info "Claude Code Orchestra installation complete."
     info "Project files such as README.md and VERSION were preserved."
+    warn_ancestor_shadowing
+    if [[ ${#PENDING_MERGE_ENTRIES[@]} -gt 0 ]]; then
+        warn "Backed-up instruction files (offered for merging by /start-project):"
+        printf '  %s\n' "${PENDING_MERGE_ENTRIES[@]}"
+    fi
     if [[ -f "${TARGET_ROOT}/.claude/settings.orchestra.json" ]]; then
         warn "Complete the settings merge before starting Claude Code."
     else
-        info "Next: start Claude Code and run /init."
+        info "Next: start Claude Code and run /start-project (not the built-in /init, which creates CLAUDE.md)."
     fi
 }
 

@@ -34,9 +34,9 @@ The JSON reports `{ok, read_order, rules, state, design, progress, libraries,
 missing, unreadable, warnings}`. `read_order` is the exact ordered list of
 repo-relative paths to read, in this order:
 
-1. the rule files in `.claude/rules/` (coding principles, delegation, dev
-   environment, language, security, testing, tiers, CLI execution, Codex
-   delegation, and any newly added rule file);
+1. the rule files in `.claude/rules/` (orchestration, coding principles,
+   delegation, dev environment, language, security, testing, tiers, CLI
+   contract, Codex delegation, and any newly added rule file);
 2. `.claude/STATE.md` — the active main agent and current working blocks;
 3. `PROGRESS.md` — the rolling record of the latest five checkpoints, and the
    session-to-session continuity `/feature` reads first;
@@ -52,9 +52,9 @@ Read each path in `read_order`. Then check the rest of the report:
   proceed as if they were empty.
 - **`unreadable`** — files that *do* exist but could not be read or decoded.
   This is a filesystem or encoding problem, not an un-bootstrapped repository:
-  do not respond by suggesting `/init`.
+  do not respond by suggesting `/start-project`.
 - **`warnings`** — `design.placeholder` is tri-state: `true` means
-  `.claude/docs/DESIGN.md` is absent or still the uninitialised `/init`
+  `.claude/docs/DESIGN.md` is absent or still the uninitialised `/start-project`
   template (its "Background & Purpose" section is empty), `false` means real
   prose, and `null` means the marker heading is gone so the question cannot be
   answered. `progress.entries: 0` means `PROGRESS.md` exists but holds no

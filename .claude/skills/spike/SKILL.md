@@ -47,7 +47,7 @@ This skill handles time-boxed feasibility studies and technical investigations. 
 - Simple library lookup → direct research (Opus subagent)
 - Code review → `/team-execute --review-only`
 
-Full skill routing: `CLAUDE.md` section "Routing Policy".
+Full skill routing: `.claude/rules/orchestration.md` section "Routing Policy".
 
 ### Investigation Modes
 
@@ -332,7 +332,7 @@ Spawn two teammates:
 
    ### 5. Post-Prototype Acceptance Checks (MANDATORY after the call above)
    `ok: true` from the wrapper means `codex exec` exited 0 -- nothing more. Per
-   the Guardrails in root `AGENTS.md`, YOU run the acceptance
+   the Guardrails in `.claude/rules/cli-contract.md`, YOU run the acceptance
    checks; a write-enabled delegated CLI is never trusted on its self-report.
    Run both, in this order:
 

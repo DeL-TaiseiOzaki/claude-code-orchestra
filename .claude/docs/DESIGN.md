@@ -1,10 +1,10 @@
 # Design Document — 要件定義書 (Requirements & Macro Design)
 
 > **Role:** Macro-level requirements and design — *what* this project builds and *why*.
-> Written at `/init`, kept current by `/design-tracker` (also invoked from `/checkpointing`).
+> Written at `/start-project`, kept current by `/design-tracker` (also invoked from `/checkpointing`).
 >
 > **Document map:** Shared rules → [rules/](../rules/) ·
-> CLI contract → [AGENTS.md](../../AGENTS.md) · State → [STATE.md](../STATE.md) · Main agent contract → [CLAUDE.md](../../CLAUDE.md) (real file) ·
+> Project bootstrap → [AGENTS.md](../../AGENTS.md) · State → [STATE.md](../STATE.md) · Main agent contract → [rules/orchestration.md](../rules/orchestration.md) ·
 > Micro work progress (latest 5 checkpoints) → [PROGRESS.md](../../PROGRESS.md)
 
 ## 背景・目的 (Background & Purpose)

@@ -111,16 +111,23 @@ def test_install_adds_complete_template_without_overwriting_project_version(
     assert (target / ".agents/AGENTS.md").is_file()
     assert (target / ".claude/rules/tiers.md").is_file()
     assert (target / ".codex/AGENTS.md").is_file()
-    assert "## Skill Catalog" in (target / "CLAUDE.md").read_text(encoding="utf-8")
-    assert not (target / ".claude/rules/orchestration.md").exists()
+    assert "## Skill Catalog" in (target / ".claude/rules/orchestration.md").read_text(
+        encoding="utf-8"
+    )
+    assert (target / ".claude/rules/cli-contract.md").is_file()
+    assert (target / ".claude/skills/_shared/executor_contract.md").is_file()
+    assert (target / ".claude/skills/start-project/write_agents_md.py").is_file()
+    assert not (target / ".claude/skills/init").exists()
     assert (target / ".claude/rules").is_dir()
     assert (target / ".claude/skills").is_dir()
     assert (target / ".claude/agents").is_dir()
     assert (target / ".claude/hooks").is_dir()
     assert (target / "AGENTS.md").is_file()
     assert not (target / "AGENTS.md").is_symlink()
-    assert (target / "CLAUDE.md").is_file()
-    assert not (target / "CLAUDE.md").is_symlink()
+    # The shipped skeleton, byte for byte; no CLAUDE.md is shipped at all.
+    assert (target / "AGENTS.md").read_bytes() == (REPO_ROOT / "AGENTS.md").read_bytes()
+    for name in ("CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md"):
+        assert not (target / name).exists()
     assert {path.name for path in (target / ".claude").iterdir()} == {
         "orchestra-version",
         "settings.json",
@@ -143,30 +150,93 @@ def test_install_adds_complete_template_without_overwriting_project_version(
     assert (target / ".claude/settings.json").is_file()
     assert (target / ".claude/docs/research/.gitkeep").is_file()
     assert (target / ".claude/STATE.md").is_file()
-    assert "@orchestra:" not in (target / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "@orchestra:" not in (target / "AGENTS.md").read_text(encoding="utf-8")
     gitignore = (target / ".gitignore").read_text(encoding="utf-8")
+    # Ignoring CLAUDE.local.md would hide a file that silently disables AGENTS.md.
+    assert "CLAUDE.local.md" not in gitignore
     assert ".claude/logs/" in gitignore
     assert ".claude/checkpoints/" in gitignore
     assert ".orchestra-backup-*/" in gitignore
 
 
-def test_install_preserves_existing_claude_md_in_shared_state(tmp_path: Path) -> None:
+def test_install_backs_up_and_removes_claude_instruction_files(
+    tmp_path: Path,
+) -> None:
+    """Claude Code skips AGENTS.md while any CLAUDE.md-family file exists, so
+    install backs each one up, removes it without a prompt, prints where the
+    backup went, and records it for /start-project to offer merging."""
     target = tmp_path / "project"
     init_git_repo(target)
-    existing_content = "# Existing instructions\n\nKeep this project rule.\n"
-    (target / "CLAUDE.md").write_text(existing_content, encoding="utf-8")
+    contents = {
+        "CLAUDE.md": "# Existing instructions\n\nKeep this project rule.\n",
+        "CLAUDE.local.md": "# My local notes\n",
+        ".claude/CLAUDE.md": "# Nested instructions\n",
+    }
+    for name, content in contents.items():
+        (target / name).parent.mkdir(parents=True, exist_ok=True)
+        (target / name).write_text(content, encoding="utf-8")
 
     result = run_install(target)
 
     assert result.returncode == 0, result.stderr
-    assert (target / "CLAUDE.md").is_file()
-    assert not (target / "CLAUDE.md").is_symlink()
-    installed = (target / ".claude/STATE.md").read_text(encoding="utf-8")
-    assert installed.count(existing_content.strip()) == 1
-    for contract in ("AGENTS.md", "CLAUDE.md"):
-        assert existing_content.strip() not in (target / contract).read_text(
-            encoding="utf-8"
-        )
+    backups = list(target.glob(".orchestra-backup-*"))
+    assert len(backups) == 1
+    state = (target / ".claude/STATE.md").read_text(encoding="utf-8")
+    assert state.count("## Pending Instruction Merge") == 1
+    for name, content in contents.items():
+        assert not (target / name).exists(), name
+        assert (backups[0] / name).read_text(encoding="utf-8") == content
+        backup_rel = f"{backups[0].name}/{name}"
+        assert backup_rel in result.stdout
+        assert f"`{name}` backed up to `{backup_rel}`" in state
+        # The content itself stays in the backup, not in the bootstrap.
+        assert content.strip() not in (target / "AGENTS.md").read_text(encoding="utf-8")
+    validate = subprocess.run(
+        [
+            "python3",
+            str(target / ".claude/skills/_shared/validate_doc.py"),
+            "--contract",
+            "state-doc",
+            "--file",
+            str(target / ".claude/STATE.md"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert validate.returncode == 0, validate.stdout
+
+
+def test_install_keeps_a_claude_md_that_only_imports_agents_md(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    init_git_repo(target)
+    (target / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
+
+    result = run_install(target)
+
+    assert result.returncode == 0, result.stderr
+    assert (target / "CLAUDE.md").read_text(encoding="utf-8") == "@AGENTS.md\n"
+    assert list(target.glob(".orchestra-backup-*")) == []
+
+
+def test_install_backs_up_an_existing_agents_md_before_installing_the_skeleton(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "project"
+    init_git_repo(target)
+    (target / "AGENTS.md").write_text("# Our Codex notes\n", encoding="utf-8")
+
+    result = run_install(target)
+
+    assert result.returncode == 0, result.stderr
+    assert (target / "AGENTS.md").read_bytes() == (REPO_ROOT / "AGENTS.md").read_bytes()
+    backups = list(target.glob(".orchestra-backup-*"))
+    assert (backups[0] / "AGENTS.md").read_text(
+        encoding="utf-8"
+    ) == "# Our Codex notes\n"
+    assert "`AGENTS.md` backed up to" in (target / ".claude/STATE.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_install_refuses_template_owned_path_conflicts_by_default(
@@ -271,24 +341,30 @@ def test_install_skips_python_bytecode_from_the_source_tree(tmp_path: Path) -> N
 
 
 def test_install_retires_a_legacy_claude_md_symlink(tmp_path: Path) -> None:
-    """Pre-2.0 installs shipped CLAUDE.md as a symlink to AGENTS.md. Both are
-    real files now, so the link is reported as a conflict and only replaced
-    once the user accepts the backup."""
+    """Pre-2.0 installs shipped CLAUDE.md as a symlink to AGENTS.md. Any
+    CLAUDE.md now disables AGENTS.md, so the link is backed up as a link and
+    removed without a prompt — never written through."""
     target = tmp_path / "project"
     init_git_repo(target)
     (target / "AGENTS.md").write_text("# Old bootstrap\n", encoding="utf-8")
     (target / "CLAUDE.md").symlink_to("AGENTS.md")
 
-    refused = run_install(target)
-    assert refused.returncode == 2
-    assert "CLAUDE.md" in refused.stdout + refused.stderr
-
-    result = run_install(target, "--force")
+    result = run_install(target)
 
     assert result.returncode == 0, result.stderr
-    assert (target / "CLAUDE.md").is_file()
+    assert not (target / "CLAUDE.md").exists()
     assert not (target / "CLAUDE.md").is_symlink()
-    assert "## Skill Catalog" in (target / "CLAUDE.md").read_text(encoding="utf-8")
+    backups = list(target.glob(".orchestra-backup-*"))
+    assert len(backups) == 1
+    # The backup is self-contained: the link's content, not a link that would
+    # dangle (or point at the new skeleton) once moved.
+    assert not (backups[0] / "CLAUDE.md").is_symlink()
+    assert (backups[0] / "CLAUDE.md").read_text(encoding="utf-8") == "# Old bootstrap\n"
+    assert (backups[0] / "AGENTS.md").read_text(encoding="utf-8") == "# Old bootstrap\n"
+    assert "legacy symlink to AGENTS.md, no merge needed" in (
+        target / ".claude/STATE.md"
+    ).read_text(encoding="utf-8")
+    assert (target / "AGENTS.md").read_bytes() == (REPO_ROOT / "AGENTS.md").read_bytes()
 
 
 def test_install_preserves_existing_settings_and_writes_merge_candidate(
@@ -719,7 +795,6 @@ def test_update_migrates_legacy_claude_zones_into_shared_state(tmp_path: Path) -
     install_result = run_install(target, script=template / "scripts/install.sh")
     assert install_result.returncode == 0, install_result.stderr
 
-    (target / "CLAUDE.md").unlink()
     legacy_state = "## Current Project\n\nKeep this migrated state.\n"
     (target / "CLAUDE.md").write_text(
         "# Old Claude adapter\n\n"
@@ -737,13 +812,17 @@ def test_update_migrates_legacy_claude_zones_into_shared_state(tmp_path: Path) -
     update_result = run_update(target, template)
 
     assert update_result.returncode == 0, update_result.stderr
-    assert (target / "CLAUDE.md").is_file()
-    assert not (target / "CLAUDE.md").is_symlink()
+    # Legacy zones are migrated first, then the CLAUDE.md that held them is
+    # backed up and removed; an unrecognized AGENTS.md is the project's own.
+    assert not (target / "CLAUDE.md").exists()
     migrated = (target / ".claude/STATE.md").read_text(encoding="utf-8")
     assert "Legacy project." in migrated
     assert legacy_state.strip() in migrated
-    for contract in ("AGENTS.md", "CLAUDE.md"):
-        assert "Legacy project." not in (target / contract).read_text(encoding="utf-8")
+    backups = list(target.glob(".orchestra-backup-instructions-*"))
+    assert len(backups) == 1
+    assert "Legacy project." in (backups[0] / "CLAUDE.md").read_text(encoding="utf-8")
+    agents = (target / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents == "# Old CLI bootstrap\n"
 
 
 def test_update_leaves_no_stage_and_swap_debris_and_syncs_safe_dirs(

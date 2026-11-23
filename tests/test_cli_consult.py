@@ -17,9 +17,23 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / ".claude" / "skills" / "_shared" / "cli_consult.py"
+EXECUTOR_CONTRACT_FILE = (
+    REPO_ROOT / ".claude" / "skills" / "_shared" / "executor_contract.md"
+)
+EXECUTOR_CONTRACT = EXECUTOR_CONTRACT_FILE.read_text(encoding="utf-8")
+
+
+def composed(prompt: str) -> str:
+    """What the wrapper must send: the executor contract, the delimiter, then
+    the caller's prompt byte for byte. Built from the asset file directly, not
+    from the module under test."""
+    return f"{EXECUTOR_CONTRACT.rstrip()}\n\n=== DELEGATED TASK ===\n\n{prompt}"
+
 
 # Linux MAX_ARG_STRLEN (131072) minus the NUL terminator.
 MAX_ARG_BYTES = 131_071
+# The limit applies to the composed prompt, so the contract counts against it.
+CONTRACT_OVERHEAD = len(composed("").encode("utf-8"))
 
 
 def write_fake_cli(
@@ -32,6 +46,7 @@ def write_fake_cli(
     sleep: float = 0.0,
     argv_log: Path | None = None,
     create_file: Path | None = None,
+    env_log: Path | None = None,
 ) -> Path:
     """Write a fake CLI executable named *name* into *bin_dir*.
 
@@ -48,6 +63,11 @@ def write_fake_cli(
         "if argv_log:",
         "    with open(argv_log, 'w', encoding='utf-8') as f:",
         "        json.dump(sys.argv, f)",
+        f"env_log = {json.dumps(str(env_log) if env_log else '')}",
+        "if env_log:",
+        "    import os",
+        "    with open(env_log, 'w', encoding='utf-8') as f:",
+        "        json.dump({'ORCHESTRA_ROLE': os.environ.get('ORCHESTRA_ROLE')}, f)",
         f"create_file = {json.dumps(str(create_file) if create_file else '')}",
         "if create_file:",
         "    with open(create_file, 'w', encoding='utf-8') as f:",
@@ -176,7 +196,7 @@ def test_claude_success_reports_result_and_session_id(tmp_path: Path) -> None:
     assert "--permission-mode" in argv and argv[
         argv.index("--permission-mode") + 1
     ] == ("bypassPermissions")
-    assert argv[-1] == "Objective: review the design"
+    assert argv[-1] == composed("Objective: review the design")
 
 
 def test_claude_read_only_switches_permission_mode(tmp_path: Path) -> None:
@@ -284,7 +304,7 @@ def test_antigravity_parses_json_envelope(tmp_path: Path) -> None:
     ) == "Antigravity answer\n"
 
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
-    assert argv[-1] == "-p=Objective: research"
+    assert argv[-1] == "-p=" + composed("Objective: research")
     assert argv[-3:-1] == ["--output-format", "json"]
     assert argv.index("--model") < len(argv) - 3
     assert argv[argv.index("--model") + 1] == "fast"
@@ -336,7 +356,7 @@ def test_antigravity_argv_order_with_every_option(tmp_path: Path) -> None:
         "high",
         "--output-format",
         "json",
-        "-p=Describe the clip",
+        "-p=" + composed("Describe the clip"),
     ]
 
 
@@ -392,7 +412,7 @@ def test_antigravity_read_only_sends_session_deny_rules(tmp_path: Path) -> None:
     }
     assert "--dangerously-skip-permissions" not in argv
     assert "--mode" not in argv
-    assert argv[-1] == "-p=Objective: x"
+    assert argv[-1] == "-p=" + composed("Objective: x")
 
 
 def test_antigravity_prompt_starting_with_dash_stays_attached(tmp_path: Path) -> None:
@@ -410,7 +430,7 @@ def test_antigravity_prompt_starting_with_dash_stays_attached(tmp_path: Path) ->
 
     assert result.returncode == 0, result.stdout
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
-    assert argv[-1] == "-p=--not-a-flag\n- item one"
+    assert argv[-1] == "-p=" + composed("--not-a-flag\n- item one")
 
 
 def test_antigravity_non_success_status_fails_and_keeps_raw_output(
@@ -629,7 +649,7 @@ def test_claude_add_dir_uses_the_attached_form(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
     assert f"--add-dir={media.resolve()}" in argv
-    assert argv[-1] == "Objective: x"
+    assert argv[-1] == composed("Objective: x")
 
 
 # --- Failure paths ----------------------------------------------------------
@@ -723,7 +743,7 @@ def test_prompt_stdin_is_accepted(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     argv = json.loads(argv_log.read_text(encoding="utf-8"))
-    assert argv[-1] == "-p=Objective: piped prompt"
+    assert argv[-1] == "-p=" + composed("Objective: piped prompt")
 
 
 def test_both_prompt_sources_is_an_argument_error(tmp_path: Path) -> None:
@@ -876,7 +896,7 @@ def test_exact_denylist_does_not_overmatch(tmp_path: Path) -> None:
         "--print-timeout=60s",
     ):
         assert forwarded in argv, forwarded
-    assert argv[-1] == "-p=Objective: x"
+    assert argv[-1] == "-p=" + composed("Objective: x")
 
 
 def test_cli_arg_passthrough_reaches_the_callee(tmp_path: Path) -> None:
@@ -928,9 +948,10 @@ def test_prompt_is_persisted_next_to_the_response_even_from_stdin(
     payload = json.loads(result.stdout)
     prompt_file = payload["prompt_file"]
     assert not Path(prompt_file).is_absolute()
-    assert (tmp_path / prompt_file).read_text(
-        encoding="utf-8"
-    ) == "Objective: only ever on stdin"
+    # What is persisted is what was sent: the composed executor prompt.
+    assert (tmp_path / prompt_file).read_text(encoding="utf-8") == composed(
+        "Objective: only ever on stdin"
+    )
     assert prompt_file[: -len(".prompt.md")] == payload["response_file"][: -len(".md")]
 
 
@@ -1093,8 +1114,8 @@ def test_success_reports_artifacts_and_a_verified_response(tmp_path: Path) -> No
     ("cli", "prompt"),
     [
         # One byte past the limit once agy's attached "-p=" is counted.
-        ("antigravity", "x" * (MAX_ARG_BYTES - len("-p=") + 1)),
-        ("claude", "x" * (MAX_ARG_BYTES + 1)),
+        ("antigravity", "x" * (MAX_ARG_BYTES - len("-p=") - CONTRACT_OVERHEAD + 1)),
+        ("claude", "x" * (MAX_ARG_BYTES - CONTRACT_OVERHEAD + 1)),
         # The limit is in bytes: ~43.7k Japanese characters already exceed it.
         ("antigravity", "あ" * (MAX_ARG_BYTES // 3)),
     ],
@@ -1132,7 +1153,7 @@ def test_prompt_at_the_argv_limit_still_runs(tmp_path: Path) -> None:
     bin_dir.mkdir()
     argv_log = tmp_path / "argv.json"
     write_fake_cli(bin_dir, "agy", stdout=agy_envelope("ok"), argv_log=argv_log)
-    prompt = "x" * (MAX_ARG_BYTES - len("-p="))
+    prompt = "x" * (MAX_ARG_BYTES - len("-p=") - CONTRACT_OVERHEAD)
     prompt_file = write_prompt(tmp_path, prompt)
 
     result = run_cli_consult(
@@ -1245,7 +1266,7 @@ def test_claude_payload_keeps_its_shape_and_gains_no_agy_fields(
         "bypassPermissions",
         "--model",
         "opus",
-        "Objective: x",
+        composed("Objective: x"),
     ]
 
 
@@ -1375,3 +1396,116 @@ def test_agy_envelope_cli_missing_input_is_bad_args(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert json.loads(result.stdout)["ok"] is False
+
+
+# --- executor contract -------------------------------------------------------
+
+
+@pytest.mark.parametrize("cli", ["claude", "antigravity"])
+def test_every_prompt_carries_the_executor_contract_and_the_executor_role(
+    tmp_path: Path, cli: str
+) -> None:
+    """A delegated `claude -p` auto-loads AGENTS.md and `.claude/rules/`, the
+    main-agent contract included; the injected contract and the environment
+    are what make it an executor instead of a second main agent."""
+    import hashlib
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    env_log = tmp_path / "env.json"
+    stdout = claude_envelope("ok") if cli == "claude" else agy_envelope("ok")
+    name = "claude" if cli == "claude" else "agy"
+    write_fake_cli(bin_dir, name, stdout=stdout, argv_log=argv_log, env_log=env_log)
+    prompt_file = write_prompt(tmp_path, "Objective: role check")
+
+    env_prefix = f"{bin_dir}{os.pathsep}{os.environ['PATH']}"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--project-root",
+            str(tmp_path),
+            "--cli",
+            cli,
+            "--prompt-file",
+            str(prompt_file),
+        ],
+        stdin=subprocess.DEVNULL,
+        env={**os.environ, "PATH": env_prefix, "ORCHESTRA_ROLE": "main"},
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stdout
+    sent = json.loads(argv_log.read_text(encoding="utf-8"))[-1]
+    sent = sent.removeprefix("-p=")
+    assert sent.startswith(EXECUTOR_CONTRACT.rstrip())
+    assert sent.count("=== DELEGATED TASK ===") == 1
+    assert sent.count("## Handoff Rules") == 1
+    assert sent.endswith("\n\nObjective: role check")
+    assert json.loads(env_log.read_text(encoding="utf-8")) == {
+        "ORCHESTRA_ROLE": "executor"
+    }
+    payload = json.loads(result.stdout)
+    assert (
+        payload["executor_contract_sha"]
+        == hashlib.sha256(EXECUTOR_CONTRACT.encode("utf-8")).hexdigest()
+    )
+
+
+def test_an_already_composed_prompt_is_not_wrapped_twice(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "claude", stdout=claude_envelope("ok"), argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, composed("Objective: once"))
+
+    result = run_cli_consult(
+        tmp_path,
+        ["--cli", "claude", "--prompt-file", str(prompt_file)],
+        path_prefix=bin_dir,
+    )
+
+    assert result.returncode == 0, result.stdout
+    assert json.loads(argv_log.read_text(encoding="utf-8"))[-1] == composed(
+        "Objective: once"
+    )
+
+
+def test_missing_executor_contract_fails_before_spawning(tmp_path: Path) -> None:
+    import shutil
+
+    shared = tmp_path / "shared"
+    shutil.copytree(SCRIPT.parent, shared, ignore=shutil.ignore_patterns("__pycache__"))
+    (shared / "executor_contract.md").write_text("  \n", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_log = tmp_path / "argv.json"
+    write_fake_cli(bin_dir, "claude", stdout=claude_envelope("ok"), argv_log=argv_log)
+    prompt_file = write_prompt(tmp_path, "Objective: x")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(shared / "cli_consult.py"),
+            "--project-root",
+            str(tmp_path),
+            "--cli",
+            "claude",
+            "--prompt-file",
+            str(prompt_file),
+        ],
+        stdin=subprocess.DEVNULL,
+        env={**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"},
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 3, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "executor contract" in payload["error"]
+    assert not argv_log.exists()
