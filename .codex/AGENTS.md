@@ -1,9 +1,12 @@
-# AGENTS.md -- Codex Adapter
+# AGENTS.md -- Codex Adapter (reference only)
 
-This file is the **Codex-specific adapter**. The common CLI-agent contract
-(response structure, handoff rules, cross-CLI subagent invocation, and the
-completion-verification guardrails) is the root **`AGENTS.md`**, which Codex
-loads automatically. Read that first.
+**Reference only: Codex does not auto-load this file** (it reads the project's
+root `AGENTS.md`). It documents Codex-specific configuration for humans and for
+agents that follow a pointer here. When Codex runs as a delegated executor,
+`codex_consult.py` places `.claude/skills/_shared/executor_contract.md` (role,
+response structure, handoff rules) before the task and sets
+`ORCHESTRA_ROLE=executor`; caller-side rules and guardrails are
+`.claude/rules/cli-contract.md`.
 
 Codex operates as **Tier 2 (`sol`)** in the agent hierarchy. See
 `.claude/rules/tiers.md` for the full tier definitions.
@@ -25,9 +28,9 @@ Source of truth: `.codex/config.toml`
 Codex runs unattended with unrestricted filesystem and network access and no
 confirmation prompts. Callers doing analysis, review, or planning should still
 pass an explicit `--sandbox read-only` to avoid accidental writes during those
-tasks. Completion verification (Sol Guardrails, root `AGENTS.md` section
-"Guardrails (Completion Verification)") remains mandatory regardless of sandbox
-mode.
+tasks. Completion verification (Sol Guardrails, `.claude/rules/cli-contract.md`
+section "Guardrails (Completion Verification)") remains mandatory regardless of
+sandbox mode.
 
 ## Enabled Codex Skills
 

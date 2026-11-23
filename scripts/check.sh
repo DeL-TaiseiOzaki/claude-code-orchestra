@@ -169,12 +169,12 @@ check_safe_dirs() {
 check "Template runtime paths in SAFE_DIRS" check_safe_dirs
 
 # --------------------------------------------------------------------------
-# 5) CLAUDE.md is the complete main-agent orchestration contract
+# 5) .claude/rules/orchestration.md is the complete main-agent contract
 # --------------------------------------------------------------------------
 check_root_contract() {
-    local contract="${ROOT}/CLAUDE.md"
+    local contract="${ROOT}/.claude/rules/orchestration.md"
     if [[ ! -f "${contract}" || -L "${contract}" ]]; then
-        echo "  CLAUDE.md not found, or is a symlink instead of a real file"
+        echo "  .claude/rules/orchestration.md not found, or is a symlink instead of a real file"
         return 1
     fi
 
@@ -193,8 +193,8 @@ check_root_contract() {
     )
     local heading
     for heading in "${headings[@]}"; do
-        if ! grep -Fxq "${heading}" "${contract}"; then
-            echo "  Missing contract heading: ${heading}"
+        if [[ "$(grep -Fxc "${heading}" "${contract}" || true)" != "1" ]]; then
+            echo "  Contract heading missing or duplicated: ${heading}"
             ok=false
         fi
     done
@@ -204,7 +204,7 @@ check_root_contract() {
         local agent_name
         agent_name="$(basename "${definition}" .md)"
         grep -Fq "\`${agent_name}\`" "${contract}" || {
-            echo "  Missing agent in CLAUDE.md catalog: ${agent_name}"
+            echo "  Missing agent in orchestration.md catalog: ${agent_name}"
             ok=false
         }
     done
@@ -212,29 +212,49 @@ check_root_contract() {
         local skill_name
         skill_name="$(basename "$(dirname "${definition}")")"
         grep -Fq "\`${skill_name}\`" "${contract}" || {
-            echo "  Missing skill in CLAUDE.md catalog: ${skill_name}"
+            echo "  Missing skill in orchestration.md catalog: ${skill_name}"
             ok=false
         }
     done
 
-    if [[ -e "${ROOT}/.claude/rules/orchestration.md" ]]; then
-        echo "  Duplicate orchestration contract still exists under .claude/rules/"
+    if (( $(wc -l < "${contract}") > 150 )); then
+        echo "  orchestration.md exceeds 150 lines"
         ok=false
     fi
+    local reference
+    for reference in ".claude/rules/" ".claude/skills/" ".claude/agents/" \
+        ".claude/STATE.md" ".claude/docs/DESIGN.md" ".claude/docs/change_main.md" \
+        ".claude/rules/cli-contract.md" "executor_contract.md"; do
+        grep -Fq "${reference}" "${contract}" || {
+            echo "  Missing essential reference in orchestration.md: ${reference}"
+            ok=false
+        }
+    done
+    grep -Fqi "verify" "${contract}" || ok=false
+    # The scope line keeps a wrapper-started executor from acting as main.
+    grep -Fq "delegated executor" "${contract}" || {
+        echo "  orchestration.md does not scope itself away from delegated executors"
+        ok=false
+    }
+    grep -Fq "built-in \`/init\`" "${contract}" || {
+        echo "  orchestration.md does not forbid Claude Code's built-in /init"
+        ok=false
+    }
 
     local index_entry
-    index_entry=$(grep -F 'Root agent contract' "${ROOT}/.claude/docs/INDEX.md" || true)
-    if [[ "${index_entry}" != *"normative"* ]]; then
-        echo "  CLAUDE.md is not registered as normative in INDEX.md"
+    index_entry=$(grep -F 'Main-agent contract' "${ROOT}/.claude/docs/INDEX.md" || true)
+    if [[ "${index_entry}" != *"normative"* || "${index_entry}" != *"orchestration.md"* ]]; then
+        echo "  orchestration.md is not registered as normative in INDEX.md"
         ok=false
     fi
 
     ${ok}
 }
-check "Root orchestration contract" check_root_contract
+check "Main-agent orchestration contract" check_root_contract
 
 # --------------------------------------------------------------------------
-# 6) Root instructions stay minimal and carry the always-needed information
+# 6) Root AGENTS.md is the single, thin, project-owned bootstrap; the
+#    template policy it points to exists under .claude/
 # --------------------------------------------------------------------------
 check_ordered_references() {
     local file="$1"
@@ -257,58 +277,145 @@ check_ordered_references() {
     done
 }
 
+# Body of a "## " section (up to the next "## " heading).
+markdown_section() {
+    local file="$1" heading="$2"
+    awk -v h="${heading}" '$0 == h {found = 1; next} found && /^## / {exit} found {print}' "${file}"
+}
+
+AGENTS_SKELETON_MARKER='_Not initialized — run `/start-project`'
+
 check_bootstrap_references() {
-    local root_agents="${ROOT}/CLAUDE.md"
+    local agents="${ROOT}/AGENTS.md"
     local ok=true
 
-    if (( $(wc -l < "${root_agents}") > 150 )); then
-        echo "  CLAUDE.md exceeds 150 lines"
+    if [[ ! -f "${agents}" || -L "${agents}" ]]; then
+        echo "  Root AGENTS.md not found, or is a symlink instead of a real file"
+        return 1
+    fi
+    local heading
+    for heading in "## Project" "## Commands" "## Conventions" "## Agent Roles" \
+        "## Orchestra References"; do
+        if [[ "$(grep -Fxc "${heading}" "${agents}" || true)" != "1" ]]; then
+            echo "  Root AGENTS.md heading missing or duplicated: ${heading}"
+            ok=false
+        fi
+    done
+    if (( $(wc -l < "${agents}") > 150 )); then
+        echo "  Root AGENTS.md exceeds 150 lines"
         ok=false
     fi
-    local reference
-    for reference in ".claude/rules/" ".claude/skills/" ".claude/agents/" \
-        ".claude/STATE.md" ".claude/docs/DESIGN.md" ".claude/docs/change_main.md"; do
-        grep -Fq "${reference}" "${root_agents}" || {
-            echo "  Missing essential root instruction: ${reference}"
+    if (( $(wc -c < "${agents}") >= 32768 )); then
+        echo "  Root AGENTS.md is 32 KiB or larger"
+        ok=false
+    fi
+    if grep -q '@orchestra:' "${agents}"; then
+        echo "  Legacy boundary marker found in root AGENTS.md"
+        ok=false
+    fi
+    local roles references marker
+    roles="$(markdown_section "${agents}" "## Agent Roles")"
+    for marker in "executor_contract.md" "ORCHESTRA_ROLE"; do
+        grep -Fq "${marker}" <<< "${roles}" || {
+            echo "  Root AGENTS.md Agent Roles does not mention ${marker}"
             ok=false
         }
     done
-    grep -Fq "Japanese" "${root_agents}" || ok=false
-    grep -Fqi "verify" "${root_agents}" || ok=false
-    if grep -q '@orchestra:' "${root_agents}"; then
-        echo "  Legacy boundary marker found in CLAUDE.md"
-        ok=false
+    references="$(markdown_section "${agents}" "## Orchestra References")"
+    for marker in ".claude/rules/orchestration.md" ".claude/rules/cli-contract.md"; do
+        grep -Fq "${marker}" <<< "${references}" || {
+            echo "  Root AGENTS.md Orchestra References does not mention ${marker}"
+            ok=false
+        }
+    done
+
+    # An unconverted skeleton must be one update.sh recognizes, or the next
+    # update would treat it as project-owned and never replace it.
+    if grep -Fq "${AGENTS_SKELETON_MARKER}" "${agents}"; then
+        local blob
+        blob="$(git hash-object -- "${agents}")"
+        grep -Fq "\"AGENTS.md:${blob}\"" "${ROOT}/scripts/update.sh" || {
+            echo "  Skeleton AGENTS.md blob ${blob} is not in update.sh KNOWN_TEMPLATE_BLOBS"
+            ok=false
+        }
     fi
 
-    # Root AGENTS.md is the contract every CLI runtime auto-loads. It must be
-    # self-contained: the sections a delegated run depends on have to be in the
-    # file that gets loaded, not behind a pointer the callee may not follow.
-    local router="${ROOT}/AGENTS.md"
-    if [[ ! -f "${router}" || -L "${router}" ]]; then
-        echo "  Root AGENTS.md not found, or is a symlink instead of a real file"
-        ok=false
-    else
-        local section
-        for section in "## Required Response Structure" "## Handoff Rules" \
-            "## Cross-CLI Subagent Invocation" \
-            "## Guardrails (Completion Verification)"; do
-            grep -Fxq "${section}" "${router}" || {
-                echo "  Root AGENTS.md is missing a self-contained section: ${section}"
-                ok=false
-            }
-        done
-        for reference in "CLAUDE.md" ".agents/AGENTS.md" ".codex/AGENTS.md" \
-            ".claude/rules/tiers.md"; do
-            grep -Fq "${reference}" "${router}" || {
-                echo "  Missing route in root AGENTS.md: ${reference}"
-                ok=false
-            }
-        done
-    fi
+    local cli_contract="${ROOT}/.claude/rules/cli-contract.md"
+    local section
+    for section in "## Cross-CLI Subagent Invocation" \
+        "## Guardrails (Completion Verification)"; do
+        grep -Fxq "${section}" "${cli_contract}" 2>/dev/null || {
+            echo "  .claude/rules/cli-contract.md is missing: ${section}"
+            ok=false
+        }
+    done
+    local executor="${ROOT}/.claude/skills/_shared/executor_contract.md"
+    for section in "## Role" "## Required Response Structure" "## Handoff Rules"; do
+        grep -Fxq "${section}" "${executor}" 2>/dev/null || {
+            echo "  executor_contract.md is missing: ${section}"
+            ok=false
+        }
+    done
 
     ${ok}
 }
 check "Bootstrap references" check_bootstrap_references
+
+# --------------------------------------------------------------------------
+# 6b) No instruction file shadows AGENTS.md: Claude Code skips AGENTS.md while
+#     CLAUDE.md, CLAUDE.local.md, or .claude/CLAUDE.md exists in the project or
+#     a parent. A file that only imports "@AGENTS.md" is the manual fallback.
+# --------------------------------------------------------------------------
+is_agents_shim() {
+    [[ "$(tr -d '[:space:]' < "$1" 2>/dev/null)" == "@AGENTS.md" ]]
+}
+
+check_instruction_shadowing() {
+    local ok=true name path dir user_memory
+    for name in CLAUDE.md CLAUDE.local.md .claude/CLAUDE.md; do
+        path="${ROOT}/${name}"
+        if [[ -e "${path}" || -L "${path}" ]] && ! is_agents_shim "${path}"; then
+            echo "  ${name} shadows AGENTS.md; back it up and remove it (scripts/update.sh does this)"
+            ok=false
+        fi
+    done
+    user_memory="${HOME:-/nonexistent}/.claude/CLAUDE.md"
+    dir="$(dirname "${ROOT}")"
+    while :; do
+        for name in CLAUDE.md CLAUDE.local.md .claude/CLAUDE.md; do
+            path="${dir%/}/${name}"
+            [[ "${path}" == "${user_memory}" ]] && continue
+            if [[ -f "${path}" ]] && ! is_agents_shim "${path}"; then
+                echo "  WARN: ${path} (a parent directory) makes Claude Code skip AGENTS.md"
+            fi
+        done
+        [[ "${dir}" == "/" ]] && break
+        dir="$(dirname "${dir}")"
+    done
+    ${ok}
+}
+check "No instruction file shadows AGENTS.md" check_instruction_shadowing
+
+# --------------------------------------------------------------------------
+# 6c) Both consult wrappers inject the executor contract
+# --------------------------------------------------------------------------
+check_executor_contract_wiring() {
+    local ok=true wrapper
+    local shared="${ROOT}/.claude/skills/_shared"
+    for wrapper in cli_consult.py codex_consult.py; do
+        grep -Fq "executor_contract.prepare_prompt" "${shared}/${wrapper}" &&
+            grep -Fq "executor_contract.executor_env" "${shared}/${wrapper}" || {
+            echo "  ${wrapper} does not inject the executor contract"
+            ok=false
+        }
+    done
+    grep -Fq 'ROLE_ENV_VAR = "ORCHESTRA_ROLE"' "${shared}/executor_contract.py" 2>/dev/null || {
+        echo "  executor_contract.py does not define ORCHESTRA_ROLE"
+        ok=false
+    }
+    ${ok}
+}
+check "Executor contract wiring" check_executor_contract_wiring
 
 # --------------------------------------------------------------------------
 # 7) Runtime layout: .claude/ is the physical source, .agents/ and .codex/
@@ -328,9 +435,10 @@ check_native_boundaries() {
     # The layout is symlink-free: every contract file is a real file so the
     # checkout survives filesystems and CI runners that do not honour symlinks.
     local real_file
-    for real_file in CLAUDE.md AGENTS.md .agents/AGENTS.md .codex/AGENTS.md \
-        .claude/STATE.md .claude/rules/tiers.md .claude/docs/INDEX.md \
-        .claude/docs/change_main.md; do
+    for real_file in AGENTS.md .agents/AGENTS.md .codex/AGENTS.md \
+        .claude/STATE.md .claude/rules/tiers.md .claude/rules/orchestration.md \
+        .claude/rules/cli-contract.md .claude/skills/_shared/executor_contract.md \
+        .claude/docs/INDEX.md .claude/docs/change_main.md; do
         if [[ ! -f "${ROOT}/${real_file}" || -L "${ROOT}/${real_file}" ]]; then
             echo "  Must be a real file, not a symlink or missing: ${real_file}"
             ok=false
@@ -417,7 +525,7 @@ check_skill_scripts() {
         "${ROOT}/.claude" "${ROOT}/.agents" "${ROOT}/.codex" 2>/dev/null | sort -u || true)
     referenced+=$'\n'
     referenced+=$(grep -rhoE '\.claude/skills/[A-Za-z0-9_/-]+\.(py|sh)' \
-        "${ROOT}/CLAUDE.md" "${ROOT}/AGENTS.md" "${ROOT}/README.md" 2>/dev/null | sort -u || true)
+        "${ROOT}/AGENTS.md" "${ROOT}/README.md" 2>/dev/null | sort -u || true)
     local ref
     while IFS= read -r ref; do
         [[ -z "${ref}" ]] && continue
@@ -447,7 +555,8 @@ check "Skill scripts and docs in sync" check_skill_scripts
 
 # --------------------------------------------------------------------------
 # 9) Peer-CLI routing: Antigravity is a formally routed Tier 1 subagent, not
-#    just a callable wrapper target, and CLAUDE.md describes .agents/ truthfully.
+#    just a callable wrapper target, and orchestration.md describes .agents/
+#    truthfully.
 # --------------------------------------------------------------------------
 check_peer_cli_routing() {
     local ok=true
@@ -484,11 +593,11 @@ check_peer_cli_routing() {
     # check.sh that no longer live there.
     local agents_bullet
     agents_bullet=$(awk '/^- `\.agents\/`/ {found = 1; print; next}
-        found && /^- / {exit} found {print}' "${ROOT}/CLAUDE.md")
+        found && /^- / {exit} found {print}' "${ROOT}/.claude/rules/orchestration.md")
     local stale
     for stale in 'workflows/' 'tiers.md' 'check.sh'; do
         if grep -Fq "${stale}" <<< "${agents_bullet}"; then
-            echo "  CLAUDE.md .agents/ bullet still mentions ${stale}"
+            echo "  orchestration.md .agents/ bullet still mentions ${stale}"
             ok=false
         fi
     done

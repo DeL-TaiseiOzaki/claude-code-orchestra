@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Collect Guardrail evidence about a delegated run's diff. Never auto-accepts.
 
-root `AGENTS.md` Guardrails require the *caller* to inspect a
+`.claude/rules/cli-contract.md` Guardrails require the *caller* to inspect a
 delegated run's diff for unapproved deletions, stub/placeholder completions,
 out-of-scope changes, and cheating patterns (deleted, skipped, or weakened
 tests, swallowed exceptions, hard-coded returns).  That was prose in two rule

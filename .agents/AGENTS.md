@@ -1,9 +1,12 @@
 # AGENTS.md -- Antigravity Adapter
 
-This file is the **Antigravity-specific adapter**. The contract every CLI agent
-follows -- response structure, handoff rules, cross-CLI subagent invocation, and
-the completion-verification guardrails -- is the root [`AGENTS.md`](../AGENTS.md),
-which Antigravity loads automatically. Read that first.
+This file is the **Antigravity-specific adapter**. Antigravity loads the
+project's root [`AGENTS.md`](../AGENTS.md) automatically. When it runs as a
+delegated executor, the wrapper places
+[`.claude/skills/_shared/executor_contract.md`](../.claude/skills/_shared/executor_contract.md)
+(role, response structure, handoff rules) before the task and sets
+`ORCHESTRA_ROLE=executor`; caller-side rules and guardrails are
+[`.claude/rules/cli-contract.md`](../.claude/rules/cli-contract.md).
 
 ## Role
 

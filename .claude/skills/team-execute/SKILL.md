@@ -34,7 +34,7 @@ metadata:
   **not** taken on trust here: Step 2-1 runs `verify.sh` and collects diff
   evidence before any reviewer is spawned. On the `--review-only` path the
   implementer was an external agent, which is exactly when the Guardrails in
-  root `AGENTS.md` apply.
+  `.claude/rules/cli-contract.md` apply.
 
 ### Inputs
 
@@ -310,7 +310,7 @@ pytest or ty. Treat the gates as entirely agent-driven:
 - Each teammate runs `bash .claude/skills/_shared/verify.sh` itself before
   reporting a task complete, and quotes `overall` in its report.
 - The lead re-runs it in Step 1-4 and does not accept a teammate's self-report
-  in its place (root `AGENTS.md` Guardrails).
+  in its place (`.claude/rules/cli-contract.md` Guardrails).
 - Gate failure is exit `2`, so a `verify.sh` call whose exit code was never
   checked is an unverified task.
 

@@ -146,7 +146,7 @@ def test_missing_optional_inputs_degrade_gracefully(tmp_path: Path) -> None:
     assert payload["libraries"]["matched"] == []
     assert ".claude/docs/DESIGN.md" in payload["missing"]
     assert "PROGRESS.md" in payload["missing"]
-    assert any("/init" in w for w in payload["warnings"])
+    assert any("/start-project" in w for w in payload["warnings"])
     # Absent files are never dereferenced in the read plan.
     assert ".claude/docs/DESIGN.md" not in payload["read_order"]
 
@@ -203,7 +203,7 @@ def test_real_repo_design_template_is_detected_as_placeholder(tmp_path: Path) ->
     payload = json.loads(result.stdout)
     assert payload["design"]["present"] is True
     assert payload["design"]["placeholder"] is True
-    assert any("/init" in w for w in payload["warnings"])
+    assert any("/start-project" in w for w in payload["warnings"])
 
 
 def test_task_libraries_matches_by_substring(tmp_path: Path) -> None:
@@ -295,7 +295,7 @@ def test_progress_md_without_entries_warns_but_stays_ok(tmp_path: Path) -> None:
 
 def test_an_unreadable_state_md_is_unreadable_not_missing(tmp_path: Path) -> None:
     """A permission/encoding fault must not be reported as an un-bootstrapped
-    repository, which would steer the agent to /init instead of the filesystem."""
+    repository, which would steer the agent to /start-project instead of the filesystem."""
     write_rules(tmp_path, ["coding-principles"])
     state = tmp_path / ".claude" / "STATE.md"
     state.parent.mkdir(parents=True, exist_ok=True)

@@ -502,7 +502,7 @@ def test_a_lost_heading_blocks_the_write(project: Path) -> None:
 def test_a_missing_design_document_is_exit_2(tmp_path: Path) -> None:
     result = run(tmp_path, DECISION, "--apply")
     assert result.returncode == 2, result.stderr
-    assert "init" in parsed(result)["error"]
+    assert "/start-project" in parsed(result)["error"]
 
 
 def test_a_duplicated_decisions_table_is_refused(project: Path) -> None:

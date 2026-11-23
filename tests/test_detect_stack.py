@@ -1,4 +1,4 @@
-"""Pin the reduced contract of init/detect_stack.py.
+"""Pin the reduced contract of start-project/detect_stack.py.
 
 This script had no tests, which is how it acquired the two defects that made it
 the audit's counter-example to "script everything": ``if "ty" in text`` turned a
@@ -22,7 +22,14 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / ".claude" / "skills" / "init" / "detect_stack.py"
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "start-project" / "detect_stack.py"
+SKELETON_AGENTS_MD = (
+    "# Project — Agent Instructions\n\n## Project\n\n"
+    "_Not initialized — run `/start-project` to convert this file._\n\n"
+    "## Commands\n\nx\n\n## Conventions\n\nx\n\n"
+    "## Agent Roles\n\nexecutor_contract.md ORCHESTRA_ROLE\n\n"
+    "## Orchestra References\n\n.claude/rules/orchestration.md\n"
+)
 
 
 def run(root: Path, *extra: str) -> tuple[int, dict, str]:
@@ -41,12 +48,11 @@ def run(root: Path, *extra: str) -> tuple[int, dict, str]:
 def project(tmp_path: Path) -> Path:
     """A fixture repository with a complete, valid agent bootstrap.
 
-    Mirrors what ``scripts/check.sh`` verifies: the root router, the
-    ``CLAUDE.md`` contract, shared state, the CLI-subagent contract, and both
-    native runtime directories.
+    Mirrors what ``scripts/check.sh`` verifies: the root AGENTS.md skeleton,
+    shared state, the CLI-subagent contract, both native runtime directories,
+    and no CLAUDE.md-family file shadowing AGENTS.md.
     """
-    (tmp_path / "AGENTS.md").write_text("# AGENTS\n", encoding="utf-8")
-    (tmp_path / "CLAUDE.md").write_text("# CLAUDE\n", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text(SKELETON_AGENTS_MD, encoding="utf-8")
     (tmp_path / ".agents").mkdir()
     (tmp_path / ".agents" / "AGENTS.md").write_text("# CLI\n", encoding="utf-8")
     state = tmp_path / ".claude" / "STATE.md"
@@ -290,8 +296,8 @@ def test_complete_bootstrap_is_ok(project: Path) -> None:
 
 def test_missing_skills_directory_fails_the_bootstrap(project: Path) -> None:
     """A missing ``.claude/skills`` disables all native skill auto-discovery,
-    yet detect_stack.py used to report ``agent_bootstrap`` all-true and /init
-    reported success."""
+    yet detect_stack.py used to report ``agent_bootstrap`` all-true and the
+    setup skill reported success."""
     (project / ".claude" / "skills").rmdir()
     code, payload, stderr = run(project)
     assert code == 2, stderr
@@ -320,11 +326,86 @@ def test_missing_state_marker_fails_the_bootstrap(project: Path) -> None:
     assert "state_md" in payload["error"]
 
 
-def test_missing_claude_md_fails_the_bootstrap(project: Path) -> None:
-    (project / "CLAUDE.md").unlink()
+def test_complete_bootstrap_reports_the_skeleton_state(project: Path) -> None:
+    code, payload, _ = run(project)
+    assert code == 0
+    assert payload["agents_md_state"] == "skeleton"
+    assert payload["instruction_shadowing"] == {"owned": [], "shim": [], "ancestor": []}
+    assert payload["bootstrap_warnings"] == []
+    assert "claude_md" not in payload["agent_bootstrap"]
+
+
+def test_converted_agents_md_is_reported_as_converted(project: Path) -> None:
+    agents = project / "AGENTS.md"
+    agents.write_text(
+        agents.read_text(encoding="utf-8").replace(
+            "_Not initialized — run `/start-project` to convert this file._",
+            "Acme API serves invoices.",
+        ),
+        encoding="utf-8",
+    )
+    code, payload, _ = run(project)
+    assert code == 0
+    assert payload["agents_md_state"] == "converted"
+
+
+def test_agents_md_without_orchestra_sections_is_unrecognized(project: Path) -> None:
+    (project / "AGENTS.md").write_text("# Mine\n\nhand-written\n", encoding="utf-8")
+    code, payload, _ = run(project)
+    assert code == 0
+    assert payload["agents_md_state"] == "unrecognized"
+
+
+def test_missing_agents_md_fails_the_bootstrap(project: Path) -> None:
+    (project / "AGENTS.md").unlink()
     code, payload, _ = run(project)
     assert code == 2
-    assert payload["agent_bootstrap"]["claude_md"] is False
+    assert payload["agent_bootstrap"]["agents_md"] is False
+    assert payload["agents_md_state"] == "missing"
+
+
+@pytest.mark.parametrize("name", ["CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md"])
+def test_owned_instruction_file_shadowing_agents_md_fails(
+    project: Path, name: str
+) -> None:
+    """Claude Code skips AGENTS.md while any of these exists, so a set-up
+    project with one is broken even though every other marker is green."""
+    (project / name).write_text("# My rules\n", encoding="utf-8")
+    code, payload, _ = run(project)
+    assert code == 2
+    assert payload["agent_bootstrap"]["no_owned_instruction_shadowing"] is False
+    assert payload["instruction_shadowing"]["owned"] == [name]
+    assert "no_owned_instruction_shadowing" in payload["error"]
+
+
+def test_a_claude_md_that_only_imports_agents_md_is_a_shim_not_a_failure(
+    project: Path,
+) -> None:
+    (project / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
+    code, payload, _ = run(project)
+    assert code == 0
+    assert payload["instruction_shadowing"]["shim"] == ["CLAUDE.md"]
+    assert payload["instruction_shadowing"]["owned"] == []
+
+
+def test_ancestor_claude_md_is_a_warning_not_a_failure(tmp_path: Path) -> None:
+    (tmp_path / "CLAUDE.md").write_text("# parent rules\n", encoding="utf-8")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "AGENTS.md").write_text(SKELETON_AGENTS_MD, encoding="utf-8")
+    (nested / ".agents").mkdir()
+    (nested / ".agents" / "AGENTS.md").write_text("# CLI\n", encoding="utf-8")
+    (nested / ".claude").mkdir()
+    (nested / ".claude" / "STATE.md").write_text("# Agent State\n", encoding="utf-8")
+    for name in ("agents", "skills"):
+        (nested / ".claude" / name).mkdir()
+
+    code, payload, _ = run(nested)
+
+    assert code == 0, payload
+    ancestor = str((tmp_path / "CLAUDE.md").resolve())
+    assert ancestor in payload["instruction_shadowing"]["ancestor"]
+    assert any(ancestor in w for w in payload["bootstrap_warnings"])
 
 
 def test_missing_cli_subagent_contract_fails_the_bootstrap(project: Path) -> None:

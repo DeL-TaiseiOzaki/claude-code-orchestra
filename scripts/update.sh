@@ -10,6 +10,11 @@
 #   ./scripts/update.sh            # Update to latest main
 #   ./scripts/update.sh v0.2.0     # Update to a specific tag/ref
 #   ./scripts/update.sh --yes      # Skip confirmation prompts
+#   ORCHESTRA_TEMPLATE_REPO=/path/to/template ./scripts/update.sh   # other source
+#
+# Root AGENTS.md is project-owned once /start-project converts it and is never
+# rewritten. CLAUDE.md, CLAUDE.local.md, and .claude/CLAUDE.md are backed up
+# and removed (they stop Claude Code from loading AGENTS.md).
 # ==============================================================================
 set -euo pipefail
 
@@ -34,9 +39,12 @@ SAFE_DIRS=(
 )
 # Files that no SAFE_DIR already covers. `.claude/rules/`, `.claude/skills/`,
 # above are replaced wholesale, so their contents must not be repeated here.
+#
+# Root AGENTS.md is deliberately absent: it belongs to the project once
+# /start-project converts it, so reconcile_agents_md replaces it only while it
+# is byte-identical to a shipped skeleton (KNOWN_TEMPLATE_BLOBS). There is no
+# CLAUDE.md; retire_instruction_shadow_files backs up and removes any.
 SAFE_FILES=(
-    "AGENTS.md"
-    "CLAUDE.md"
     ".agents/AGENTS.md"
     ".codex/AGENTS.md"
     ".claude/docs/INDEX.md"
@@ -99,7 +107,100 @@ KNOWN_TEMPLATE_BLOBS=(
     ".gemini/settings.json:ca7830421b46b1e16db0c6335eb29e3c02bb1435"
     ".gemini/skills/context-loader/SKILL.md:0494ab2d9e228f601aa04f3daa9aea738664db31"
     ".gemini/skills/context-loader/SKILL.md:11208d484db9d88c297b0f6f57ffae022ee9e43c"
+    # Every root AGENTS.md the template ever shipped, plus the current
+    # skeleton (scripts/check.sh fails while an unconverted skeleton is not
+    # listed). Only these are replaced on update; anything else is the
+    # project's own converted file and is never rewritten.
+    "AGENTS.md:09bf014c67893ae22f938da0785323ee5456280a"
+    "AGENTS.md:14054e1f826887df0828f2610efe376dc9a82f73"
+    "AGENTS.md:200310a6eeca345de15efea086c242285656917c"
+    "AGENTS.md:24af8785045f8fe00c1b4a6072878d4510130f17"
+    "AGENTS.md:26941d80fa2a98bc126279d7cf041426cb9c442d"
+    "AGENTS.md:3771fcd37b102405b5685d310ac93de06c5afcf8"
+    "AGENTS.md:3e12663c2f79e88d1d77f885254eb421fa11a3ab"
+    "AGENTS.md:4239ca937a905bf1a17cf4d9f6ac72d10a466c1e"
+    "AGENTS.md:4328811822e49952afbadf0802a1d7dde94a6fb1"
+    "AGENTS.md:51c7158710ac22cbfc60dda80658388003d53347"
+    "AGENTS.md:57b4bcc0d2759b2f7f2c39b9efe0ea980a024038"
+    "AGENTS.md:60bf015b7e28a1b90d6b79de21bbabcbbc1d4636"
+    "AGENTS.md:69348a0883bb06cc4f00f1b97fe371b587cc03d4"
+    "AGENTS.md:6c91b2ac323a8d18e383f4149f7a07acc703d011"
+    "AGENTS.md:6e79177ba1d1ea052281e6a59885e5ca269f75b2"
+    "AGENTS.md:74ec55fd7093f8505c03142247f1398bb8248517"
+    "AGENTS.md:7529ed6447317b7ff146d5f79a00f35093a21545"
+    "AGENTS.md:76af6047b5ff2bf6edcb3b5540b94ef70c7dcebe"
+    "AGENTS.md:7c9b31a86558b888ce07e1caaccb31113f539280"
+    "AGENTS.md:90c08e26f7b2d761e0e81a91a859a15ea5f062e2"
+    "AGENTS.md:93292af845ad6c2d5d544dc8d3a27fe7ac3f3b9a"
+    "AGENTS.md:9ac157e36c8ee4b815e06642a22e0c6d8baba0a6"
+    "AGENTS.md:a7ee7dd2ad130e6f38d6bd7588fef99a0bee8228"
+    "AGENTS.md:a801564fa7aa7f538a1c6a3c6247512dd026fedb"
+    "AGENTS.md:aa31c6ecd77e58c6f0abda6d2c6542c359a01eb0"
+    "AGENTS.md:c10a7c8da09a5c18eee3d474f4c5903aa1971625"
+    "AGENTS.md:c97635ab800e3e5c2633c207c21bbbbc44912716"
+    "AGENTS.md:cce6f8eaf074dace1bac756ffbbcfc9a7c4592e0"
+    "AGENTS.md:cd9406b58af07698b0fe943e23300bc94e7fc92b"
+    "AGENTS.md:d3ae4edd959df8256139ce6a2eff1834ba94f61b"
+    "AGENTS.md:d889c23e87d4b7766567bf3832f2226afa928f03"
+    "AGENTS.md:dca40f87696d90e1dfd20aa58f7d60d6a10c3589"
+    "AGENTS.md:ddad544bb23a56891bbbedc3538b0545f1e2d36d"
+    "AGENTS.md:e6c87e0e25fc0dd4fb0f2debed4ef0c01b569959"
+    "AGENTS.md:e8c2fb8661265872fda7603f66622649f7807c43"
+    "AGENTS.md:f1a479286f736634f2ea994bbb71e06f207698bc"
+    "AGENTS.md:f3845fc1e3358adf019a9844ca165c31b11d7d2c"
+    "AGENTS.md:f80715eb7591ea310f8e617dc83c9bd64d931f2a"
+    "AGENTS.md:fa1fe64a07894e40f87f0b70183115dc91df1215"
+    "AGENTS.md:fa553c9c5062cf67ba85e0184cd58721148b5e8b"
+    "AGENTS.md:fddfe747ed53adc9ba0c0341614181fd1babd23f"
+    "AGENTS.md:ff64f178ea0c7cbcc11872bd1643072a20f2d563"
+    "AGENTS.md:7d87ef22bfe50baa2b16fbcb36a6074333edbc29"
+    # Every CLAUDE.md the template shipped. Any CLAUDE.md is backed up and
+    # removed; these only label the backup as a template copy (no merge needed).
+    "CLAUDE.md:002d3da24b730393b7e8916b73f86c6bc6b925f0"
+    "CLAUDE.md:086c2efe3b98c00a075550b4da3cc2ace322f8a7"
+    "CLAUDE.md:1000caec68de0266d7a907f1e48b6a19e419a3ab"
+    "CLAUDE.md:11fbc419ef477695d098410c0f793cacf95142a6"
+    "CLAUDE.md:154c9a8eb85956a25723c2c85a2525669e51fe56"
+    "CLAUDE.md:1ab380dacb04bc7ff850da3e2503be059ea38341"
+    "CLAUDE.md:1cd810ef0c9daae5f31f1819c4f2fa59d8449e06"
+    "CLAUDE.md:2442521532448dcc3f6eb429db616daf6d05685d"
+    "CLAUDE.md:247fa29ddb049c28b4e3f74dcfd89d0cc296f138"
+    "CLAUDE.md:27b2947458b374f7b48efe7e72630c9705bcf37c"
+    "CLAUDE.md:34c350c07a4b55676f5363a8c4f9455aba3e68a2"
+    "CLAUDE.md:3a2b3aec7754727778a24eb5d1d97481e24905f6"
+    "CLAUDE.md:47dc3e3d863cfb5727b87d785d09abf9743c0a72"
+    "CLAUDE.md:5bf3bfe6481dc9f4b62474df2b641863abaaeea7"
+    "CLAUDE.md:5f61cf8d1de48a38f171f7d7cbbe9d07e0d0e902"
+    "CLAUDE.md:67d416138e1ef64e504b9e35dd3ac4f6533d41ca"
+    "CLAUDE.md:6a491c217e92c102e7cb4f66a41b01e563ac32c5"
+    "CLAUDE.md:6fef065991838b6c26eb7a583c79505f94d73619"
+    "CLAUDE.md:7c2a526ff679c3be57090eb40dbbb779b00e692d"
+    "CLAUDE.md:83f0c349c405771ddc0cf906e5c0e23364c43f28"
+    "CLAUDE.md:94359728542c63b9425cd775ec8a8875eb1ca0ca"
+    "CLAUDE.md:9924405446b46208c6dba05f113c74f87c7c2f9c"
+    "CLAUDE.md:b37d07ccad9a2a6969201e28eef0c6c2be00dfe1"
+    "CLAUDE.md:b4dcee828231df83e2a7697084e94ec6ad359b25"
+    "CLAUDE.md:c3088595960f14ea8ceb0961142368897bfb6ad3"
+    "CLAUDE.md:cf8640a10722600459cb92fa4f0afdfdb3faeac3"
+    "CLAUDE.md:d1fb3bc09ed3c51b152d94ead49e9ea361d015e5"
+    "CLAUDE.md:d643f42d5d73ce224e203abf61a2fbac7e946ab3"
+    "CLAUDE.md:d986d7645de8d370ff8c3ad68c563d0deb543906"
+    "CLAUDE.md:dd1ba85b591d2aa975ca324474a4b2cdc8773e4a"
+    "CLAUDE.md:e0753db912868721ac4547629a933126df895568"
+    "CLAUDE.md:e3c51f4abdd5ce158b23357159b7fe4dbd350b47"
+    "CLAUDE.md:e76f3e972c61fed0f55dcf634fd8b381f8287c94"
+    "CLAUDE.md:ed8e4b4170b17f0d1d8575f473b2bcb270d3a714"
 )
+
+# Claude Code (>= 2.1.277) skips AGENTS.md while any of these exists in the
+# project or a parent. Each is backed up and removed on update; a file whose
+# only content is "@AGENTS.md" imports AGENTS.md instead and is kept.
+INSTRUCTION_SHADOW_FILES=(
+    "CLAUDE.md"
+    "CLAUDE.local.md"
+    ".claude/CLAUDE.md"
+)
+PENDING_MERGE_HEADING="## Pending Instruction Merge"
 
 # Project-owned data that pre-2.0 installations kept under .agents/. It is
 # moved to .claude/ rather than removed: these directories hold the project's
@@ -618,9 +719,9 @@ sync_safe_files() {
 # Phase 4: Legacy state migration
 # =============================================================================
 #
-# Current releases keep AGENTS.md immutable and store mutable context in
-# .claude/STATE.md. Boundary helpers remain only to migrate older 2/3-zone
-# AGENTS.md or CLAUDE.md files before the minimal bootstrap overwrites them.
+# Mutable context lives in .claude/STATE.md. Boundary helpers remain only to
+# migrate older 2/3-zone AGENTS.md or CLAUDE.md files before
+# retire_instruction_shadow_files and reconcile_agents_md replace them.
 
 # Strip leading blank or ━ separator lines from stdin
 _strip_leading_frame() {
@@ -744,20 +845,196 @@ migrate_legacy_agent_state() {
     warn "Migrated legacy agent state from ${label} to .claude/STATE.md."
 }
 
-# Pre-2.0 installations shipped CLAUDE.md as a symlink to AGENTS.md. Both are
-# real files now, so the link is removed before sync_safe_files writes the
-# template's CLAUDE.md; otherwise the copy would write through the link and
-# clobber AGENTS.md.
-retire_claude_symlink() {
-    header "Retiring Legacy CLAUDE.md Symlink"
+# Append entries under "## Pending Instruction Merge" in .claude/STATE.md (the
+# section is created at the end of the file when absent), so /start-project can
+# offer to merge each backup into AGENTS.md.
+record_pending_merge() {
+    [[ $# -gt 0 ]] || return 0
+    local state="${PROJECT_ROOT}/.claude/STATE.md" entries="" entry
+    for entry in "$@"; do
+        entries+="- ${entry}"$'\n'
+    done
+    if ! grep -Fqx "${PENDING_MERGE_HEADING}" "${state}"; then
+        {
+            echo ""
+            echo "${PENDING_MERGE_HEADING}"
+            echo ""
+            echo "<!-- Written by scripts/install.sh and scripts/update.sh. /start-project offers to merge these backups into AGENTS.md, then removes this section. -->"
+            echo ""
+        } >> "${state}"
+        printf '%s' "${entries}" >> "${state}"
+    else
+        awk -v heading="${PENDING_MERGE_HEADING}" -v entries="${entries}" '
+            $0 == heading { inside = 1; print; next }
+            inside && /^## / { printf "%s\n", entries; inside = 0 }
+            { print }
+            END { if (inside) printf "%s", entries }
+        ' "${state}" > "${state}.tmp.$$"
+        mv -f "${state}.tmp.$$" "${state}"
+    fi
+    UPDATED_FILES+=(".claude/STATE.md (${PENDING_MERGE_HEADING#\#\# })")
+}
 
-    local link="${PROJECT_ROOT}/CLAUDE.md"
-    if [[ ! -L "${link}" ]]; then
-        info "CLAUDE.md is already a real file"
+is_agents_shim() {
+    [[ -f "$1" && ! -L "$1" && "$(tr -d '[:space:]' < "$1")" == "@AGENTS.md" ]]
+}
+
+# Path-safety guards shared by the two bootstrap phases below: relative, no
+# "..", no symlinked parent, and resolving strictly inside PROJECT_ROOT.
+safe_bootstrap_path() {
+    local path="$1" project_root_abs current component resolved
+    local -a components
+    project_root_abs="$(cd "${PROJECT_ROOT}" && pwd -P)"
+    if [[ -z "${path}" || "${path}" == /* || "${path}" == *".."* ]]; then
+        error "Refusing unsafe bootstrap path: '${path}'"
+        return 1
+    fi
+    current="${PROJECT_ROOT}"
+    IFS='/' read -r -a components <<< "$(dirname "${path}")"
+    for component in "${components[@]}"; do
+        [[ "${component}" == "." || -z "${component}" ]] && continue
+        current="${current}/${component}"
+        if [[ -L "${current}" ]]; then
+            error "Refusing '${path}': a parent directory is a symlink."
+            return 1
+        fi
+    done
+    # The parent is resolved, not the file: a symlinked instruction file is
+    # itself the project's entry (backed up as a link, then unlinked) and its
+    # target is never followed.
+    resolved="$(realpath -m -- "$(dirname "${PROJECT_ROOT}/${path}")")/$(basename "${path}")"
+    if [[ "${resolved}" != "${project_root_abs}/"* ]]; then
+        error "Refusing '${path}': resolves outside PROJECT_ROOT (${resolved})."
+        return 1
+    fi
+}
+
+# Copy one file into a timestamped backup directory, created on first use, and
+# set LAST_BACKUP to its path relative to the project root. A symlink that
+# resolves to a regular file is backed up as that content, so the backup stays
+# readable after it moves; a dangling link is kept as a link. Called directly
+# (never in a subshell) so the backup root persists for print_summary.
+INSTRUCTION_BACKUP_ROOT=""
+LAST_BACKUP=""
+backup_bootstrap_file() {
+    local path="$1"
+    if [[ -z "${INSTRUCTION_BACKUP_ROOT}" ]]; then
+        INSTRUCTION_BACKUP_ROOT="${PROJECT_ROOT}/.orchestra-backup-instructions-$(date +%Y%m%d%H%M%S)-$$"
+    fi
+    mkdir -p -- "${INSTRUCTION_BACKUP_ROOT}/$(dirname "${path}")"
+    if [[ -L "${PROJECT_ROOT}/${path}" && -f "${PROJECT_ROOT}/${path}" ]]; then
+        cp -L -- "${PROJECT_ROOT}/${path}" "${INSTRUCTION_BACKUP_ROOT}/${path}"
+    else
+        cp -a -- "${PROJECT_ROOT}/${path}" "${INSTRUCTION_BACKUP_ROOT}/${path}"
+    fi
+    LAST_BACKUP="${INSTRUCTION_BACKUP_ROOT#"${PROJECT_ROOT}/"}/${path}"
+}
+
+# CLAUDE.md, CLAUDE.local.md, and .claude/CLAUDE.md each make Claude Code skip
+# AGENTS.md, so every one is backed up and removed without a prompt (pre-2.0
+# CLAUDE.md -> AGENTS.md symlinks included). Runs after
+# migrate_legacy_agent_state, which reads legacy zones out of CLAUDE.md first.
+retire_instruction_shadow_files() {
+    header "Retiring Files That Shadow AGENTS.md"
+
+    local path target backup note entries=()
+    for path in "${INSTRUCTION_SHADOW_FILES[@]}"; do
+        target="${PROJECT_ROOT}/${path}"
+        [[ -e "${target}" || -L "${target}" ]] || continue
+        safe_bootstrap_path "${path}" || continue
+        if is_agents_shim "${target}"; then
+            info "Kept ${path}: it only imports @AGENTS.md"
+            continue
+        fi
+        if [[ -d "${target}" && ! -L "${target}" ]]; then
+            warn "Skipped ${path}: it is a directory, not an instruction file."
+            continue
+        fi
+        if [[ -L "${target}" && ! -e "${target}" ]]; then
+            note="dangling symlink to $(readlink -- "${target}"), kept as a link"
+        elif [[ -L "${target}" && "$(realpath -- "${target}")" == "$(realpath -m -- "${PROJECT_ROOT}/AGENTS.md")" ]]; then
+            note="legacy symlink to AGENTS.md, no merge needed"
+        elif [[ -L "${target}" ]]; then
+            note="symlink to $(readlink -- "${target}"), content copied, review for merge"
+        elif is_known_template_blob "${path}" "${target}"; then
+            note="template copy, no merge needed"
+        else
+            note="project instructions, review for merge"
+        fi
+        backup_bootstrap_file "${path}"
+        backup="${LAST_BACKUP}"
+        if git -C "${PROJECT_ROOT}" ls-files --error-unmatch -- "${path}" &>/dev/null; then
+            git -C "${PROJECT_ROOT}" rm -f --quiet --ignore-unmatch -- "${path}" \
+                || rm -f -- "${target}"
+        else
+            rm -f -- "${target}"
+        fi
+        warn "Backed up ${path} to ${backup} and removed it (${note})."
+        entries+=("\`${path}\` backed up to \`${backup}\` and removed by scripts/update.sh (${note})")
+        UPDATED_FILES+=("REMOVED: ${path} (backed up to ${backup})")
+    done
+    if [[ ${#entries[@]} -eq 0 ]]; then
+        info "No CLAUDE.md, CLAUDE.local.md, or .claude/CLAUDE.md to retire."
         return 0
     fi
-    rm -f -- "${link}"
-    UPDATED_FILES+=("REMOVED: CLAUDE.md (legacy symlink to AGENTS.md)")
+    record_pending_merge "${entries[@]}"
+}
+
+# Root AGENTS.md is project-owned once /start-project converts it. It is
+# replaced only while it is a known shipped version (or missing); a legacy
+# zoned file whose state migrate_legacy_agent_state already moved is backed up
+# first; anything else is the project's own file and is never rewritten.
+reconcile_agents_md() {
+    header "Reconciling Root AGENTS.md"
+
+    local src="${TEMPLATE_DIR}/AGENTS.md" dst="${PROJECT_ROOT}/AGENTS.md" backup
+    if [[ ! -f "${src}" ]]; then
+        warn "Template does not contain AGENTS.md, skipping."
+        return 0
+    fi
+    safe_bootstrap_path "AGENTS.md" || return 0
+    if [[ -f "${dst}" && ! -L "${dst}" ]] && cmp -s "${src}" "${dst}"; then
+        info "AGENTS.md is the current skeleton; run /start-project to convert it."
+        return 0
+    fi
+    if [[ -e "${dst}" || -L "${dst}" ]]; then
+        if [[ -L "${dst}" ]]; then
+            backup_bootstrap_file "AGENTS.md"
+            backup="${LAST_BACKUP}"
+            rm -f -- "${dst}"
+            record_pending_merge "\`AGENTS.md\` (a symlink) backed up to \`${backup}\` and replaced by the skeleton (scripts/update.sh)"
+        elif is_known_template_blob "AGENTS.md" "${dst}"; then
+            info "AGENTS.md is a shipped template version; replacing it with the skeleton."
+        elif [[ "$(_detect_format "${dst}")" != "none" ]]; then
+            backup_bootstrap_file "AGENTS.md"
+            backup="${LAST_BACKUP}"
+            record_pending_merge "\`AGENTS.md\` (legacy zoned format) backed up to \`${backup}\` and replaced by the skeleton (scripts/update.sh)"
+            warn "Backed up legacy AGENTS.md to ${backup}."
+        else
+            info "Preserved project-owned AGENTS.md; template updates never rewrite it."
+            return 0
+        fi
+    fi
+    cp -f "${src}" "${dst}.tmp.$$"
+    mv -f "${dst}.tmp.$$" "${dst}"
+    UPDATED_FILES+=("AGENTS.md (skeleton; run /start-project to convert it)")
+    info "Installed the AGENTS.md skeleton; run /start-project to convert it."
+}
+
+warn_ancestor_shadowing() {
+    local dir name path user_memory="${HOME:-/nonexistent}/.claude/CLAUDE.md"
+    dir="$(dirname "$(cd "${PROJECT_ROOT}" && pwd -P)")"
+    while :; do
+        for name in "${INSTRUCTION_SHADOW_FILES[@]}"; do
+            path="${dir%/}/${name}"
+            [[ "${path}" == "${user_memory}" ]] && continue
+            if [[ -f "${path}" ]] && ! is_agents_shim "${path}"; then
+                warn "${path} (a parent directory) makes Claude Code skip AGENTS.md here."
+            fi
+        done
+        [[ "${dir}" == "/" ]] && break
+        dir="$(dirname "${dir}")"
+    done
 }
 
 # =============================================================================
@@ -872,6 +1149,12 @@ print_summary() {
         echo ""
     fi
 
+    warn_ancestor_shadowing
+    if [[ -n "${INSTRUCTION_BACKUP_ROOT}" ]]; then
+        warn "Instruction-file backups: ${INSTRUCTION_BACKUP_ROOT}"
+        warn "They are listed under '${PENDING_MERGE_HEADING}' in .claude/STATE.md; run /start-project to merge them."
+    fi
+
     info "Please review the changes and commit when ready:"
     echo "  git add -A && git commit -m \"chore: update orchestra template to ${NEW_VERSION}\""
     echo ""
@@ -890,9 +1173,10 @@ main() {
     cleanup_deprecated_paths
     cleanup_deprecated_template_files
     migrate_legacy_agent_state
-    retire_claude_symlink
+    retire_instruction_shadow_files
     sync_safe_dirs
     sync_safe_files
+    reconcile_agents_md
     migrate_native_settings_paths
     check_settings_files
     update_version

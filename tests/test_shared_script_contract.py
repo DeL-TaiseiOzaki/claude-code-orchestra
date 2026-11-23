@@ -319,6 +319,7 @@ def _prep_git_repo(root: Path) -> None:
 SUCCESS_CASES: dict[Path, tuple[Callable[[Path], None], list[str]]] = {
     SKILLS_DIR / "_shared" / "verify.sh": (_prep_nothing, ["--allow-no-gates"]),
     SKILLS_DIR / "_shared" / "edit_provenance.py": (_prep_git_repo, ["--snapshot"]),
+    SKILLS_DIR / "_shared" / "executor_contract.py": (_prep_nothing, []),
     SKILLS_DIR / "context-loader" / "load_context.py": (_prep_agent_docs, []),
     SKILLS_DIR / "catchup" / "collect_repo_state.py": (_prep_git_repo, []),
     SKILLS_DIR / "troubleshoot" / "repro.py": (_prep_nothing, ["true"]),
@@ -347,7 +348,10 @@ SUCCESS_EXEMPT: dict[Path, str] = {
     SKILLS_DIR / "simplify" / "simplify_gate.py": "tests/test_simplify_gate.py",
     # Needs a real test run / a complete agent bootstrap to succeed.
     SKILLS_DIR / "_shared" / "run_tests.py": "tests/test_run_tests.py",
-    SKILLS_DIR / "init" / "detect_stack.py": "tests/test_detect_stack.py",
+    SKILLS_DIR / "start-project" / "detect_stack.py": "tests/test_detect_stack.py",
+    SKILLS_DIR
+    / "start-project"
+    / "write_agents_md.py": "tests/test_write_agents_md.py",
     # Resolved paths are asserted directly there, including the relative form.
     SKILLS_DIR / "_shared" / "workspace.py": "tests/test_workspace.py",
 }
@@ -548,7 +552,9 @@ def _import_error_guarded_nodes(tree: ast.AST) -> set[int]:
     return guarded
 
 
-def _non_stdlib_imports(source: str) -> list[str]:
+def _non_stdlib_imports(
+    source: str, siblings: frozenset[str] = frozenset()
+) -> list[str]:
     """Top-level modules imported by *source* that break the stdlib-only clause."""
     tree = ast.parse(source)
     guarded = _import_error_guarded_nodes(tree)
@@ -566,6 +572,8 @@ def _non_stdlib_imports(source: str) -> list[str]:
         for root in roots:
             if root in sys.stdlib_module_names or root in SHARED_MODULES:
                 continue
+            if root in siblings:
+                continue
             if root in VERSION_GATED_STDLIB:
                 continue
             if root in GUARDED_FALLBACK_MODULES and id(node) in guarded:
@@ -579,7 +587,13 @@ def test_no_third_party_imports(script: Path) -> None:
     """The README states stdlib-only; nothing verified it, so the first
     `import yaml` would have landed unnoticed and broken every environment
     that has python3 but not that package."""
-    offenders = _non_stdlib_imports(script.read_text(encoding="utf-8"))
+    # A module next to the script is a sibling for the same reason `_shared/`
+    # ones are: Python puts the script's own directory on sys.path, and the
+    # sibling is itself a bundled script that this test also checks.
+    siblings = frozenset(
+        path.stem for path in script.parent.glob("*.py") if path != script
+    )
+    offenders = _non_stdlib_imports(script.read_text(encoding="utf-8"), siblings)
     assert not offenders, f"{_script_id(script)} imports non-stdlib {offenders!r}"
 
 

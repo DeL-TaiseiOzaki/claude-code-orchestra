@@ -68,7 +68,7 @@ options:
 - Feasibility unknown / go-no-go decision needed first → `/spike`
 - Truly trivial changes (single function, <10 LOC) → edit directly, skip this skill
 
-Full skill routing: `CLAUDE.md` section "Routing Policy".
+Full skill routing: `.claude/rules/orchestration.md` section "Routing Policy".
 
 ---
 
@@ -232,7 +232,7 @@ Verify `"ok": true` and `"result": "applied"`. `--require-change` makes a
 `no-op` result (every row a duplicate, or an empty payload) exit `2`, so this
 step can never report "recorded" for a run that wrote nothing. Exit `1` is a
 bad input schema; exit `2` DESIGN.md is missing or structurally invalid (run
-`/init`) or the run was a no-op; exit `3` DESIGN.md changed under you
+`/start-project`) or the run was a no-op; exit `3` DESIGN.md changed under you
 (concurrent modification) or the write failed — re-read DESIGN.md, drop what the
 other writer already recorded, and re-run the dry-run before applying again.
 
@@ -245,7 +245,7 @@ did not.
 
 Append feature context to `.claude/STATE.md` for cross-session persistence,
 following `.claude/rules/agent-state.md`. Use the shared writer script for a
-deterministic, atomic update; never edit root `AGENTS.md` or `CLAUDE.md`.
+deterministic, atomic update; never edit root `AGENTS.md` (only `/start-project` writes it).
 
 **Gather these fields** from the planning phases:
 
@@ -729,7 +729,7 @@ than re-deciding it here, so the route matches what the user approved.
 #### Completion Verification (MANDATORY on every route)
 
 Every route below hands implementation to an agent that reports on its own work.
-A self-report is never completion evidence (`AGENTS.md` Guardrails), so all three
+A self-report is never completion evidence (`.claude/rules/cli-contract.md` Guardrails), so all three
 routes end with the same two executable checks — the only difference between the
 routes is *who wrote the code*, not how much verification it gets.
 

@@ -16,7 +16,7 @@ continuity that ``checkpointing/references/formats.md`` calls "the first thing
 
 Three states, never two: a file that exists but cannot be read or decoded is
 reported in ``unreadable`` rather than in ``missing``, so a permission or
-encoding problem does not steer the agent to ``/init``. ``design.placeholder``
+encoding problem does not steer the agent to ``/start-project``. ``design.placeholder``
 is likewise tri-state -- ``true`` (absent, or the untouched template), ``false``
 (real prose), ``null`` (the Background & Purpose heading is gone, so emptiness
 cannot be judged) -- because the previous boolean reported a renamed heading as
@@ -45,6 +45,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
 # Stable prefix order; any rule file not listed here is appended alphabetically.
 PREFERRED_RULE_ORDER = [
+    "orchestration",
     "coding-principles",
     "delegation",
     "dev-environment",
@@ -52,13 +53,13 @@ PREFERRED_RULE_ORDER = [
     "security",
     "testing",
     "tiers",
-    "cli-execution",
+    "cli-contract",
     "codex-delegation",
 ]
 
 # English parenthetical in the "## 背景・目的 (Background & Purpose)" heading --
 # stable regardless of Japanese rendering/encoding, and the first section
-# `/init` fills in, so its emptiness is the most direct placeholder signal.
+# `/start-project` fills in, so its emptiness is the most direct placeholder signal.
 DESIGN_PLACEHOLDER_HEADING_MARKER = "Background & Purpose"
 
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -169,7 +170,7 @@ def _extract_section_body(text: str, heading_marker: str) -> str | None:
 
 
 def _is_design_placeholder(text: str) -> bool | None:
-    """Whether DESIGN.md is still the fresh /init template.
+    """Whether DESIGN.md is still the fresh /start-project template.
 
     ``True`` when the Background & Purpose section holds only its instructional
     HTML comment, ``False`` when real prose was added, and ``None`` when the
@@ -195,7 +196,7 @@ def build_state_info(root: Path) -> dict:
 
 
 def build_design_info(root: Path) -> dict:
-    """Report DESIGN.md presence and whether it is still the /init placeholder."""
+    """Report DESIGN.md presence and whether it is still the seed placeholder."""
     path = root / ".claude" / "docs" / "DESIGN.md"
     text, error = _safe_read(path)
     return {
@@ -283,7 +284,8 @@ def build_report(root: Path, task_libraries: list[str]) -> tuple[dict, int]:
             warnings.append(f"{info['path']} exists but is unreadable: {info['error']}")
     if design["placeholder"] is True:
         warnings.append(
-            "DESIGN.md is still the uninitialised /init template; run /init to populate it"
+            "DESIGN.md is still the uninitialised template; run /start-project (the "
+            "repository skill, not Claude Code's built-in /init) to populate it"
         )
     elif design["present"] and design["placeholder"] is None:
         warnings.append(

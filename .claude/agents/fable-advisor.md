@@ -42,7 +42,7 @@ When you do implement:
   becomes an unreviewed rewrite.
 - Run the repository's gates (`.claude/skills/_shared/verify.sh`) before
   reporting. Your judgment is not self-certifying: your diff is verified like
-  any other tier's, per root `AGENTS.md` section "Guardrails
+  any other tier's, per `.claude/rules/cli-contract.md` section "Guardrails
   (Completion Verification)".
 - Never weaken, skip, or delete a test to make a gate pass. That rejection
   applies to you exactly as it applies to Tier 1 and Tier 2.
